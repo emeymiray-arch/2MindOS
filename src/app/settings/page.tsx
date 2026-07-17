@@ -7,7 +7,12 @@ export default function SettingsPage() {
   const [s, setS] = useState<AppSettings | null>(null);
   const [token, setToken] = useState("");
   const [origin, setOrigin] = useState("");
-  const [db, setDb] = useState({ configured: false, url: "missing", anonKey: "missing" });
+  const [db, setDb] = useState<{
+    configured: boolean;
+    url: string;
+    anonKey: string;
+    ping?: { ok: boolean; snapshotTable: string; detail?: string };
+  }>({ configured: false, url: "missing", anonKey: "missing" });
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -194,7 +199,30 @@ token: ${token}`}
           {" · "}url {db.url}
           {" · "}anon {db.anonKey}
         </p>
-        <p className="meta-quiet">Пока данные в локальном JSON. После ключей подключим Postgres.</p>
+        {db.ping?.snapshotTable === "missing" && (
+          <div className="space-y-2">
+            <p className="meta-quiet">
+              Таблица ещё не создана. Открой SQL Editor и выполни:
+            </p>
+            <pre className="overflow-x-auto rounded-[12px] bg-[var(--bg)] p-3 text-[11px] text-[var(--ink-soft)]">{`create table if not exists lifeos_snapshots (
+  id text primary key default 'default',
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+alter table lifeos_snapshots enable row level security;`}</pre>
+            <a
+              className="btn btn-soft"
+              href="https://supabase.com/dashboard/project/dfrzbrgttlsdwyifbwfc/sql/new"
+              target="_blank"
+              rel="noreferrer"
+            >
+              SQL Editor
+            </a>
+          </div>
+        )}
+        {db.ping?.snapshotTable === "ok" && (
+          <p className="meta-quiet">Облачный снимок подключён · sync {String(db.ping?.ok)}</p>
+        )}
       </section>
 
       <section className="card space-y-2 p-5">

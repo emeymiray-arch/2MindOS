@@ -1,23 +1,24 @@
-/**
- * Supabase client scaffolding.
- * Fill NEXT_PUBLIC_SUPABASE_URL in `.env.local` (from Dashboard → Settings → API).
- * Keys can be either legacy anon/service_role or new sb_publishable / sb_secret.
- */
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export function supabaseUrl(): string | undefined {
-  return process.env.NEXT_PUBLIC_SUPABASE_URL || undefined;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  return url || undefined;
 }
 
 export function supabasePublishableKey(): string | undefined {
   return (
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
     undefined
   );
 }
 
 export function supabaseSecretKey(): string | undefined {
-  return process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || undefined;
+  return (
+    process.env.SUPABASE_SECRET_KEY?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+    undefined
+  );
 }
 
 export function isSupabaseConfigured(): boolean {
@@ -31,4 +32,54 @@ export function supabaseConfigStatus() {
     anonKey: supabasePublishableKey() ? "set" : "missing",
     serviceKey: supabaseSecretKey() ? "set" : "missing",
   };
+}
+
+let adminClient: SupabaseClient | null = null;
+let pubClient: SupabaseClient | null = null;
+
+/** Server-only client (bypasses RLS). */
+export function getSupabaseAdmin(): SupabaseClient | null {
+  const url = supabaseUrl();
+  const key = supabaseSecretKey() || supabasePublishableKey();
+  if (!url || !key) return null;
+  if (!adminClient) {
+    adminClient = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return adminClient;
+}
+
+/** Browser-safe client (publishable key). */
+export function getSupabaseBrowser(): SupabaseClient | null {
+  const url = supabaseUrl();
+  const key = supabasePublishableKey();
+  if (!url || !key) return null;
+  if (!pubClient) {
+    pubClient = createClient(url, key, {
+      auth: { persistSession: true, autoRefreshToken: true },
+    });
+  }
+  return pubClient;
+}
+
+export async function pingSupabase(): Promise<{
+  ok: boolean;
+  snapshotTable: "ok" | "missing" | "error";
+  detail?: string;
+}> {
+  const sb = getSupabaseAdmin();
+  if (!sb) return { ok: false, snapshotTable: "error", detail: "not configured" };
+
+  try {
+    const { error } = await sb.from("lifeos_snapshots").select("id").limit(1);
+    if (!error) return { ok: true, snapshotTable: "ok" };
+    const msg = error.message || String(error);
+    if (/relation|does not exist|Could not find the table/i.test(msg)) {
+      return { ok: true, snapshotTable: "missing", detail: msg };
+    }
+    return { ok: false, snapshotTable: "error", detail: msg };
+  } catch (e) {
+    return { ok: false, snapshotTable: "error", detail: e instanceof Error ? e.message : String(e) };
+  }
 }
