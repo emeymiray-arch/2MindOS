@@ -21,15 +21,6 @@ function monthMatrix(year: number, month: number) {
   return cells;
 }
 
-async function api(body: Record<string, unknown>) {
-  const res = await fetch("/api/tasks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return res.json();
-}
-
 export default function TasksPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [tasks, setTasks] = useState<DailyTaskItem[]>([]);
@@ -79,8 +70,9 @@ export default function TasksPage() {
     setBusy(true);
     setError("");
     try {
-      const data = await api({ ...body, date });
-      if (data.error) setError(String(data.error));
+      const { apiPost } = await import("@/lib/client-api");
+      const result = await apiPost("/api/tasks", { ...body, date });
+      if (!result.ok && result.error) setError(result.error);
       await load(date, showArchived);
     } catch {
       setError("Не удалось сохранить");

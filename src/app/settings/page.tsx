@@ -48,13 +48,21 @@ export default function SettingsPage() {
   }
 
   async function reset() {
-    if (!confirm("Сбросить данные?")) return;
-    await fetch("/api/state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reset" }),
-    });
-    window.location.href = "/";
+    if (!confirm("Сбросить все данные? Останется пустой Life OS.")) return;
+    try {
+      const res = await fetch("/api/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset" }),
+      });
+      if (!res.ok) {
+        alert("Сброс не удался");
+        return;
+      }
+      window.location.href = "/?reset=1";
+    } catch {
+      alert("Сброс не удался");
+    }
   }
 
   async function exportData() {

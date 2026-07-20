@@ -30,13 +30,9 @@ export default function MindPage() {
   async function post(payload: Record<string, unknown>) {
     setError("");
     try {
-      const res = await fetch("/api/thoughts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) setError(String(data.error ?? "Ошибка"));
+      const { apiPost } = await import("@/lib/client-api");
+      const result = await apiPost("/api/thoughts", payload);
+      if (!result.ok && result.error) setError(result.error);
       await load();
     } catch {
       setError("Не удалось сохранить");

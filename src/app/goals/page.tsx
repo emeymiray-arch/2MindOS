@@ -41,13 +41,9 @@ export default function GoalsPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/goals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) setError(String(data.error ?? "Ошибка"));
+      const { apiPost } = await import("@/lib/client-api");
+      const result = await apiPost("/api/goals", body);
+      if (!result.ok && result.error) setError(result.error);
       await load();
     } catch {
       setError("Не удалось сохранить");

@@ -33,13 +33,9 @@ export default function ProjectsPage() {
   async function post(body: Record<string, unknown>) {
     setError("");
     try {
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) setError(String(data.error ?? "Ошибка"));
+      const { apiPost } = await import("@/lib/client-api");
+      const result = await apiPost("/api/projects", body);
+      if (!result.ok && result.error) setError(result.error);
       await load();
     } catch {
       setError("Не удалось сохранить");

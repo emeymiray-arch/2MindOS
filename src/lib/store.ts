@@ -1,8 +1,8 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { pullCloudStore, pushCloudStore } from "./cloud-store";
+import { pushCloudStore } from "./cloud-store";
 import { migrateStore } from "./migrate";
-import { createSeedStore } from "./seed";
+import { createEmptyStore, createSeedStore } from "./seed";
 import { isSupabaseConfigured } from "./supabase";
 import type { LifeStore } from "./types";
 
@@ -16,6 +16,17 @@ declare global {
   var __mindosWriteQueue: Promise<void> | undefined;
   // eslint-disable-next-line no-var
   var __mindosCloudReady: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __mindosWriteEpoch: number | undefined;
+}
+
+function epoch() {
+  return global.__mindosWriteEpoch ?? 0;
+}
+
+function bumpEpoch() {
+  global.__mindosWriteEpoch = epoch() + 1;
+  return global.__mindosWriteEpoch;
 }
 
 async function persistLocal(store: LifeStore): Promise<void> {
@@ -25,10 +36,18 @@ async function persistLocal(store: LifeStore): Promise<void> {
   await fs.rename(tmp, STORE_PATH);
 }
 
-async function persist(store: LifeStore): Promise<void> {
-  // Local write is source of truth — never fail UI because cloud is down.
+async function persist(store: LifeStore, syncCloud = false): Promise<void> {
   await persistLocal(store);
   if (!isSupabaseConfigured()) return;
+  if (syncCloud) {
+    try {
+      const result = await pushCloudStore(store);
+      global.__mindosCloudReady = result.ok;
+    } catch {
+      global.__mindosCloudReady = false;
+    }
+    return;
+  }
   void pushCloudStore(store)
     .then((result) => {
       global.__mindosCloudReady = result.ok;
@@ -50,22 +69,15 @@ async function ensureLoaded(): Promise<LifeStore> {
     local = null;
   }
 
-  if (!local && isSupabaseConfigured()) {
-    const cloud = await pullCloudStore();
-    if (cloud) {
-      global.__mindosStore = migrateStore(cloud);
-      await persistLocal(global.__mindosStore);
-      return global.__mindosStore;
-    }
-  }
-
+  // Never auto-pull cloud over an existing local file — local wins.
   if (local) {
     global.__mindosStore = local;
-  } else {
-    global.__mindosStore = migrateStore(createSeedStore());
-    await persist(global.__mindosStore);
+    return global.__mindosStore;
   }
 
+  // First run only: seed locally (demo). Cloud restore is opt-in via import.
+  global.__mindosStore = migrateStore(createSeedStore());
+  await persist(global.__mindosStore);
   return global.__mindosStore;
 }
 
@@ -77,20 +89,33 @@ export async function updateStore(
   mutator: (store: LifeStore) => void | Promise<void>
 ): Promise<LifeStore> {
   const store = await ensureLoaded();
+  const myEpoch = epoch();
   await mutator(store);
-  const write = (global.__mindosWriteQueue ?? Promise.resolve()).then(() => persist(store));
+  const write = (global.__mindosWriteQueue ?? Promise.resolve()).then(async () => {
+    if (myEpoch !== epoch()) return; // discarded after reset
+    await persist(store);
+  });
   global.__mindosWriteQueue = write.then(
     () => undefined,
     () => undefined
   );
   await write;
-  return store;
+  return global.__mindosStore ?? store;
 }
 
 export async function resetStore(): Promise<LifeStore> {
-  global.__mindosStore = migrateStore(createSeedStore());
-  await persist(global.__mindosStore);
-  return global.__mindosStore;
+  // Finish / invalidate any in-flight writes so they can't overwrite the wipe.
+  await (global.__mindosWriteQueue ?? Promise.resolve()).catch(() => undefined);
+  bumpEpoch();
+  const next = migrateStore(createEmptyStore());
+  global.__mindosStore = next;
+  const write = Promise.resolve().then(() => persist(next, true));
+  global.__mindosWriteQueue = write.then(
+    () => undefined,
+    () => undefined
+  );
+  await write;
+  return next;
 }
 
 export function lastCloudSyncOk(): boolean | undefined {

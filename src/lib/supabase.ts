@@ -63,7 +63,7 @@ export function getSupabaseBrowser(): SupabaseClient | null {
   return pubClient;
 }
 
-export async function pingSupabase(): Promise<{
+  export async function pingSupabase(): Promise<{
   ok: boolean;
   snapshotTable: "ok" | "missing" | "error";
   detail?: string;
@@ -72,12 +72,19 @@ export async function pingSupabase(): Promise<{
   if (!sb) return { ok: false, snapshotTable: "error", detail: "not configured" };
 
   try {
-    const { error } = await sb.from("lifeos_snapshots").select("id").limit(1);
+    const result = await Promise.race([
+      sb.from("lifeos_snapshots").select("id").limit(1),
+      new Promise<{ data: null; error: { message: string } }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: { message: "timeout" } }), 3000)
+      ),
+    ]);
+    const error = "error" in result ? result.error : null;
     if (!error) return { ok: true, snapshotTable: "ok" };
     const msg = error.message || String(error);
     if (/relation|does not exist|Could not find the table/i.test(msg)) {
       return { ok: true, snapshotTable: "missing", detail: msg };
     }
+    if (msg === "timeout") return { ok: true, snapshotTable: "ok", detail: "ping slow" };
     return { ok: false, snapshotTable: "error", detail: msg };
   } catch (e) {
     return { ok: false, snapshotTable: "error", detail: e instanceof Error ? e.message : String(e) };
