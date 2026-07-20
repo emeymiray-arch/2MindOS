@@ -26,11 +26,16 @@ async function persistLocal(store: LifeStore): Promise<void> {
 }
 
 async function persist(store: LifeStore): Promise<void> {
+  // Local write is source of truth — never fail UI because cloud is down.
   await persistLocal(store);
-  if (isSupabaseConfigured()) {
-    const result = await pushCloudStore(store);
-    global.__mindosCloudReady = result.ok;
-  }
+  if (!isSupabaseConfigured()) return;
+  void pushCloudStore(store)
+    .then((result) => {
+      global.__mindosCloudReady = result.ok;
+    })
+    .catch(() => {
+      global.__mindosCloudReady = false;
+    });
 }
 
 async function ensureLoaded(): Promise<LifeStore> {

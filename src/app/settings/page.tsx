@@ -11,8 +11,9 @@ export default function SettingsPage() {
     configured: boolean;
     url: string;
     anonKey: string;
+    serviceKey?: string;
     ping?: { ok: boolean; snapshotTable: string; detail?: string };
-  }>({ configured: false, url: "missing", anonKey: "missing" });
+  }>({ configured: false, url: "missing", anonKey: "missing", serviceKey: "missing" });
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -25,10 +26,13 @@ export default function SettingsPage() {
           "data-theme",
           data.settings?.theme === "dark" ? "dark" : "light"
         );
-      });
+      })
+      .catch(() => undefined);
     fetch("/api/health")
       .then((r) => r.json())
-      .then((d) => setDb(d.supabase ?? db))
+      .then((d) => {
+        if (d?.supabase) setDb(d.supabase);
+      })
       .catch(() => undefined);
   }, []);
 
@@ -195,15 +199,29 @@ token: ${token}`}
       <section className="card space-y-2 p-5">
         <p className="font-semibold">База</p>
         <p className="analytics-line">
-          Supabase: <strong>{db.configured ? "ключи есть" : "ожидает"}</strong>
-          {" · "}url {db.url}
-          {" · "}anon {db.anonKey}
+          Supabase:{" "}
+          <strong>
+            {!db.configured
+              ? "ключи не загружены"
+              : db.ping?.snapshotTable === "ok"
+                ? "подключён"
+                : db.ping?.snapshotTable === "missing"
+                  ? "нужна таблица"
+                  : "ключи есть"}
+          </strong>
         </p>
+        <p className="meta-quiet">
+          URL {db.url === "set" ? "ок" : "нет"} · ключ {db.anonKey === "set" ? "ок" : "нет"} · service{" "}
+          {db.serviceKey === "set" ? "ок" : "нет"}
+        </p>
+        {!db.configured && (
+          <p className="meta-quiet">
+            Перезапусти `npm run dev` после правки `.env.local`, открой http://127.0.0.1:3001
+          </p>
+        )}
         {db.ping?.snapshotTable === "missing" && (
           <div className="space-y-2">
-            <p className="meta-quiet">
-              Таблица ещё не создана. Открой SQL Editor и выполни:
-            </p>
+            <p className="meta-quiet">Таблица ещё не создана. Открой SQL Editor и выполни:</p>
             <pre className="overflow-x-auto rounded-[12px] bg-[var(--bg)] p-3 text-[11px] text-[var(--ink-soft)]">{`create table if not exists lifeos_snapshots (
   id text primary key default 'default',
   payload jsonb not null default '{}'::jsonb,
@@ -221,7 +239,10 @@ alter table lifeos_snapshots enable row level security;`}</pre>
           </div>
         )}
         {db.ping?.snapshotTable === "ok" && (
-          <p className="meta-quiet">Облачный снимок подключён · sync {String(db.ping?.ok)}</p>
+          <p className="meta-quiet">Облачный снимок работает. Локальные сохранения всегда проходят.</p>
+        )}
+        {db.ping?.snapshotTable === "error" && db.ping.detail && (
+          <p className="text-[13px] text-[var(--bad)]">{db.ping.detail}</p>
         )}
       </section>
 
