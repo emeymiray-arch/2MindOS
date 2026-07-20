@@ -109,12 +109,17 @@ export async function resetStore(): Promise<LifeStore> {
   bumpEpoch();
   const next = migrateStore(createEmptyStore());
   global.__mindosStore = next;
-  const write = Promise.resolve().then(() => persist(next, true));
-  global.__mindosWriteQueue = write.then(
-    () => undefined,
-    () => undefined
-  );
-  await write;
+  // Local wipe must succeed immediately — cloud sync is best-effort.
+  await persistLocal(next);
+  if (isSupabaseConfigured()) {
+    void pushCloudStore(next)
+      .then((result) => {
+        global.__mindosCloudReady = result.ok;
+      })
+      .catch(() => {
+        global.__mindosCloudReady = false;
+      });
+  }
   return next;
 }
 

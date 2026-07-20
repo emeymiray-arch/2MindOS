@@ -15,6 +15,8 @@ export default function SettingsPage() {
     ping?: { ok: boolean; snapshotTable: string; detail?: string };
   }>({ configured: false, url: "missing", anonKey: "missing", serviceKey: "missing" });
 
+  const [resetting, setResetting] = useState(false);
+
   useEffect(() => {
     setOrigin(window.location.origin);
     fetch("/api/state")
@@ -48,20 +50,31 @@ export default function SettingsPage() {
   }
 
   async function reset() {
+    if (resetting) return;
     if (!confirm("Сбросить все данные? Останется пустой Life OS.")) return;
+    setResetting(true);
     try {
       const res = await fetch("/api/state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reset" }),
+        cache: "no-store",
       });
-      if (!res.ok) {
-        alert("Сброс не удался");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) {
+        alert(`Сброс не удался: ${data.error ?? res.status}`);
+        setResetting(false);
         return;
       }
-      window.location.href = "/?reset=1";
-    } catch {
-      alert("Сброс не удался");
+      // Hard navigation clears any stale client state.
+      window.location.replace("/");
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        window.location.replace("/");
+        return;
+      }
+      alert("Сброс не удался — проверь что открыт http://127.0.0.1:3001");
+      setResetting(false);
     }
   }
 
@@ -272,8 +285,8 @@ alter table lifeos_snapshots enable row level security;`}</pre>
               }}
             />
           </label>
-          <button type="button" className="btn btn-ghost" onClick={reset}>
-            Сбросить
+          <button type="button" className="btn btn-ghost" disabled={resetting} onClick={reset}>
+            {resetting ? "…" : "Сбросить"}
           </button>
         </div>
       </section>

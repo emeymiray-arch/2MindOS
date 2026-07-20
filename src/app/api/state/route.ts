@@ -12,8 +12,9 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   if (body.action === "reset") {
-    const store = await resetStore();
-    return NextResponse.json({ ok: true, store: publicStore(store) });
+    await resetStore();
+    // Keep response tiny so the browser never aborts on a huge dump.
+    return NextResponse.json({ ok: true });
   }
   if (body.action === "theme") {
     const theme = body.theme === "dark" ? "dark" : "light";
