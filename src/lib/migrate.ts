@@ -2,9 +2,10 @@ import type { LifeStore, WishBlock, ThoughtJournal, AppSettings } from "./types"
 import { calcGoalProgress } from "./tasks";
 import { id } from "./id";
 import { normalizeHashtag } from "./format";
+import { emptyRoadmap } from "./roadmap";
 import { randomBytes } from "crypto";
 
-const CURRENT_VERSION = 4;
+const CURRENT_VERSION = 5;
 
 function freshToken() {
   return `mos_${randomBytes(18).toString("hex")}`;
@@ -129,6 +130,23 @@ export function migrateStore(raw: LifeStore): LifeStore {
   }
   if (!store.finance.transactions) store.finance.transactions = [];
   if (store.finance.mandatoryMonth == null) store.finance.mandatoryMonth = 0;
+
+  if (!store.roadmap) store.roadmap = emptyRoadmap();
+  store.roadmap.stages = (store.roadmap.stages ?? []).map((s, i) => ({
+    ...s,
+    subtitle: s.subtitle ?? "",
+    order: s.order ?? i + 1,
+    archived: Boolean(s.archived),
+    months: (s.months ?? []).map((m) => ({
+      ...m,
+      goals: m.goals ?? [],
+      days: (m.days ?? []).map((d) => ({
+        ...d,
+        tasks: d.tasks ?? [],
+      })),
+      archived: Boolean(m.archived),
+    })),
+  }));
 
   store.version = CURRENT_VERSION;
   return store;

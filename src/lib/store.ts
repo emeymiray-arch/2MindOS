@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { pushCloudStore } from "./cloud-store";
 import { migrateStore } from "./migrate";
-import { createEmptyStore, createSeedStore } from "./seed";
+import { createEmptyStore } from "./seed";
 import { isSupabaseConfigured } from "./supabase";
 import type { LifeStore } from "./types";
 
@@ -75,8 +75,8 @@ async function ensureLoaded(): Promise<LifeStore> {
     return global.__mindosStore;
   }
 
-  // First run only: seed locally (demo). Cloud restore is opt-in via import.
-  global.__mindosStore = migrateStore(createSeedStore());
+  // First run: empty local store. Cloud restore is opt-in via import.
+  global.__mindosStore = migrateStore(createEmptyStore());
   await persist(global.__mindosStore);
   return global.__mindosStore;
 }

@@ -67,10 +67,10 @@ export default function SettingsPage() {
         return;
       }
       // Hard navigation clears any stale client state.
-      window.location.replace("/");
+      window.location.replace("/roadmap");
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
-        window.location.replace("/");
+        window.location.replace("/roadmap");
         return;
       }
       alert("Сброс не удался — проверь что открыт http://127.0.0.1:3001");

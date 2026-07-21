@@ -515,3 +515,63 @@ select:focus {
   flex-direction: column;
   gap: 8px;
 }
+
+/* Roadmap — equal cards, optically centered ticks */
+.roadmap-month-card,
+.roadmap-day-card {
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.roadmap-month-card:hover,
+.roadmap-day-card:hover {
+  border-color: var(--ink-faint);
+}
+
+.roadmap-goal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 22px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.roadmap-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.roadmap-tick.on {
+  color: var(--ok);
+}
+
+.roadmap-tick.off {
+  color: var(--ink-faint);
+}
+
+.roadmap-goal-text {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}

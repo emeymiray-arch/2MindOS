@@ -343,6 +343,49 @@ export interface AppSettings {
   email: string;
 }
 
+/** Visual life roadmap — stages → months → goals / daily tasks */
+export interface RoadmapTask {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
+export interface RoadmapDay {
+  id: string;
+  date: string;
+  tasks: RoadmapTask[];
+}
+
+export interface RoadmapMonthGoal {
+  id: string;
+  title: string;
+  done: boolean;
+}
+
+export interface RoadmapMonth {
+  id: string;
+  year: number;
+  month: number;
+  goals: RoadmapMonthGoal[];
+  days: RoadmapDay[];
+  archived?: boolean;
+  habitsScore?: number;
+  focusScore?: number;
+}
+
+export interface RoadmapStage {
+  id: string;
+  title: string;
+  subtitle: string;
+  order: number;
+  archived?: boolean;
+  months: RoadmapMonth[];
+}
+
+export interface RoadmapData {
+  stages: RoadmapStage[];
+}
+
 export interface LifeStore {
   version: number;
   spheres: Sphere[];
@@ -368,6 +411,7 @@ export interface LifeStore {
   calendarEvents: CalendarEvent[];
   passwords: PasswordEntry[];
   oracleMessages: OracleMessage[];
+  roadmap: RoadmapData;
   settings: AppSettings;
 }
 

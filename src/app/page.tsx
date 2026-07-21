@@ -1,5 +1,5 @@
-import { CommandCenter } from "@/components/command/CommandCenter";
+import { redirect } from "next/navigation";
 
 export default function HomePage() {
-  return <CommandCenter />;
+  redirect("/roadmap");
 }

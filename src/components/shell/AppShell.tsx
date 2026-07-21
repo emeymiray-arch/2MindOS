@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const NAV = [
-  { href: "/", label: "Пульт" },
+  { href: "/roadmap", label: "Roadmap" },
   { href: "/tasks", label: "Задачи" },
   { href: "/goals", label: "Цели" },
   { href: "/wishes", label: "Wish list" },
@@ -41,8 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto scroll-thin">
           {NAV.map((item) => {
-            const active =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
