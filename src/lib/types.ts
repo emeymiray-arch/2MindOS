@@ -386,6 +386,13 @@ export interface RoadmapData {
   stages: RoadmapStage[];
 }
 
+export interface TaskCategory {
+  id: string;
+  name: string;
+  order: number;
+  archived?: boolean;
+}
+
 export interface LifeStore {
   version: number;
   spheres: Sphere[];
@@ -395,6 +402,7 @@ export interface LifeStore {
   goals: Goal[];
   stageDayLogs: StageDayLog[];
   dayTasks: DailyTaskItem[];
+  taskCategories: TaskCategory[];
   habits: Habit[];
   habitLogs: HabitLog[];
   vitals: VitalsDay[];
@@ -421,6 +429,7 @@ export interface DailyTaskItem {
   title: string;
   done: boolean;
   archived?: boolean;
+  categoryId?: string;
   stageId?: string;
   goalId?: string;
   goalTitle?: string;

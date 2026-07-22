@@ -15,8 +15,6 @@ export default function SettingsPage() {
     ping?: { ok: boolean; snapshotTable: string; detail?: string };
   }>({ configured: false, url: "missing", anonKey: "missing", serviceKey: "missing" });
 
-  const [resetting, setResetting] = useState(false);
-
   useEffect(() => {
     setOrigin(window.location.origin);
     fetch("/api/state")
@@ -47,35 +45,6 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "settings", settings: patch }),
     });
-  }
-
-  async function reset() {
-    if (resetting) return;
-    if (!confirm("Сбросить все данные? Останется пустой Life OS.")) return;
-    setResetting(true);
-    try {
-      const res = await fetch("/api/state", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reset" }),
-        cache: "no-store",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.error) {
-        alert(`Сброс не удался: ${data.error ?? res.status}`);
-        setResetting(false);
-        return;
-      }
-      // Hard navigation clears any stale client state.
-      window.location.replace("/roadmap");
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") {
-        window.location.replace("/roadmap");
-        return;
-      }
-      alert("Сброс не удался — проверь что открыт http://127.0.0.1:3001");
-      setResetting(false);
-    }
   }
 
   async function exportData() {
@@ -285,9 +254,6 @@ alter table lifeos_snapshots enable row level security;`}</pre>
               }}
             />
           </label>
-          <button type="button" className="btn btn-ghost" disabled={resetting} onClick={reset}>
-            {resetting ? "…" : "Сбросить"}
-          </button>
         </div>
       </section>
 

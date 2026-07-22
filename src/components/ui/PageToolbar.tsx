@@ -44,12 +44,18 @@ export function PageToolbar({
   onMode,
   options,
   onPick,
+  onAdd,
+  addActive,
+  addMenu,
   extra,
 }: {
   mode: ActionMode;
   onMode: (m: ActionMode) => void;
   options: ActionOption[];
   onPick: (id: string, mode: Exclude<ActionMode, null>) => void;
+  onAdd?: () => void;
+  addActive?: boolean;
+  addMenu?: ReactNode;
   extra?: ReactNode;
 }) {
   function toggle(next: Exclude<ActionMode, null>) {
@@ -80,8 +86,15 @@ export function PageToolbar({
         >
           <IconTrash />
         </button>
+        {onAdd ? (
+          <button type="button" className={`icon-btn ${addActive ? "icon-btn-on" : ""}`} onClick={onAdd}>
+            +
+          </button>
+        ) : null}
         {extra}
       </div>
+
+      {addMenu}
 
       {mode && (
         <div className="page-toolbar-pick">

@@ -1,5 +1,5 @@
 import { id } from "./id";
-import type { DailyTaskItem, Goal, LifeStore, StageDayLog } from "./types";
+import type { DailyTaskItem, Goal, LifeStore, StageDayLog, TaskCategory } from "./types";
 
 function inRange(date: string, start?: string, end?: string): boolean {
   if (!start && !end) return false;
@@ -121,6 +121,7 @@ export function ensureDayTask(
     title: patch.title,
     done: patch.done,
     archived: patch.archived,
+    categoryId: patch.categoryId,
     stageId: patch.stageId,
     goalId: patch.goalId,
     goalTitle: patch.goalTitle,
@@ -148,4 +149,67 @@ export function goalAnalytics(goal: Goal, _logs: StageDayLog[]) {
     overdue,
     progress: total ? Math.round((done / total) * 100) : 0,
   };
+}
+
+export function activeCategories(store: LifeStore): TaskCategory[] {
+  return (store.taskCategories ?? [])
+    .filter((c) => !c.archived)
+    .slice()
+    .sort((a, b) => a.order - b.order);
+}
+
+export interface CategoryAnalyticsRow {
+  categoryId: string | null;
+  name: string;
+  total: number;
+  done: number;
+  open: number;
+  progress: number;
+}
+
+/** Analytics for stored tasks in a month (YYYY-MM). */
+export function categoryAnalytics(store: LifeStore, month: string): CategoryAnalyticsRow[] {
+  const cats = activeCategories(store);
+  const nameById = new Map(cats.map((c) => [c.id, c.name]));
+  const buckets = new Map<string | null, { total: number; done: number }>();
+
+  for (const t of store.dayTasks ?? []) {
+    if (t.archived) continue;
+    if (!t.date.startsWith(month)) continue;
+    const key = t.categoryId ?? null;
+    const b = buckets.get(key) ?? { total: 0, done: 0 };
+    b.total += 1;
+    if (t.done) b.done += 1;
+    buckets.set(key, b);
+  }
+
+  const rows: CategoryAnalyticsRow[] = [];
+
+  for (const c of cats) {
+    const b = buckets.get(c.id) ?? { total: 0, done: 0 };
+    rows.push({
+      categoryId: c.id,
+      name: c.name,
+      total: b.total,
+      done: b.done,
+      open: b.total - b.done,
+      progress: b.total ? Math.round((b.done / b.total) * 100) : 0,
+    });
+  }
+
+  const uncategorized = buckets.get(null);
+  if (uncategorized && uncategorized.total > 0) {
+    rows.push({
+      categoryId: null,
+      name: "Без категории",
+      total: uncategorized.total,
+      done: uncategorized.done,
+      open: uncategorized.total - uncategorized.done,
+      progress: uncategorized.total
+        ? Math.round((uncategorized.done / uncategorized.total) * 100)
+        : 0,
+    });
+  }
+
+  return rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "ru"));
 }

@@ -5,7 +5,7 @@ import type { LifeStore } from "./types";
 export function createEmptyStore(): LifeStore {
   const t = now();
   return {
-    version: 5,
+    version: 6,
     spheres: [],
     nodes: [],
     edges: [],
@@ -13,6 +13,7 @@ export function createEmptyStore(): LifeStore {
     goals: [],
     stageDayLogs: [],
     dayTasks: [],
+    taskCategories: [],
     habits: [],
     habitLogs: [],
     vitals: [],

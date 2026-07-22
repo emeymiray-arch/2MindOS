@@ -93,7 +93,11 @@ export async function updateStore(
   await mutator(store);
   const write = (global.__mindosWriteQueue ?? Promise.resolve()).then(async () => {
     if (myEpoch !== epoch()) return; // discarded after reset
-    await persist(store);
+    try {
+      await persist(store);
+    } catch (e) {
+      console.error("[mindos] persist failed:", e);
+    }
   });
   global.__mindosWriteQueue = write.then(
     () => undefined,

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionMode, ActionOption, PageToolbar } from "@/components/ui/PageToolbar";
-import type { CalendarEvent, DailyTaskItem } from "@/lib/types";
+import type { CategoryAnalyticsRow } from "@/lib/tasks";
+import type { CalendarEvent, DailyTaskItem, TaskCategory } from "@/lib/types";
 
 function shiftDate(iso: string, delta: number) {
   const d = new Date(iso + "T12:00:00");
@@ -24,16 +25,20 @@ function monthMatrix(year: number, month: number) {
 export default function TasksPage() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [tasks, setTasks] = useState<DailyTaskItem[]>([]);
+  const [categories, setCategories] = useState<TaskCategory[]>([]);
+  const [analytics, setAnalytics] = useState<CategoryAnalyticsRow[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [monthEvents, setMonthEvents] = useState<CalendarEvent[]>([]);
   const [tab, setTab] = useState<"tasks" | "calendar">("tasks");
   const [showArchived, setShowArchived] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [eventTitle, setEventTitle] = useState("");
   const [mode, setMode] = useState<ActionMode>(null);
-  const [edit, setEdit] = useState<{ kind: "task" | "event"; id: string; title: string } | null>(
-    null
-  );
+  const [addOpen, setAddOpen] = useState(false);
+  const [edit, setEdit] = useState<
+    | { kind: "task"; id: string; title: string; categoryId: string }
+    | { kind: "event"; id: string; title: string }
+    | { kind: "category"; id: string; name: string }
+    | null
+  >(null);
   const [animKey, setAnimKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -42,15 +47,27 @@ export default function TasksPage() {
   const m = Number(date.slice(5, 7)) - 1;
   const monthKey = date.slice(0, 7);
 
+  const categoryAnalytics = useMemo(
+    () => analytics.filter((row) => row.categoryId != null),
+    [analytics]
+  );
+
   const load = useCallback(
     async (d: string, archived = showArchived) => {
       const res = await fetch(
         `/api/tasks?date=${d}&month=${d.slice(0, 7)}${archived ? "&archived=1" : ""}`
       );
       const data = await res.json();
+      if (!res.ok) {
+        setError(String(data.error ?? `HTTP ${res.status}`));
+        return;
+      }
       setTasks(data.tasks ?? []);
+      setCategories(data.categories ?? []);
+      setAnalytics(data.analytics ?? []);
       setEvents(data.events ?? []);
       setMonthEvents(data.monthEvents ?? []);
+      setError("");
     },
     [showArchived]
   );
@@ -72,8 +89,16 @@ export default function TasksPage() {
     try {
       const { apiPost } = await import("@/lib/client-api");
       const result = await apiPost("/api/tasks", { ...body, date });
-      if (!result.ok && result.error) setError(result.error);
-      await load(date, showArchived);
+      if (!result.ok && result.error) {
+        setError(result.error);
+        return;
+      }
+      const data = result.data;
+      if (Array.isArray(data.tasks)) setTasks(data.tasks as DailyTaskItem[]);
+      if (Array.isArray(data.categories)) setCategories(data.categories as TaskCategory[]);
+      if (Array.isArray(data.analytics)) setAnalytics(data.analytics as CategoryAnalyticsRow[]);
+      if (Array.isArray(data.events)) setEvents(data.events as CalendarEvent[]);
+      else await load(date, showArchived);
     } catch {
       setError("Не удалось сохранить");
     } finally {
@@ -85,20 +110,43 @@ export default function TasksPage() {
     if (tab === "calendar") {
       return events.map((e) => ({ id: `event:${e.id}`, label: e.title, group: "Событие" }));
     }
-    return tasks.map((t) => ({
+    const list: ActionOption[] = tasks.map((t) => ({
       id: `task:${t.id}`,
       label: t.title,
       group: t.goalTitle || "Задача",
     }));
-  }, [tab, tasks, events]);
+    for (const c of categories) {
+      list.push({ id: `cat:${c.id}`, label: c.name, group: "Категория" });
+    }
+    return list;
+  }, [tab, tasks, events, categories]);
 
   async function onPick(id: string, action: Exclude<ActionMode, null>) {
+    if (id.startsWith("cat:")) {
+      const catId = id.slice(4);
+      const c = categories.find((x) => x.id === catId);
+      if (!c) return;
+      if (action === "edit") {
+        setEdit({ kind: "category", id: catId, name: c.name });
+        setMode(null);
+        return;
+      }
+      if (action === "archive") await run({ action: "archiveCategory", id: catId });
+      else await run({ action: "deleteCategory", id: catId });
+      setMode(null);
+      return;
+    }
     if (id.startsWith("task:")) {
       const taskId = id.slice(5);
       const t = tasks.find((x) => x.id === taskId);
       if (!t) return;
       if (action === "edit") {
-        setEdit({ kind: "task", id: taskId, title: t.title });
+        setEdit({
+          kind: "task",
+          id: taskId,
+          title: t.title,
+          categoryId: t.categoryId ?? "",
+        });
         setMode(null);
         return;
       }
@@ -122,6 +170,23 @@ export default function TasksPage() {
       if (action === "archive") await run({ action: "archiveEvent", id: eventId });
       else await run({ action: "deleteEvent", id: eventId });
       setMode(null);
+    }
+  }
+
+  function onAdd() {
+    setMode(null);
+    setEdit(null);
+    setAddOpen((v) => !v);
+  }
+
+  function startAdd(kind: "task" | "category" | "event") {
+    setAddOpen(false);
+    if (kind === "event") {
+      setEdit({ kind: "event", id: "new", title: "" });
+    } else if (kind === "category") {
+      setEdit({ kind: "category", id: "", name: "" });
+    } else {
+      setEdit({ kind: "task", id: "new", title: "", categoryId: "" });
     }
   }
 
@@ -167,33 +232,6 @@ export default function TasksPage() {
 
       {tab === "tasks" ? (
         <div key={`t-${animKey}`} className="date-enter space-y-3">
-          <div className="card flex gap-2 p-3">
-            <input
-              className="min-w-0 flex-1"
-              value={newTitle}
-              disabled={busy}
-              onChange={(e) => setNewTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && newTitle.trim()) {
-                  run({ action: "add", title: newTitle.trim(), date });
-                  setNewTitle("");
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="btn btn-ink"
-              disabled={busy}
-              onClick={() => {
-                if (!newTitle.trim()) return;
-                run({ action: "add", title: newTitle.trim(), date });
-                setNewTitle("");
-              }}
-            >
-              +
-            </button>
-          </div>
-
           <div className="card overflow-hidden">
             <div className="task-list">
               {tasks.map((t) => (
@@ -211,6 +249,25 @@ export default function TasksPage() {
               ))}
             </div>
           </div>
+
+          {categoryAnalytics.length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {categoryAnalytics.map((row) => (
+                <div key={row.categoryId} className="card space-y-2 p-4">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="font-semibold">{row.name}</p>
+                    <p className="font-display text-[22px] tabular-nums">{row.progress}%</p>
+                  </div>
+                  <div className="meter">
+                    <span style={{ width: `${row.progress}%` }} />
+                  </div>
+                  <p className="text-[12px] text-[var(--ink-faint)]">
+                    {row.done} / {row.total}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div key={`c-${animKey}`} className="date-enter space-y-4">
@@ -246,31 +303,6 @@ export default function TasksPage() {
             </div>
           </div>
 
-          <div className="card flex gap-2 p-3">
-            <input
-              className="min-w-0 flex-1"
-              value={eventTitle}
-              onChange={(e) => setEventTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && eventTitle.trim()) {
-                  run({ action: "addEvent", title: eventTitle.trim(), date });
-                  setEventTitle("");
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="btn btn-ink"
-              onClick={() => {
-                if (!eventTitle.trim()) return;
-                run({ action: "addEvent", title: eventTitle.trim(), date });
-                setEventTitle("");
-              }}
-            >
-              +
-            </button>
-          </div>
-
           <div className="card overflow-hidden">
             <div className="task-list">
               {events.map((e) => (
@@ -286,17 +318,58 @@ export default function TasksPage() {
       {edit && (
         <div className="edit-sheet">
           <input
-            value={edit.title}
+            value={edit.kind === "category" ? edit.name : edit.title}
             autoFocus
-            onChange={(e) => setEdit({ ...edit, title: e.target.value })}
+            onChange={(e) => {
+              if (edit.kind === "category") setEdit({ ...edit, name: e.target.value });
+              else setEdit({ ...edit, title: e.target.value });
+            }}
           />
+          {edit.kind === "task" && categories.length > 0 && (
+            <select
+              value={edit.categoryId}
+              onChange={(e) => setEdit({ ...edit, categoryId: e.target.value })}
+            >
+              <option value="">Без категории</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          )}
           <div className="flex gap-2">
             <button
               type="button"
               className="btn btn-ink"
+              disabled={busy}
               onClick={async () => {
-                if (edit.kind === "task") await run({ action: "update", id: edit.id, title: edit.title });
-                else await run({ action: "updateEvent", id: edit.id, title: edit.title });
+                if (edit.kind === "task") {
+                  if (edit.id === "new") {
+                    await run({
+                      action: "add",
+                      title: edit.title.trim(),
+                      categoryId: edit.categoryId || undefined,
+                    });
+                  } else {
+                    await run({
+                      action: "update",
+                      id: edit.id,
+                      title: edit.title,
+                      categoryId: edit.categoryId || null,
+                    });
+                  }
+                } else if (edit.kind === "category") {
+                  if (!edit.id) {
+                    await run({ action: "createCategory", name: edit.name.trim() });
+                  } else {
+                    await run({ action: "updateCategory", id: edit.id, name: edit.name.trim() });
+                  }
+                } else if (edit.id === "new") {
+                  await run({ action: "addEvent", title: edit.title.trim() });
+                } else {
+                  await run({ action: "updateEvent", id: edit.id, title: edit.title });
+                }
                 setEdit(null);
               }}
             >
@@ -314,9 +387,43 @@ export default function TasksPage() {
         onMode={(m) => {
           setMode(m);
           setEdit(null);
+          setAddOpen(false);
         }}
         options={options}
         onPick={onPick}
+        onAdd={onAdd}
+        addActive={addOpen}
+        addMenu={
+          addOpen ? (
+            <div className="page-toolbar-pick">
+              <ul className="page-toolbar-list">
+                {tab === "calendar" ? (
+                  <li>
+                    <button type="button" onClick={() => startAdd("event")}>
+                      Событие
+                    </button>
+                  </li>
+                ) : (
+                  <>
+                    <li>
+                      <button type="button" onClick={() => startAdd("task")}>
+                        Задача
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" onClick={() => startAdd("category")}>
+                        Категория
+                      </button>
+                    </li>
+                  </>
+                )}
+              </ul>
+              <button type="button" className="btn btn-ghost mt-2" onClick={() => setAddOpen(false)}>
+                ×
+              </button>
+            </div>
+          ) : null
+        }
         extra={
           tab === "tasks" ? (
             <button

@@ -5,7 +5,7 @@ import { normalizeHashtag } from "./format";
 import { emptyRoadmap } from "./roadmap";
 import { randomBytes } from "crypto";
 
-const CURRENT_VERSION = 5;
+const CURRENT_VERSION = 6;
 
 function freshToken() {
   return `mos_${randomBytes(18).toString("hex")}`;
@@ -38,6 +38,7 @@ export function migrateStore(raw: LifeStore): LifeStore {
 
   if (!store.stageDayLogs) store.stageDayLogs = [];
   if (!store.dayTasks) store.dayTasks = [];
+  if (!store.taskCategories) store.taskCategories = [];
   if (!store.calendarEvents) store.calendarEvents = [];
   if (!store.passwords) store.passwords = [];
   if (!store.thoughtJournals) store.thoughtJournals = [];
@@ -146,6 +147,12 @@ export function migrateStore(raw: LifeStore): LifeStore {
       })),
       archived: Boolean(m.archived),
     })),
+  }));
+
+  store.taskCategories = (store.taskCategories ?? []).map((c, i) => ({
+    ...c,
+    order: c.order ?? i + 1,
+    archived: Boolean(c.archived),
   }));
 
   store.version = CURRENT_VERSION;
