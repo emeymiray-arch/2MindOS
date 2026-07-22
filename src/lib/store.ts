@@ -1,6 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
-import { pushCloudStore } from "./cloud-store";
+import { pullCloudStore, pushCloudStore } from "./cloud-store";
 import { migrateStore } from "./migrate";
 import { createEmptyStore } from "./seed";
 import { isSupabaseConfigured } from "./supabase";
@@ -8,6 +8,11 @@ import type { LifeStore } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "lifeos.json");
+
+/** On Vercel the filesystem is ephemeral — Supabase snapshot is source of truth. */
+function isServerless(): boolean {
+  return process.env.VERCEL === "1" || process.env.MINDOS_CLOUD_PRIMARY === "1";
+}
 
 declare global {
   // eslint-disable-next-line no-var
@@ -29,25 +34,38 @@ function bumpEpoch() {
   return global.__mindosWriteEpoch;
 }
 
-async function persistLocal(store: LifeStore): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = `${STORE_PATH}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(store, null, 2), "utf8");
-  await fs.rename(tmp, STORE_PATH);
+async function persistLocal(store: LifeStore): Promise<boolean> {
+  if (isServerless()) return false;
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    const tmp = `${STORE_PATH}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify(store, null, 2), "utf8");
+    await fs.rename(tmp, STORE_PATH);
+    return true;
+  } catch (e) {
+    console.error("[mindos] local persist failed:", e);
+    return false;
+  }
 }
 
 async function persist(store: LifeStore, syncCloud = false): Promise<void> {
   await persistLocal(store);
+
   if (!isSupabaseConfigured()) return;
-  if (syncCloud) {
+
+  // On Vercel always await cloud write — otherwise data is lost between invocations.
+  if (isServerless() || syncCloud) {
     try {
       const result = await pushCloudStore(store);
       global.__mindosCloudReady = result.ok;
-    } catch {
+      if (!result.ok) console.error("[mindos] cloud push:", result.error);
+    } catch (e) {
       global.__mindosCloudReady = false;
+      console.error("[mindos] cloud push failed:", e);
     }
     return;
   }
+
   void pushCloudStore(store)
     .then((result) => {
       global.__mindosCloudReady = result.ok;
@@ -60,6 +78,19 @@ async function persist(store: LifeStore, syncCloud = false): Promise<void> {
 async function ensureLoaded(): Promise<LifeStore> {
   if (global.__mindosStore) return global.__mindosStore;
 
+  // Production / Vercel: cloud is primary.
+  if (isServerless() && isSupabaseConfigured()) {
+    const cloud = await pullCloudStore();
+    if (cloud) {
+      global.__mindosStore = migrateStore(cloud);
+      global.__mindosCloudReady = true;
+      return global.__mindosStore;
+    }
+    global.__mindosStore = migrateStore(createEmptyStore());
+    await persist(global.__mindosStore, true);
+    return global.__mindosStore;
+  }
+
   let local: LifeStore | null = null;
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
@@ -69,13 +100,23 @@ async function ensureLoaded(): Promise<LifeStore> {
     local = null;
   }
 
-  // Never auto-pull cloud over an existing local file — local wins.
+  // Local wins when a file already exists (dev machine).
   if (local) {
     global.__mindosStore = local;
     return global.__mindosStore;
   }
 
-  // First run: empty local store. Cloud restore is opt-in via import.
+  // First local run: try cloud restore, else empty.
+  if (isSupabaseConfigured()) {
+    const cloud = await pullCloudStore();
+    if (cloud) {
+      global.__mindosStore = migrateStore(cloud);
+      global.__mindosCloudReady = true;
+      await persistLocal(global.__mindosStore);
+      return global.__mindosStore;
+    }
+  }
+
   global.__mindosStore = migrateStore(createEmptyStore());
   await persist(global.__mindosStore);
   return global.__mindosStore;
@@ -108,21 +149,18 @@ export async function updateStore(
 }
 
 export async function resetStore(): Promise<LifeStore> {
-  // Finish / invalidate any in-flight writes so they can't overwrite the wipe.
   await (global.__mindosWriteQueue ?? Promise.resolve()).catch(() => undefined);
   bumpEpoch();
   const next = migrateStore(createEmptyStore());
   global.__mindosStore = next;
-  // Local wipe must succeed immediately — cloud sync is best-effort.
   await persistLocal(next);
   if (isSupabaseConfigured()) {
-    void pushCloudStore(next)
-      .then((result) => {
-        global.__mindosCloudReady = result.ok;
-      })
-      .catch(() => {
-        global.__mindosCloudReady = false;
-      });
+    try {
+      const result = await pushCloudStore(next);
+      global.__mindosCloudReady = result.ok;
+    } catch {
+      global.__mindosCloudReady = false;
+    }
   }
   return next;
 }
