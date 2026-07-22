@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "supabase": "supabase",
+    "db:link": "supabase link --project-ref dfrzbrgttlsdwyifbwfc",
+    "db:push": "supabase db push"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.0",
@@ -28,6 +31,7 @@
     "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "supabase": "^2.109.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
