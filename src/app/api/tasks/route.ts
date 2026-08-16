@@ -8,13 +8,37 @@ import {
   tasksForDate,
   upsertStageDayLog,
 } from "@/lib/tasks";
+import { dailyLoad, inheritTaskPriority, taskChain } from "@/lib/lifeos";
+import type { TaskPriority } from "@/lib/types";
+
+function enrichTasks(store: Awaited<ReturnType<typeof getStore>>, date: string, archived?: boolean) {
+  const tasks = tasksForDate(store, date, { archived: archived ? true : undefined }).map((t) => {
+    const chain = taskChain(store, t);
+    return {
+      ...t,
+      effectivePriority: inheritTaskPriority(store, t),
+      chain: {
+        area: chain.area?.name,
+        areaId: chain.area?.id,
+        plan: chain.plan?.title,
+        goal: chain.goal?.title,
+        phase: chain.phase?.title,
+        week: chain.week?.weekStart,
+      },
+    };
+  });
+  const load = dailyLoad(tasks, store, store.settings.dailyCapacity ?? 6);
+  return { tasks, load };
+}
 
 function taskPayload(store: Awaited<ReturnType<typeof getStore>>, date: string, month: string) {
+  const enriched = enrichTasks(store, date);
   return {
     date,
-    tasks: tasksForDate(store, date),
+    ...enriched,
     categories: activeCategories(store),
     analytics: categoryAnalytics(store, month),
+    areas: store.spheres,
   };
 }
 
@@ -25,18 +49,19 @@ export async function GET(request: Request) {
     const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
     const month = searchParams.get("month") ?? date.slice(0, 7);
     const archived = searchParams.get("archived") === "1";
-    const tasks = tasksForDate(store, date, { archived });
+    const tasks = enrichTasks(store, date, archived);
     const events = (store.calendarEvents ?? []).filter((e) => !e.archived && e.date === date);
     const monthEvents = month
       ? (store.calendarEvents ?? []).filter((e) => !e.archived && e.date.startsWith(month))
       : [];
     return NextResponse.json({
       date,
-      tasks,
+      ...tasks,
       events,
       monthEvents,
       categories: activeCategories(store),
       analytics: categoryAnalytics(store, month),
+      areas: store.spheres,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "load failed";
@@ -88,6 +113,13 @@ export async function POST(request: Request) {
           title,
           done: false,
           categoryId,
+          goalId: body.goalId ? String(body.goalId) : undefined,
+          goalTitle: body.goalTitle ? String(body.goalTitle) : undefined,
+          stageId: body.stageId ? String(body.stageId) : undefined,
+          weekId: body.weekId ? String(body.weekId) : undefined,
+          objectiveId: body.objectiveId ? String(body.objectiveId) : undefined,
+          lifeAreaId: body.lifeAreaId ? String(body.lifeAreaId) : undefined,
+          priority: (body.priority as TaskPriority) || "should",
           deadlineEnd: body.deadlineEnd ? String(body.deadlineEnd) : undefined,
         });
       });
@@ -112,6 +144,10 @@ export async function POST(request: Request) {
         if (body.categoryId !== undefined) {
           task.categoryId = body.categoryId ? String(body.categoryId) : undefined;
         }
+        if (body.priority != null) task.priority = body.priority as TaskPriority;
+        if (body.goalId !== undefined) task.goalId = body.goalId || undefined;
+        if (body.lifeAreaId !== undefined) task.lifeAreaId = body.lifeAreaId || undefined;
+        if (body.stageId !== undefined) task.stageId = body.stageId || undefined;
         if (task.stageId && body.title != null) {
           for (const g of s.goals) {
             const st = g.stages.find((x) => x.id === task!.stageId);

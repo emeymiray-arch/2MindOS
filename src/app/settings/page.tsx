@@ -170,6 +170,18 @@ export default function SettingsPage() {
           </select>
         </label>
         <label className="flex items-center justify-between text-[14px]">
+          Ёмкость дня (задачи)
+          <input
+            type="number"
+            min={1}
+            max={20}
+            className="w-20"
+            value={s.dailyCapacity ?? 6}
+            onChange={(e) => setS({ ...s, dailyCapacity: Number(e.target.value) || 6 })}
+            onBlur={() => save({ dailyCapacity: s.dailyCapacity ?? 6 })}
+          />
+        </label>
+        <label className="flex items-center justify-between text-[14px]">
           Язык
           <select value={s.language} onChange={(e) => save({ language: e.target.value })}>
             <option value="ru">Русский</option>

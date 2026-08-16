@@ -1,23 +1,125 @@
 import { id, now } from "./id";
 import type { LifeStore } from "./types";
+import { createDefaultPlan, seedLifeAreas } from "./lifeos";
 
-/** Clean slate — first run and Settings → Reset. */
+/** Clean slate — first run. */
 export function createEmptyStore(): LifeStore {
   const t = now();
+  const spheres = seedLifeAreas();
+  const plan = createDefaultPlan(t);
+  const career = spheres.find((s) => s.slug === "career");
+
+  const engNode = id();
+  const foodNode = id();
+
   return {
-    version: 6,
-    spheres: [],
-    nodes: [],
+    version: 7,
+    spheres,
+    nodes: [
+      {
+        id: engNode,
+        kind: "project",
+        title: "Engineering → AI → Business",
+        sphereId: career?.id,
+        metadata: {},
+        salience: 0.9,
+        createdAt: t,
+        updatedAt: t,
+      },
+      {
+        id: foodNode,
+        kind: "project",
+        title: "European Fast Food — Chechnya",
+        sphereId: career?.id,
+        metadata: {},
+        salience: 0.85,
+        createdAt: t,
+        updatedAt: t,
+      },
+    ],
     edges: [],
     captures: [],
     goals: [],
+    plans: [plan],
+    weeks: [],
     stageDayLogs: [],
     dayTasks: [],
     taskCategories: [],
     habits: [],
     habitLogs: [],
     vitals: [],
-    projects: [],
+    projects: [
+      {
+        id: id(),
+        nodeId: engNode,
+        name: "Engineering → AI → Business",
+        tagline: "Learning → Skill → Project → Product → Business",
+        status: "active",
+        lifeAreaId: career?.id,
+        kpi: [],
+        modules: {
+          docs: [
+            "Engineering Foundation",
+            "Web Engineering",
+            "AI Development",
+            "Product Building",
+            "First Business",
+          ],
+          tasks: [
+            { id: id(), title: "Engineering Foundation", done: false },
+            { id: id(), title: "Web Engineering", done: false },
+            { id: id(), title: "AI Development", done: false },
+            { id: id(), title: "Product Building", done: false },
+            { id: id(), title: "First Business", done: false },
+          ],
+          ideas: [],
+          financeNotes: [],
+          team: [],
+          marketing: [],
+          sales: [],
+          files: [],
+          changelog: [{ at: t, text: "Career venture created" }],
+        },
+        diary: [],
+      },
+      {
+        id: id(),
+        nodeId: foodNode,
+        name: "European Fast Food — Chechnya",
+        tagline: "Research → Concept → Launch",
+        status: "active",
+        lifeAreaId: career?.id,
+        kpi: [],
+        modules: {
+          docs: [
+            "Research",
+            "Market",
+            "Concept",
+            "Competitors",
+            "Menu",
+            "Unit Economics",
+            "Branding",
+            "Location",
+            "MVP",
+            "Launch",
+          ],
+          tasks: [
+            { id: id(), title: "Research", done: false },
+            { id: id(), title: "Market", done: false },
+            { id: id(), title: "Concept", done: false },
+            { id: id(), title: "Launch", done: false },
+          ],
+          ideas: [],
+          financeNotes: [],
+          team: [],
+          marketing: [],
+          sales: [],
+          files: [],
+          changelog: [{ at: t, text: "Career venture created" }],
+        },
+        diary: [],
+      },
+    ],
     books: [],
     reviewCards: [],
     skills: [],
@@ -57,6 +159,7 @@ export function createEmptyStore(): LifeStore {
       showArchived: false,
       name: "",
       email: "",
+      dailyCapacity: 6,
     },
   };
 }

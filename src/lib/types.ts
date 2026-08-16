@@ -1,3 +1,5 @@
+/** Life OS core types — hierarchy: Life → Plan → Goal → Phase → Week → Day → Task */
+
 export type StatusFlag = "active" | "archived";
 
 export type NodeKind =
@@ -33,13 +35,23 @@ export type EdgeType =
   | "derived_from";
 
 export type EdgeProvenance = "user" | "ai" | "rule";
-export type WishBucket = "skill" | "plans" | "material";
+export type WishBucket = "shopping" | "wishlist" | "ideas" | "someday" | "skill" | "plans" | "material";
 export type ThemeMode = "light" | "dark";
+
+export type PriorityLevel = "critical" | "high" | "medium" | "low";
+export type TaskPriority = "must" | "should" | "optional";
+export type GoalStatus = "active" | "paused" | "done" | "archived";
+export type PhaseStatus = "planned" | "active" | "done" | "archived";
+export type PlanBucket = "foundation" | "development" | "later";
+export type HabitFrequency = "daily" | "weekly";
 
 export interface Sphere {
   id: string;
   slug: string;
   name: string;
+  emoji?: string;
+  description?: string;
+  priority?: PriorityLevel;
   kpiLabel?: string;
   kpiValue?: string;
   order: number;
@@ -77,6 +89,7 @@ export interface Capture {
   createdAt: string;
 }
 
+/** Phase inside a Goal (was GoalStage). */
 export interface GoalStage {
   id: string;
   title: string;
@@ -85,12 +98,15 @@ export interface GoalStage {
   deadlineEnd?: string;
   order: number;
   archived?: boolean;
+  status?: PhaseStatus;
+  progress?: number;
 }
 
 export interface Goal {
   id: string;
   nodeId: string;
   title: string;
+  description?: string;
   deadline?: string;
   stages: GoalStage[];
   notes?: string;
@@ -98,9 +114,40 @@ export interface Goal {
   active: boolean;
   archived?: boolean;
   createdAt: string;
+  lifeAreaId?: string;
+  planId?: string;
+  priority?: PriorityLevel;
+  status?: GoalStatus;
+  /** Plan bucket: foundation / development / later */
+  bucket?: PlanBucket;
   /** @deprecated */
   module?: string;
   horizon?: "day" | "week" | "month" | "year";
+}
+
+export interface SixMonthPlan {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  status: "active" | "archived";
+  createdAt: string;
+}
+
+export interface WeeklyObjective {
+  id: string;
+  goalId: string;
+  phaseId?: string;
+  title: string;
+  done: boolean;
+}
+
+export interface WeeklyPlan {
+  id: string;
+  weekStart: string;
+  planId?: string;
+  objectives: WeeklyObjective[];
+  createdAt: string;
 }
 
 export interface StageDayLog {
@@ -118,6 +165,10 @@ export interface Habit {
   unit?: string;
   streak: number;
   active: boolean;
+  frequency?: HabitFrequency;
+  goalId?: string;
+  lifeAreaId?: string;
+  archived?: boolean;
 }
 
 export interface HabitLog {
@@ -160,6 +211,7 @@ export interface Project {
   name: string;
   tagline?: string;
   status: "active" | "paused" | "archived";
+  lifeAreaId?: string;
   kpi: { label: string; value: string }[];
   modules: {
     docs: string[];
@@ -218,7 +270,6 @@ export interface Skill {
   subskills: { name: string; level: number }[];
 }
 
-/** One hashtag = one block */
 export interface WishBlock {
   id: string;
   hashtag: string;
@@ -238,7 +289,7 @@ export interface WishItem {
   archived?: boolean;
 }
 
-/** @deprecated — migrated into WishBlock */
+/** @deprecated */
 export interface Wish {
   id: string;
   nodeId: string;
@@ -341,9 +392,10 @@ export interface AppSettings {
   showArchived: boolean;
   name: string;
   email: string;
+  dailyCapacity?: number;
 }
 
-/** Visual life roadmap — stages → months → goals / daily tasks */
+/** @deprecated visual tree — kept for archive/history */
 export interface RoadmapTask {
   id: string;
   title: string;
@@ -393,6 +445,25 @@ export interface TaskCategory {
   archived?: boolean;
 }
 
+export interface DailyTaskItem {
+  id: string;
+  date: string;
+  title: string;
+  done: boolean;
+  archived?: boolean;
+  categoryId?: string;
+  /** Phase id (GoalStage.id) */
+  stageId?: string;
+  goalId?: string;
+  goalTitle?: string;
+  weekId?: string;
+  objectiveId?: string;
+  lifeAreaId?: string;
+  priority?: TaskPriority;
+  deadlineStart?: string;
+  deadlineEnd?: string;
+}
+
 export interface LifeStore {
   version: number;
   spheres: Sphere[];
@@ -400,6 +471,8 @@ export interface LifeStore {
   edges: LifeEdge[];
   captures: Capture[];
   goals: Goal[];
+  plans: SixMonthPlan[];
+  weeks: WeeklyPlan[];
   stageDayLogs: StageDayLog[];
   dayTasks: DailyTaskItem[];
   taskCategories: TaskCategory[];
@@ -411,7 +484,6 @@ export interface LifeStore {
   reviewCards: ReviewCard[];
   skills: Skill[];
   wishBlocks: WishBlock[];
-  /** legacy */
   wishCategories?: WishCategoryDef[];
   wishes?: Wish[];
   thoughtJournals: ThoughtJournal[];
@@ -421,18 +493,4 @@ export interface LifeStore {
   oracleMessages: OracleMessage[];
   roadmap: RoadmapData;
   settings: AppSettings;
-}
-
-export interface DailyTaskItem {
-  id: string;
-  date: string;
-  title: string;
-  done: boolean;
-  archived?: boolean;
-  categoryId?: string;
-  stageId?: string;
-  goalId?: string;
-  goalTitle?: string;
-  deadlineStart?: string;
-  deadlineEnd?: string;
 }

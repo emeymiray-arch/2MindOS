@@ -1,11 +1,16 @@
-import type { LifeStore, WishBlock, ThoughtJournal, AppSettings } from "./types";
+import type { LifeStore, WishBlock, ThoughtJournal, AppSettings, WishBucket } from "./types";
 import { calcGoalProgress } from "./tasks";
 import { id } from "./id";
 import { normalizeHashtag } from "./format";
 import { emptyRoadmap } from "./roadmap";
+import {
+  createDefaultPlan,
+  ensureLifeAreas,
+  mapLegacyWishBucket,
+} from "./lifeos";
 import { randomBytes } from "crypto";
 
-const CURRENT_VERSION = 6;
+const CURRENT_VERSION = 7;
 
 function freshToken() {
   return `mos_${randomBytes(18).toString("hex")}`;
@@ -28,6 +33,7 @@ function defaultSettings(partial?: Partial<AppSettings>): AppSettings {
     showArchived: false,
     name: "",
     email: "",
+    dailyCapacity: 6,
     ...partial,
     shortcutsToken: token,
   };
@@ -43,10 +49,15 @@ export function migrateStore(raw: LifeStore): LifeStore {
   if (!store.passwords) store.passwords = [];
   if (!store.thoughtJournals) store.thoughtJournals = [];
   if (!store.wishBlocks) store.wishBlocks = [];
+  if (!store.plans) store.plans = [];
+  if (!store.weeks) store.weeks = [];
+  if (!store.spheres) store.spheres = [];
+  if (!store.habits) store.habits = [];
+  if (!store.habitLogs) store.habitLogs = [];
 
   store.settings = defaultSettings(store.settings as Partial<AppSettings>);
+  if (store.settings.dailyCapacity == null) store.settings.dailyCapacity = 6;
 
-  // Rotate weak default token once (v4)
   if (
     store.version < 4 &&
     (store.settings.shortcutsToken === "mindos-local-token" || !store.settings.shortcutsToken)
@@ -54,17 +65,84 @@ export function migrateStore(raw: LifeStore): LifeStore {
     store.settings.shortcutsToken = freshToken();
   }
 
+  ensureLifeAreas(store);
+
+  if (store.plans.length === 0) {
+    store.plans.push(createDefaultPlan());
+  }
+  const activePlanId = store.plans.find((p) => p.status === "active")?.id;
+
   store.goals = (store.goals ?? []).map((g) => {
-    const stages = (g.stages ?? []).map((s, i) => ({ ...s, order: s.order ?? i + 1 }));
+    const stages = (g.stages ?? []).map((s, i) => ({
+      ...s,
+      order: s.order ?? i + 1,
+      status: s.status ?? (s.done ? ("done" as const) : i === 0 ? ("active" as const) : ("planned" as const)),
+      progress: s.progress ?? (s.done ? 100 : 0),
+    }));
     return {
       ...g,
       stages,
       progress: calcGoalProgress({ ...g, stages }),
       archived: Boolean(g.archived),
+      planId: g.planId ?? activePlanId,
+      bucket: g.bucket ?? "development",
+      priority: g.priority ?? "medium",
+      status: g.status ?? (g.archived ? "archived" : g.active ? "active" : "paused"),
+      description: g.description ?? g.notes,
     };
   });
 
-  // Migrate flat wishes → wishBlocks by hashtag/title
+  // Migrate roadmap day tasks → dayTasks (once, when upgrading to v7)
+  if (store.version < 7 && store.roadmap?.stages?.length) {
+    for (const stage of store.roadmap.stages) {
+      for (const month of stage.months ?? []) {
+        for (const day of month.days ?? []) {
+          for (const t of day.tasks ?? []) {
+            const exists = store.dayTasks.some(
+              (d) => d.date === day.date && d.title === t.title && !d.stageId
+            );
+            if (exists) continue;
+            store.dayTasks.push({
+              id: id(),
+              date: day.date,
+              title: t.title,
+              done: t.done,
+              priority: "should",
+            });
+          }
+        }
+        for (const mg of month.goals ?? []) {
+          if (store.goals.some((g) => g.title === mg.title)) continue;
+          const nodeId = id();
+          const t = new Date().toISOString();
+          store.nodes.push({
+            id: nodeId,
+            kind: "goal",
+            title: mg.title,
+            metadata: { fromRoadmap: true },
+            salience: 0.5,
+            createdAt: t,
+            updatedAt: t,
+          });
+          store.goals.push({
+            id: id(),
+            nodeId,
+            title: mg.title,
+            stages: [],
+            progress: mg.done ? 100 : 0,
+            active: !mg.done,
+            archived: false,
+            createdAt: t,
+            planId: activePlanId,
+            bucket: "development",
+            priority: "medium",
+            status: mg.done ? "done" : "active",
+          });
+        }
+      }
+    }
+  }
+
   if ((!store.wishBlocks || store.wishBlocks.length === 0) && store.wishes?.length) {
     const map = new Map<string, WishBlock>();
     for (const w of store.wishes) {
@@ -74,7 +152,7 @@ export function migrateStore(raw: LifeStore): LifeStore {
         block = {
           id: id(),
           hashtag: tag,
-          bucket: "material",
+          bucket: "wishlist",
           nodeId: w.nodeId || id(),
           items: [],
           createdAt: w.createdAt ?? new Date().toISOString(),
@@ -92,6 +170,11 @@ export function migrateStore(raw: LifeStore): LifeStore {
     }
     store.wishBlocks = Array.from(map.values());
   }
+
+  store.wishBlocks = (store.wishBlocks ?? []).map((b) => ({
+    ...b,
+    bucket: mapLegacyWishBucket(b.bucket) as WishBucket,
+  }));
 
   if (store.thoughtJournals.length === 0) {
     const t = new Date().toISOString();
@@ -115,6 +198,57 @@ export function migrateStore(raw: LifeStore): LifeStore {
     ...p,
     diary: p.diary ?? [],
   }));
+
+  // Seed career projects if empty
+  if (store.projects.length === 0) {
+    const career = store.spheres.find((s) => s.slug === "career");
+    const t = new Date().toISOString();
+    for (const spec of [
+      {
+        name: "Engineering → AI → Business",
+        tagline: "Learning → Skill → Project → Product → Business",
+        modules: ["Engineering Foundation", "Web Engineering", "AI Development", "Product Building", "First Business"],
+      },
+      {
+        name: "European Fast Food — Chechnya",
+        tagline: "Research → Concept → Launch",
+        modules: ["Research", "Market", "Concept", "Competitors", "Menu", "Unit Economics", "Branding", "Location", "MVP", "Launch"],
+      },
+    ]) {
+      const nodeId = id();
+      store.nodes.push({
+        id: nodeId,
+        kind: "project",
+        title: spec.name,
+        metadata: {},
+        salience: 0.9,
+        createdAt: t,
+        updatedAt: t,
+        sphereId: career?.id,
+      });
+      store.projects.push({
+        id: id(),
+        nodeId,
+        name: spec.name,
+        tagline: spec.tagline,
+        status: "active",
+        lifeAreaId: career?.id,
+        kpi: [],
+        modules: {
+          docs: spec.modules,
+          tasks: spec.modules.map((title) => ({ id: id(), title, done: false })),
+          ideas: [],
+          financeNotes: [],
+          team: [],
+          marketing: [],
+          sales: [],
+          files: [],
+          changelog: [{ at: t, text: "Created as Career venture" }],
+        },
+        diary: [],
+      });
+    }
+  }
 
   if (!store.finance) {
     store.finance = {
@@ -153,6 +287,11 @@ export function migrateStore(raw: LifeStore): LifeStore {
     ...c,
     order: c.order ?? i + 1,
     archived: Boolean(c.archived),
+  }));
+
+  store.dayTasks = (store.dayTasks ?? []).map((t) => ({
+    ...t,
+    priority: t.priority ?? "should",
   }));
 
   store.version = CURRENT_VERSION;

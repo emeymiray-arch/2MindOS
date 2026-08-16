@@ -125,6 +125,10 @@ export function ensureDayTask(
     stageId: patch.stageId,
     goalId: patch.goalId,
     goalTitle: patch.goalTitle,
+    weekId: patch.weekId,
+    objectiveId: patch.objectiveId,
+    lifeAreaId: patch.lifeAreaId,
+    priority: patch.priority ?? "should",
     deadlineStart: patch.deadlineStart,
     deadlineEnd: patch.deadlineEnd,
   };
