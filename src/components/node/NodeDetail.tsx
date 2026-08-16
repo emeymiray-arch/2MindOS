@@ -35,7 +35,7 @@ export function NodeDetail({ id }: { id: string }) {
   return (
     <div className="fade-in mx-auto max-w-3xl space-y-8">
       <div>
-        <Link href="/graph" className="text-[13px] font-semibold text-[var(--indigo)]">
+        <Link href="/graph" className="text-[13px] font-semibold text-[var(--ink)]">
           ← Карта
         </Link>
         <p className="eyebrow mt-4">
@@ -84,8 +84,8 @@ export function NodeDetail({ id }: { id: string }) {
             if (!other) return null;
             return (
               <li key={e.id} className="flex flex-wrap items-baseline gap-2 text-[14px]">
-                <span className="font-semibold text-[var(--indigo)]">{e.type}</span>
-                <Link href={`/nodes/${other.id}`} className="font-medium hover:text-[var(--coral)]">
+                <span className="font-semibold text-[var(--ink)]">{e.type}</span>
+                <Link href={`/nodes/${other.id}`} className="font-medium hover:text-[var(--ink)]">
                   {other.title}
                 </Link>
                 <span className="text-[11px] text-[var(--ink-faint)]">
@@ -125,7 +125,7 @@ function Meta({ label, value, href }: { label: string; value: string; href?: str
   );
   if (href) {
     return (
-      <Link href={href} className="card block p-4 hover:border-[var(--indigo)]">
+      <Link href={href} className="card block p-4 hover:border-[var(--ink-faint)]">
         {inner}
       </Link>
     );

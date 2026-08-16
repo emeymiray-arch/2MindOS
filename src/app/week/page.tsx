@@ -69,23 +69,23 @@ export default function WeekPage() {
   });
 
   return (
-    <div className="fade-in mx-auto max-w-2xl space-y-6 pb-10">
-      <header className="space-y-1">
+    <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
+      <header className="space-y-2">
         <h1 className="font-display text-3xl">Week</h1>
         <p className="text-[15px] text-[var(--ink-soft)]">с {weekLabel}</p>
       </header>
 
-      {error ? <p className="text-[13px] text-[var(--bad)]">{error}</p> : null}
+      {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
       <p className="text-[13px] text-[var(--ink-faint)]">
         Active goals → weekly objective → tasks for Today
       </p>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         {data.activeGoals.map((g) => {
           const objs = (data.week?.objectives ?? []).filter((o) => o.goalId === g.id);
           return (
-            <section key={g.id} className="card space-y-3 p-5">
+            <section key={g.id} className="card space-y-4 p-6">
               <div className="flex items-baseline justify-between gap-2">
                 <div>
                   <Link href={`/goals?id=${g.id}`} className="font-semibold">

@@ -71,7 +71,7 @@ export default function CapitalPage() {
             </p>
           </div>
         </div>
-        <div className="meter meter-teal mt-4">
+        <div className="meter mt-4">
           <span
             style={{
               width: `${Math.min(
@@ -136,7 +136,7 @@ export default function CapitalPage() {
         </ul>
       </section>
 
-      <Link href="/" className="text-[13px] font-semibold text-[var(--indigo)]">
+      <Link href="/" className="text-[13px] font-semibold text-[var(--ink)]">
         Health vitals → Пульт
       </Link>
     </div>

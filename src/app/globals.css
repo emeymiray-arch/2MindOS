@@ -1,23 +1,23 @@
 @import "tailwindcss";
 
-/* Monochrome Apple — gray / black / white + green/red checks only */
+/* Quiet monochrome — ink / gray / white. No decorative color. */
 
 :root,
 [data-theme="light"] {
-  --bg: #f2f2f7;
+  --bg: #f7f7f8;
   --bg-panel: #ffffff;
   --bg-card: #ffffff;
   --ink: #1c1c1e;
-  --ink-soft: #636366;
-  --ink-faint: #8e8e93;
-  --line: rgba(60, 60, 67, 0.12);
+  --ink-soft: #6e6e73;
+  --ink-faint: #98989d;
+  --line: rgba(60, 60, 67, 0.08);
   --accent: #1c1c1e;
-  --accent-soft: rgba(28, 28, 30, 0.08);
-  --ok: #34c759;
-  --bad: #ff3b30;
-  --shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.04);
-  --radius: 22px;
-  --radius-sm: 16px;
+  --accent-soft: rgba(28, 28, 30, 0.06);
+  --ok: #1c1c1e;
+  --bad: #1c1c1e;
+  --shadow: none;
+  --radius: 20px;
+  --radius-sm: 14px;
   --sidebar-w: 220px;
 }
 
@@ -28,12 +28,12 @@
   --ink: #f5f5f7;
   --ink-soft: #aeaeb2;
   --ink-faint: #8e8e93;
-  --line: rgba(84, 84, 88, 0.55);
+  --line: rgba(84, 84, 88, 0.4);
   --accent: #f5f5f7;
-  --accent-soft: rgba(245, 245, 247, 0.1);
-  --ok: #30d158;
-  --bad: #ff453a;
-  --shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  --accent-soft: rgba(245, 245, 247, 0.08);
+  --ok: #f5f5f7;
+  --bad: #f5f5f7;
+  --shadow: none;
 }
 
 @theme inline {
@@ -101,7 +101,6 @@ select {
   background: var(--bg-card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
 }
 
 .panel {
@@ -160,15 +159,15 @@ select {
 }
 
 .chip-on {
-  background: var(--ink);
-  color: var(--bg-card);
+  background: var(--accent-soft);
+  color: var(--ink);
   border-color: transparent;
 }
 
 .meter {
-  height: 4px;
+  height: 2px;
   border-radius: 99px;
-  background: var(--bg);
+  background: var(--line);
   overflow: hidden;
 }
 
@@ -203,13 +202,14 @@ select {
 }
 
 .check-on {
-  background: var(--ok);
-  color: #fff;
+  background: var(--ink);
+  color: var(--bg-card);
 }
 
 .check-off {
-  background: var(--bad);
-  color: #fff;
+  background: transparent;
+  color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line);
 }
 
 .thought-circle {
@@ -269,15 +269,15 @@ select {
 
 .cal-cell-dot::after {
   content: "";
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
   border-radius: 50%;
-  background: var(--bad);
+  background: var(--ink-faint);
   margin-top: 3px;
 }
 
 .cal-cell-on.cal-cell-dot::after {
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .scroll-thin::-webkit-scrollbar {
@@ -451,7 +451,6 @@ select:focus {
   border-radius: 20px;
   background: var(--bg-card);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow);
 }
 
 .page-toolbar-pick {
@@ -561,7 +560,7 @@ select:focus {
 }
 
 .roadmap-tick.on {
-  color: var(--ok);
+  color: var(--ink);
 }
 
 .roadmap-tick.off {

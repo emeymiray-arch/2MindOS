@@ -19,11 +19,11 @@ interface SimNode extends LifeNode {
 
 /* Soft Studio canvas — Apple */
 const CANVAS = {
-  bg: "#F2F2F7",
-  edgeDim: "rgba(28, 28, 30, 0.15)",
-  edgeBright: "rgba(28, 28, 30, 0.35)",
+  bg: "#F7F7F8",
+  edgeDim: "rgba(28, 28, 30, 0.1)",
+  edgeBright: "rgba(28, 28, 30, 0.28)",
   nodeDefault: "#1C1C1E",
-  nodeActive: "#FF3B30",
+  nodeActive: "#1C1C1E",
   label: "#1C1C1E",
 };
 
@@ -253,7 +253,7 @@ export function LifeGraph() {
           <p className="eyebrow">Graph</p>
           <h1 className="font-display mt-1 text-3xl">Карта жизни</h1>
           <p className="mt-1 text-[13px] text-[var(--ink-soft)]">
-            Двойной клик — focus. Indigo узлы, coral — активный.
+            Двойной клик — focus.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -288,7 +288,7 @@ export function LifeGraph() {
             <p className="mt-1 text-[16px] font-semibold">{selected.title}</p>
             <Link
               href={`/nodes/${selected.id}`}
-              className="mt-2 inline-block text-[13px] font-semibold text-[var(--indigo)]"
+              className="mt-2 inline-block text-[13px] font-semibold text-[var(--ink)]"
             >
               Открыть →
             </Link>

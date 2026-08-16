@@ -33,21 +33,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-full">
-      <aside className="sticky top-0 flex h-screen w-[var(--sidebar-w)] shrink-0 flex-col border-r border-[var(--line)] bg-[var(--bg-panel)]/95 px-3 py-5 backdrop-blur-xl">
-        <Link href="/now" className="mb-6 px-3">
+      <aside className="sticky top-0 flex h-screen w-[var(--sidebar-w)] shrink-0 flex-col border-r border-[var(--line)] bg-[var(--bg-panel)] px-3 py-8">
+        <Link href="/now" className="mb-10 px-3">
           <div className="text-[15px] font-semibold tracking-[-0.02em]">2MindOS</div>
         </Link>
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto scroll-thin">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto scroll-thin">
           {NAV.map((item) => {
             const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`rounded-[12px] px-3 py-2.5 text-[13px] font-semibold transition-colors ${
+                className={`rounded-[14px] px-3 py-2.5 text-[13px] font-medium transition-colors ${
                   active
-                    ? "bg-[var(--ink)] text-[var(--bg-card)]"
-                    : "text-[var(--ink-soft)] hover:bg-[var(--bg)] hover:text-[var(--ink)]"
+                    ? "bg-[var(--accent-soft)] text-[var(--ink)]"
+                    : "text-[var(--ink-faint)] hover:bg-[var(--bg)] hover:text-[var(--ink)]"
                 }`}
               >
                 {item.label}
@@ -55,8 +55,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="mt-auto space-y-2 border-t border-[var(--line)] px-3 pt-4 text-[11px] text-[var(--ink-faint)]">
-          <p className="font-semibold uppercase tracking-[0.06em]">Ещё</p>
+        <div className="mt-auto space-y-2.5 border-t border-[var(--line)] px-3 pt-5 text-[12px] text-[var(--ink-faint)]">
+          <p className="font-medium">Ещё</p>
           <Link href="/capital" className="block hover:text-[var(--ink-soft)]">
             Капитал
           </Link>
@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="block opacity-40">{theme}</span>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 px-5 py-7 md:px-10 md:py-9">
+      <main className="min-w-0 flex-1 px-6 py-10 md:px-14 md:py-14">
         <div key={pathname} className="page-enter">
           {children}
         </div>

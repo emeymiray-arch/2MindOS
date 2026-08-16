@@ -67,8 +67,8 @@ export default function ThingsPage() {
   }, [visible]);
 
   return (
-    <div className="fade-in mx-auto max-w-2xl space-y-5 pb-10">
-      <header className="space-y-1">
+    <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
+      <header className="space-y-2">
         <h1 className="font-display text-3xl">Things</h1>
         <p className="text-[13px] text-[var(--ink-faint)]">Покупки ≠ цели. Someday не попадает в Today.</p>
       </header>
@@ -86,9 +86,9 @@ export default function ThingsPage() {
         ))}
       </div>
 
-      {error ? <p className="text-[13px] text-[var(--bad)]">{error}</p> : null}
+      {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
-      <div className="card flex gap-2 p-3">
+      <div className="card flex gap-2 p-4">
         <input
           className="min-w-0 flex-1"
           value={hashtag}

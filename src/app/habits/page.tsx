@@ -53,11 +53,11 @@ export default function HabitsPage() {
   }));
 
   return (
-    <div className="fade-in mx-auto max-w-2xl space-y-5 pb-10">
+    <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
       <h1 className="font-display text-3xl">Habits</h1>
-      {error ? <p className="text-[13px] text-[var(--bad)]">{error}</p> : null}
+      {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
-      <div className="card flex gap-2 p-3">
+      <div className="card flex gap-2 p-4">
         <input
           className="min-w-0 flex-1"
           value={title}
@@ -84,7 +84,7 @@ export default function HabitsPage() {
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {habits.map((h) => (
           <div key={h.id} className="card flex items-center gap-3 p-4">
             <button

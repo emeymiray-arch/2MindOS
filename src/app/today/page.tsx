@@ -61,10 +61,10 @@ function TodayInner() {
     }
   }
 
-  const groups: { key: TaskPriority; label: string; tone: string }[] = [
-    { key: "must", label: "Must", tone: "#ff453a" },
-    { key: "should", label: "Should", tone: "#ff9f0a" },
-    { key: "optional", label: "Optional", tone: "#30d158" },
+  const groups: { key: TaskPriority; label: string }[] = [
+    { key: "must", label: "Must" },
+    { key: "should", label: "Should" },
+    { key: "optional", label: "Optional" },
   ];
 
   const byPriority = useMemo(() => {
@@ -83,18 +83,18 @@ function TodayInner() {
   }));
 
   return (
-    <div className="fade-in mx-auto max-w-2xl space-y-5 pb-10">
+    <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
       <div className="flex items-center justify-between gap-3">
         <h1 className="font-display text-3xl">Today</h1>
-        <Link href="/week" className="text-[13px] font-semibold text-[var(--ink-soft)]">
+        <Link href="/week" className="text-[13px] font-medium text-[var(--ink-faint)]">
           Week →
         </Link>
       </div>
 
-      <div className="card flex items-center justify-between gap-3 p-3">
+      <div className="card flex items-center justify-between gap-3 p-4">
         <button
           type="button"
-          className="btn btn-soft"
+          className="btn btn-ghost"
           onClick={() => {
             setDate((d) => shiftDate(d, -1));
             setAnimKey((k) => k + 1);
@@ -113,7 +113,7 @@ function TodayInner() {
         </div>
         <button
           type="button"
-          className="btn btn-soft"
+          className="btn btn-ghost"
           onClick={() => {
             setDate((d) => shiftDate(d, 1));
             setAnimKey((k) => k + 1);
@@ -123,33 +123,22 @@ function TodayInner() {
         </button>
       </div>
 
-      <div className={`card p-4 ${load.percent > 100 ? "border-[var(--bad)]" : ""}`}>
-        <p className="text-[12px] font-semibold text-[var(--ink-faint)]">Daily load</p>
-        <p
-          className={`font-display text-3xl tabular-nums ${
-            load.percent > 100 ? "text-[var(--bad)]" : ""
-          }`}
-        >
-          {load.percent}%
-        </p>
+      <div className="space-y-1 px-1">
+        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Daily load</p>
+        <p className="font-display text-3xl tabular-nums tracking-[-0.04em]">{load.percent}%</p>
         {load.percent > 100 ? (
-          <p className="mt-1 text-[13px] text-[var(--bad)]">
+          <p className="text-[13px] text-[var(--ink-soft)]">
             Перегруз — перенеси, сделай optional или оставь на неделю
           </p>
         ) : null}
       </div>
 
-      {error ? <p className="text-[13px] text-[var(--bad)]">{error}</p> : null}
+      {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
-      <div key={animKey} className="date-enter space-y-5">
+      <div key={animKey} className="date-enter space-y-8">
         {groups.map((g) => (
-          <section key={g.key} className="space-y-2">
-            <p
-              className="text-[12px] font-semibold uppercase tracking-[0.06em]"
-              style={{ color: g.tone }}
-            >
-              {g.label}
-            </p>
+          <section key={g.key} className="space-y-3">
+            <p className="text-[12px] font-medium text-[var(--ink-faint)]">{g.label}</p>
             <div className="card overflow-hidden">
               <div className="task-list">
                 {byPriority[g.key].length === 0 ? (

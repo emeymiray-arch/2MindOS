@@ -4,7 +4,7 @@ export function ProgressRing({
   value,
   size = 128,
   stroke = 10,
-  color = "var(--ok)",
+  color = "var(--ink)",
   trackColor = "var(--line)",
   label,
 }: {

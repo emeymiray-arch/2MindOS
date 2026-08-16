@@ -42,27 +42,25 @@ export default function NowPage() {
   const open = data.tasks.filter((t) => !t.done);
 
   return (
-    <div className="fade-in mx-auto max-w-2xl space-y-8 pb-10">
-      <header className="space-y-2">
-        <h1 className="font-display text-4xl">Now</h1>
+    <div className="fade-in mx-auto max-w-2xl space-y-12 pb-16">
+      <header className="space-y-3">
+        <h1 className="font-display text-4xl tracking-[-0.04em]">Now</h1>
         <p className="text-[15px] text-[var(--ink-soft)]">
           {data.plan?.title ?? "6-month plan"}
         </p>
       </header>
 
-      <section className="card space-y-3 p-5">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
-          What matters now
-        </p>
+      <section className="space-y-4">
+        <p className="text-[12px] font-medium text-[var(--ink-faint)]">What matters now</p>
         {data.matters.length === 0 ? (
           <p className="text-[13px] text-[var(--ink-faint)]">Добавь цели в Foundation / Goals</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {data.matters.map((m) => (
               <li key={m.id}>
                 <Link href={`/goals?id=${m.id}`} className="flex items-baseline justify-between gap-3">
-                  <span className="font-semibold">{m.title}</span>
-                  <span className="tabular-nums text-[var(--ink-soft)]">{m.progress}%</span>
+                  <span className="text-[17px] font-semibold tracking-[-0.02em]">{m.title}</span>
+                  <span className="tabular-nums text-[14px] text-[var(--ink-faint)]">{m.progress}%</span>
                 </Link>
               </li>
             ))}
@@ -70,27 +68,25 @@ export default function NowPage() {
         )}
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
-            What I&apos;m working on
-          </p>
-          <Link href="/week" className="text-[13px] font-semibold text-[var(--ink-soft)]">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">What I&apos;m working on</p>
+          <Link href="/week" className="text-[13px] font-medium text-[var(--ink-faint)]">
             Week →
           </Link>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {data.workingOn.length === 0 ? (
             <p className="text-[13px] text-[var(--ink-faint)]">Нет активных целей</p>
           ) : (
             data.workingOn.map((g) => (
-              <Link key={g.id} href={`/goals?id=${g.id}`} className="card block space-y-1 p-4">
+              <Link key={g.id} href={`/goals?id=${g.id}`} className="card block space-y-2 p-5">
                 <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-semibold">
+                  <p className="font-semibold tracking-[-0.02em]">
                     {g.area?.emoji ? `${g.area.emoji} ` : ""}
                     {g.title}
                   </p>
-                  <span className="tabular-nums text-[var(--ink-soft)]">{g.progress}%</span>
+                  <span className="tabular-nums text-[14px] text-[var(--ink-faint)]">{g.progress}%</span>
                 </div>
                 {g.phase ? (
                   <p className="text-[13px] text-[var(--ink-faint)]">Phase · {g.phase.title}</p>
@@ -101,26 +97,20 @@ export default function NowPage() {
         </div>
       </section>
 
-      <section className="card space-y-3 p-5">
+      <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
-            Today
-          </p>
-          <Link href="/today" className="text-[13px] font-semibold text-[var(--ink-soft)]">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Today</p>
+          <Link href="/today" className="text-[13px] font-medium text-[var(--ink-faint)]">
             Open →
           </Link>
         </div>
-        <p
-          className={`font-display text-3xl tabular-nums ${
-            data.load.percent > 100 ? "text-[var(--bad)]" : ""
-          }`}
-        >
+        <p className="font-display text-3xl tabular-nums tracking-[-0.04em]">
           {data.load.percent}%
-          <span className="ml-2 text-[13px] font-semibold text-[var(--ink-faint)]">load</span>
+          <span className="ml-2 text-[13px] font-medium text-[var(--ink-faint)]">load</span>
         </p>
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {open.slice(0, 5).map((t) => (
-            <li key={t.id} className="text-[14px]">
+            <li key={t.id} className="text-[15px]">
               <span className="font-medium">{t.title}</span>
               {t.chain.goal ? (
                 <span className="meta-quiet"> · {t.chain.goal}</span>
@@ -133,16 +123,14 @@ export default function NowPage() {
         </ul>
       </section>
 
-      <section className="card space-y-3 p-5">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[var(--ink-faint)]">
-          Intentionally not doing
-        </p>
+      <section className="space-y-4">
+        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Intentionally not doing</p>
         {data.notDoing.length === 0 ? (
           <p className="text-[13px] text-[var(--ink-faint)]">Later-цели появятся здесь</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {data.notDoing.map((g) => (
-              <li key={g.id} className="text-[14px] text-[var(--ink-soft)]">
+              <li key={g.id} className="text-[15px] text-[var(--ink-soft)]">
                 {g.title}
                 {g.area ? <span className="meta-quiet"> · {g.area}</span> : null}
               </li>

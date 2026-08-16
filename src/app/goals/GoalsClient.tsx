@@ -89,12 +89,10 @@ export default function GoalsClient() {
     return list;
   }, [goals]);
 
-  function Bucket({ label, items, tone }: { label: string; items: GoalView[]; tone: string }) {
+  function Bucket({ label, items }: { label: string; items: GoalView[] }) {
     return (
-      <section className="space-y-3">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.06em]" style={{ color: tone }}>
-          {label}
-        </p>
+      <section className="space-y-4">
+        <p className="text-[12px] font-medium text-[var(--ink-faint)]">{label}</p>
         {items.length === 0 ? (
           <p className="text-[13px] text-[var(--ink-faint)]">—</p>
         ) : (
@@ -129,19 +127,19 @@ export default function GoalsClient() {
 
   if (selected) {
     return (
-      <div className="fade-in mx-auto max-w-2xl space-y-6 pb-10">
-        <button
-          type="button"
-          className="text-[13px] font-semibold text-[var(--ink-soft)]"
-          onClick={() => setSelected(null)}
-        >
-          ← Goals
-        </button>
-        <header className="space-y-2">
-          <h1 className="font-display text-3xl">{selected.title}</h1>
-          <p className="text-[14px] text-[var(--ink-soft)]">
-            {selected.area?.name ?? "Life area"} · {selected.progress}%
-          </p>
+    <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
+      <button
+        type="button"
+        className="text-[13px] font-medium text-[var(--ink-faint)]"
+        onClick={() => setSelected(null)}
+      >
+        ← Goals
+      </button>
+      <header className="space-y-3">
+        <h1 className="font-display text-3xl">{selected.title}</h1>
+        <p className="text-[14px] text-[var(--ink-soft)]">
+          {selected.area?.name ?? "Life area"} · {selected.progress}%
+        </p>
           {selected.description ? (
             <p className="text-[14px] text-[var(--ink-faint)]">{selected.description}</p>
           ) : null}
@@ -252,13 +250,13 @@ export default function GoalsClient() {
   }
 
   return (
-    <div className="fade-in mx-auto max-w-2xl space-y-6 pb-10">
-      <header className="space-y-1">
+    <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
+      <header className="space-y-2">
         <h1 className="font-display text-3xl">Goals</h1>
         <p className="text-[15px] text-[var(--ink-soft)]">{plan?.title ?? "6 Month Plan"}</p>
       </header>
 
-      {error ? <p className="text-[13px] text-[var(--bad)]">{error}</p> : null}
+      {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
       <div className="card flex flex-wrap gap-2 p-3">
         <input
@@ -299,9 +297,9 @@ export default function GoalsClient() {
         </button>
       </div>
 
-      <Bucket label="Foundation" items={foundation} tone="#ff453a" />
-      <Bucket label="Development" items={development} tone="#ff9f0a" />
-      <Bucket label="Later" items={later} tone="#ffd60a" />
+      <Bucket label="Foundation" items={foundation} />
+      <Bucket label="Development" items={development} />
+      <Bucket label="Later" items={later} />
 
       <PageToolbar
         mode={mode}
