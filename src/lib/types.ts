@@ -137,15 +137,20 @@ export interface SixMonthPlan {
   createdAt: string;
 }
 
-/** Milestone inside a PlanPhase */
-export interface Milestone {
+/** Module inside a plan stage (was milestone). */
+export interface PlanModule {
   id: string;
   title: string;
   done: boolean;
   order: number;
+  deadlineStart?: string;
+  deadlineEnd?: string;
 }
 
-/** Phase inside a WorkPlan (execution plan for a Goal or Project) */
+/** @deprecated use PlanModule */
+export type Milestone = PlanModule;
+
+/** Stage (этап) inside a WorkPlan */
 export interface PlanPhase {
   id: string;
   title: string;
@@ -155,7 +160,10 @@ export interface PlanPhase {
   deadlineEnd?: string;
   status?: PhaseStatus;
   objectives: string[];
-  milestones: Milestone[];
+  /** Modules of this stage */
+  modules: PlanModule[];
+  /** @deprecated migrated into modules */
+  milestones?: PlanModule[];
   archived?: boolean;
   progress?: number;
 }

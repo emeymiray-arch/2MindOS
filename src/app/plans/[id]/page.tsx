@@ -4,14 +4,22 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-type Phase = {
+type Module = {
+  id: string;
+  title: string;
+  done: boolean;
+  deadlineStart?: string;
+  deadlineEnd?: string;
+};
+
+type Stage = {
   id: string;
   title: string;
   order: number;
-  durationWeeks?: number;
+  deadlineStart?: string;
+  deadlineEnd?: string;
   status?: string;
-  objectives: string[];
-  milestones: { id: string; title: string; done: boolean }[];
+  modules: Module[];
   progress?: number;
 };
 
@@ -28,27 +36,11 @@ type PlanPayload = {
     progress: number;
     ownerType: "goal" | "project";
     ownerId: string;
-    phases: Phase[];
+    phases: Stage[];
   };
-  owner: { title: string; goal?: { id: string }; project?: { id: string } };
-  currentPhase: Phase | null;
-  currentWeek: {
-    id: string;
-    weekStart: string;
-    objectives: { id: string; title: string; done: boolean }[];
-  } | null;
-  today: { id: string; title: string; done: boolean; date: string }[];
+  owner: { title: string };
+  today: { id: string; title: string; done: boolean; date: string; milestoneId?: string }[];
 };
-
-type WeekOutlineItem = {
-  weekStart: string;
-  weekEnd: string;
-  label: string;
-  suggestedOutcome: string;
-  suggestedActions: string[];
-};
-
-type DayBreak = { date: string; dayLabel: string; titles: string[] };
 
 export default function PlanDashboardPage() {
   const params = useParams();
@@ -63,20 +55,18 @@ export default function PlanDashboardPage() {
     title: "",
     desiredResult: "",
     why: "",
-    startingPoint: "",
     strategy: "",
     deadline: "",
   });
-  const [phaseTitle, setPhaseTitle] = useState("");
-  const [phaseWeeks, setPhaseWeeks] = useState("2");
-  const [milestoneDrafts, setMilestoneDrafts] = useState<Record<string, string>>({});
-  const [outline, setOutline] = useState<WeekOutlineItem[] | null>(null);
-  const [dayBreak, setDayBreak] = useState<DayBreak[] | null>(null);
+  const [stageDraft, setStageDraft] = useState({ title: "", deadlineStart: "", deadlineEnd: "" });
+  const [moduleDrafts, setModuleDrafts] = useState<
+    Record<string, { title: string; deadlineStart: string; deadlineEnd: string; taskDate: string }>
+  >({});
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/work-plans?id=${encodeURIComponent(planId)}`);
     if (!res.ok) {
-      setError("Plan not found");
+      setError("План не найден");
       setData(null);
       return;
     }
@@ -86,7 +76,6 @@ export default function PlanDashboardPage() {
       title: json.plan.title ?? "",
       desiredResult: json.plan.desiredResult ?? "",
       why: json.plan.why ?? "",
-      startingPoint: json.plan.startingPoint ?? "",
       strategy: json.plan.strategy ?? "",
       deadline: json.plan.deadline ?? "",
     });
@@ -104,7 +93,6 @@ export default function PlanDashboardPage() {
       const result = await apiPost("/api/work-plans", body);
       if (!result.ok && result.error) setError(String(result.error));
       await load();
-      return result;
     } catch {
       setError("Не удалось сохранить");
     } finally {
@@ -112,25 +100,32 @@ export default function PlanDashboardPage() {
     }
   }
 
-  if (!data && !error) {
-    return <div className="text-[var(--ink-faint)]">…</div>;
+  function modDraft(stageId: string) {
+    return (
+      moduleDrafts[stageId] ?? {
+        title: "",
+        deadlineStart: "",
+        deadlineEnd: "",
+        taskDate: new Date().toISOString().slice(0, 10),
+      }
+    );
   }
+
+  if (!data && !error) return <div className="text-[var(--ink-faint)]">…</div>;
   if (!data) {
     return (
       <div className="fade-in mx-auto max-w-2xl space-y-4">
         <p className="text-[var(--ink-soft)]">{error}</p>
         <button type="button" className="btn btn-soft" onClick={() => router.back()}>
-          ← Back
+          ← Назад
         </button>
       </div>
     );
   }
 
-  const { plan, owner, currentPhase, currentWeek, today } = data;
+  const { plan, owner, today } = data;
   const backHref =
-    plan.ownerType === "goal"
-      ? `/goals?id=${plan.ownerId}`
-      : `/projects/${plan.ownerId}`;
+    plan.ownerType === "goal" ? `/goals?id=${plan.ownerId}` : `/projects/${plan.ownerId}`;
 
   return (
     <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
@@ -144,15 +139,16 @@ export default function PlanDashboardPage() {
           disabled={busy}
           onClick={() => setEditing((v) => !v)}
         >
-          {editing ? "Done" : "Edit Plan"}
+          {editing ? "Готово" : "Изменить"}
         </button>
       </div>
 
       <header className="space-y-3">
-        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Plan Overview</p>
         <h1 className="font-display text-3xl tracking-[-0.03em]">{plan.title}</h1>
         <p className="text-[14px] text-[var(--ink-soft)]">
-          {owner.title} · {plan.progress}%
+          {owner.title}
+          {plan.deadline ? ` · до ${plan.deadline}` : ""}
+          {` · ${plan.progress}%`}
         </p>
         <div className="meter">
           <span style={{ width: `${plan.progress}%` }} />
@@ -165,12 +161,11 @@ export default function PlanDashboardPage() {
         <section className="card space-y-3 p-6">
           {(
             [
-              ["title", "Title"],
-              ["desiredResult", "Desired Result"],
-              ["why", "Why"],
-              ["startingPoint", "Starting Point"],
-              ["strategy", "Strategy"],
-              ["deadline", "Deadline"],
+              ["title", "Название"],
+              ["desiredResult", "Результат"],
+              ["why", "Зачем"],
+              ["strategy", "Как двигаюсь"],
+              ["deadline", "Дедлайн плана"],
             ] as const
           ).map(([key, label]) => (
             <label key={key} className="block space-y-1">
@@ -204,320 +199,305 @@ export default function PlanDashboardPage() {
               setEditing(false);
             }}
           >
-            Save
+            Сохранить
           </button>
         </section>
       ) : (
-        <section className="space-y-4">
+        <section className="space-y-3">
           {plan.desiredResult ? (
             <div>
-              <p className="text-[12px] text-[var(--ink-faint)]">Desired Result</p>
+              <p className="text-[12px] text-[var(--ink-faint)]">Результат</p>
               <p className="text-[15px]">{plan.desiredResult}</p>
             </div>
           ) : null}
           {plan.why ? (
             <div>
-              <p className="text-[12px] text-[var(--ink-faint)]">Why</p>
+              <p className="text-[12px] text-[var(--ink-faint)]">Зачем</p>
               <p className="text-[15px]">{plan.why}</p>
-            </div>
-          ) : null}
-          {plan.startingPoint ? (
-            <div>
-              <p className="text-[12px] text-[var(--ink-faint)]">Starting Point</p>
-              <p className="text-[15px]">{plan.startingPoint}</p>
             </div>
           ) : null}
           {plan.strategy ? (
             <div>
-              <p className="text-[12px] text-[var(--ink-faint)]">Strategy</p>
+              <p className="text-[12px] text-[var(--ink-faint)]">Как двигаюсь</p>
               <p className="text-[15px]">{plan.strategy}</p>
             </div>
-          ) : null}
-          {plan.deadline ? (
-            <p className="text-[13px] text-[var(--ink-faint)]">Deadline · {plan.deadline}</p>
           ) : null}
         </section>
       )}
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Timeline · Phases</p>
-          <p className="text-[13px] text-[var(--ink-faint)]">
-            Current · {currentPhase?.title ?? "—"}
-          </p>
-        </div>
+      <section className="space-y-5">
+        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Этапы</p>
 
-        {plan.phases.map((ph) => (
-          <div key={ph.id} className="card space-y-3 p-5">
-            <div className="flex items-baseline justify-between gap-2">
-              <div>
-                <p className="font-semibold">{ph.title}</p>
-                <p className="text-[12px] text-[var(--ink-faint)]">
-                  {ph.durationWeeks ? `${ph.durationWeeks} weeks · ` : ""}
-                  {ph.status ?? "planned"} · {ph.progress ?? 0}%
-                </p>
-              </div>
-              {ph.status !== "active" ? (
-                <button
-                  type="button"
-                  className="btn btn-soft text-[12px]"
-                  disabled={busy}
-                  onClick={() =>
-                    post({ action: "activatePhase", planId: plan.id, phaseId: ph.id })
-                  }
-                >
-                  Activate
-                </button>
-              ) : null}
-            </div>
-            <div className="meter">
-              <span style={{ width: `${ph.progress ?? 0}%` }} />
-            </div>
-
-            {(ph.objectives ?? []).length > 0 ? (
-              <ul className="space-y-1 text-[13px] text-[var(--ink-soft)]">
-                {ph.objectives.map((o) => (
-                  <li key={o}>· {o}</li>
-                ))}
-              </ul>
-            ) : null}
-
-            <div className="space-y-2">
-              <p className="text-[12px] text-[var(--ink-faint)]">Milestones</p>
-              {(ph.milestones ?? []).map((m) => (
-                <div key={m.id} className="flex items-center gap-2">
+        {plan.phases.map((stage) => {
+          const d = modDraft(stage.id);
+          const modules = stage.modules ?? [];
+          return (
+            <div key={stage.id} className="card space-y-4 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="font-semibold">{stage.title}</p>
+                  <p className="text-[12px] text-[var(--ink-faint)]">
+                    {[
+                      stage.deadlineStart && stage.deadlineEnd
+                        ? `${stage.deadlineStart} — ${stage.deadlineEnd}`
+                        : stage.deadlineEnd
+                          ? `до ${stage.deadlineEnd}`
+                          : stage.deadlineStart
+                            ? `с ${stage.deadlineStart}`
+                            : null,
+                      `${stage.progress ?? 0}%`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                {stage.status !== "active" ? (
                   <button
                     type="button"
-                    className={`check ${m.done ? "check-on" : "check-off"}`}
+                    className="btn btn-soft text-[12px]"
                     disabled={busy}
                     onClick={() =>
-                      post({
-                        action: "toggleMilestone",
-                        planId: plan.id,
-                        phaseId: ph.id,
-                        milestoneId: m.id,
-                        done: !m.done,
-                      })
+                      post({ action: "activatePhase", planId: plan.id, phaseId: stage.id })
                     }
                   >
-                    {m.done ? "✓" : ""}
+                    Сделать текущим
                   </button>
-                  <span className="text-[14px]">{m.title}</span>
+                ) : (
+                  <span className="text-[12px] text-[var(--ink-faint)]">текущий</span>
+                )}
+              </div>
+
+              <div className="meter">
+                <span style={{ width: `${stage.progress ?? 0}%` }} />
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="space-y-1 text-[12px] text-[var(--ink-faint)]">
+                  Начало этапа
+                  <input
+                    type="date"
+                    value={stage.deadlineStart ?? ""}
+                    onChange={(e) =>
+                      post({
+                        action: "updatePhase",
+                        planId: plan.id,
+                        phaseId: stage.id,
+                        deadlineStart: e.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label className="space-y-1 text-[12px] text-[var(--ink-faint)]">
+                  Конец этапа
+                  <input
+                    type="date"
+                    value={stage.deadlineEnd ?? ""}
+                    onChange={(e) =>
+                      post({
+                        action: "updatePhase",
+                        planId: plan.id,
+                        phaseId: stage.id,
+                        deadlineEnd: e.target.value,
+                      })
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-[12px] text-[var(--ink-faint)]">Модули</p>
+                {modules.map((m) => (
+                  <div key={m.id} className="space-y-2 rounded-[14px] bg-[var(--bg)] p-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className={`check ${m.done ? "check-on" : "check-off"}`}
+                        disabled={busy}
+                        onClick={() =>
+                          post({
+                            action: "toggleModule",
+                            planId: plan.id,
+                            phaseId: stage.id,
+                            moduleId: m.id,
+                            done: !m.done,
+                          })
+                        }
+                      >
+                        {m.done ? "✓" : ""}
+                      </button>
+                      <span className="min-w-0 flex-1 text-[14px] font-medium">{m.title}</span>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <input
+                        type="date"
+                        value={m.deadlineStart ?? ""}
+                        onChange={(e) =>
+                          post({
+                            action: "updateModule",
+                            planId: plan.id,
+                            phaseId: stage.id,
+                            moduleId: m.id,
+                            deadlineStart: e.target.value,
+                          })
+                        }
+                      />
+                      <input
+                        type="date"
+                        value={m.deadlineEnd ?? ""}
+                        onChange={(e) =>
+                          post({
+                            action: "updateModule",
+                            planId: plan.id,
+                            phaseId: stage.id,
+                            moduleId: m.id,
+                            deadlineEnd: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        type="date"
+                        value={d.taskDate}
+                        onChange={(e) =>
+                          setModuleDrafts({
+                            ...moduleDrafts,
+                            [stage.id]: { ...d, taskDate: e.target.value },
+                          })
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-soft text-[12px]"
+                        disabled={busy}
+                        onClick={() =>
+                          post({
+                            action: "addTaskFromModule",
+                            planId: plan.id,
+                            phaseId: stage.id,
+                            moduleId: m.id,
+                            date: d.taskDate,
+                            title: m.title,
+                          })
+                        }
+                      >
+                        В день
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="space-y-2">
+                  <input
+                    placeholder="Название модуля"
+                    value={d.title}
+                    onChange={(e) =>
+                      setModuleDrafts({
+                        ...moduleDrafts,
+                        [stage.id]: { ...d, title: e.target.value },
+                      })
+                    }
+                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <input
+                      type="date"
+                      value={d.deadlineStart}
+                      onChange={(e) =>
+                        setModuleDrafts({
+                          ...moduleDrafts,
+                          [stage.id]: { ...d, deadlineStart: e.target.value },
+                        })
+                      }
+                    />
+                    <input
+                      type="date"
+                      value={d.deadlineEnd}
+                      onChange={(e) =>
+                        setModuleDrafts({
+                          ...moduleDrafts,
+                          [stage.id]: { ...d, deadlineEnd: e.target.value },
+                        })
+                      }
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-ink"
+                    disabled={busy || !d.title.trim()}
+                    onClick={() => {
+                      post({
+                        action: "addModule",
+                        planId: plan.id,
+                        phaseId: stage.id,
+                        title: d.title.trim(),
+                        deadlineStart: d.deadlineStart || undefined,
+                        deadlineEnd: d.deadlineEnd || undefined,
+                      });
+                      setModuleDrafts({
+                        ...moduleDrafts,
+                        [stage.id]: {
+                          title: "",
+                          deadlineStart: "",
+                          deadlineEnd: "",
+                          taskDate: d.taskDate,
+                        },
+                      });
+                    }}
+                  >
+                    + Модуль
+                  </button>
                 </div>
-              ))}
-              <div className="flex gap-2">
-                <input
-                  className="min-w-0 flex-1"
-                  placeholder="Milestone"
-                  value={milestoneDrafts[ph.id] ?? ""}
-                  onChange={(e) =>
-                    setMilestoneDrafts({ ...milestoneDrafts, [ph.id]: e.target.value })
-                  }
-                />
-                <button
-                  type="button"
-                  className="btn btn-ink"
-                  disabled={busy || !(milestoneDrafts[ph.id] ?? "").trim()}
-                  onClick={() => {
-                    post({
-                      action: "addMilestone",
-                      planId: plan.id,
-                      phaseId: ph.id,
-                      title: (milestoneDrafts[ph.id] ?? "").trim(),
-                    });
-                    setMilestoneDrafts({ ...milestoneDrafts, [ph.id]: "" });
-                  }}
-                >
-                  +
-                </button>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
-        <div className="card flex flex-wrap gap-2 p-4">
+        <div className="card space-y-3 p-4">
           <input
-            className="min-w-[140px] flex-1"
-            placeholder="Phase title"
-            value={phaseTitle}
-            onChange={(e) => setPhaseTitle(e.target.value)}
+            placeholder="Название этапа"
+            value={stageDraft.title}
+            onChange={(e) => setStageDraft({ ...stageDraft, title: e.target.value })}
           />
-          <input
-            className="w-24"
-            type="number"
-            min={1}
-            placeholder="Weeks"
-            value={phaseWeeks}
-            onChange={(e) => setPhaseWeeks(e.target.value)}
-          />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              type="date"
+              value={stageDraft.deadlineStart}
+              onChange={(e) => setStageDraft({ ...stageDraft, deadlineStart: e.target.value })}
+            />
+            <input
+              type="date"
+              value={stageDraft.deadlineEnd}
+              onChange={(e) => setStageDraft({ ...stageDraft, deadlineEnd: e.target.value })}
+            />
+          </div>
           <button
             type="button"
             className="btn btn-ink"
-            disabled={busy || !phaseTitle.trim()}
+            disabled={busy || !stageDraft.title.trim()}
             onClick={() => {
               post({
                 action: "addPhase",
                 planId: plan.id,
-                title: phaseTitle.trim(),
-                durationWeeks: Number(phaseWeeks) || undefined,
+                title: stageDraft.title.trim(),
+                deadlineStart: stageDraft.deadlineStart || undefined,
+                deadlineEnd: stageDraft.deadlineEnd || undefined,
               });
-              setPhaseTitle("");
+              setStageDraft({ title: "", deadlineStart: "", deadlineEnd: "" });
             }}
           >
-            + Phase
+            + Этап
           </button>
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Current Week</p>
-          <Link href="/week" className="text-[13px] font-medium text-[var(--ink-faint)]">
-            Week →
-          </Link>
-        </div>
-        {currentWeek ? (
-          <div className="card space-y-2 p-5">
-            <p className="text-[13px] text-[var(--ink-faint)]">с {currentWeek.weekStart}</p>
-            {(currentWeek.objectives ?? []).length === 0 ? (
-              <p className="text-[13px] text-[var(--ink-faint)]">Нет objectives — сгенерируй ниже</p>
-            ) : (
-              <ul className="space-y-1">
-                {currentWeek.objectives.map((o) => (
-                  <li key={o.id} className="text-[14px]">
-                    {o.done ? "✓ " : "○ "}
-                    {o.title}
-                  </li>
-                ))}
-              </ul>
-            )}
+      {today.length > 0 ? (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[12px] font-medium text-[var(--ink-faint)]">Сегодня</p>
+            <Link href="/today" className="text-[13px] font-medium text-[var(--ink-faint)]">
+              Сегодня →
+            </Link>
           </div>
-        ) : (
-          <p className="text-[13px] text-[var(--ink-faint)]">Неделя ещё не создана</p>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn btn-soft"
-            disabled={busy || !currentPhase}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                const r = await fetch("/api/work-plans", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    action: "generateWeekOutline",
-                    planId: plan.id,
-                    phaseId: currentPhase?.id,
-                  }),
-                });
-                const j = await r.json();
-                setOutline(j.outline ?? null);
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            Generate Weekly Plan
-          </button>
-          {currentWeek ? (
-            <button
-              type="button"
-              className="btn btn-soft"
-              disabled={busy}
-              onClick={async () => {
-                const actions = (currentWeek.objectives ?? []).map((o) => o.title);
-                const r = await fetch("/api/work-plans", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    action: "breakWeekIntoDays",
-                    weekStart: currentWeek.weekStart,
-                    actions,
-                    outcome: actions[0],
-                  }),
-                });
-                const j = await r.json();
-                setDayBreak(j.days ?? null);
-              }}
-            >
-              Break into days
-            </button>
-          ) : null}
-        </div>
-
-        {outline ? (
-          <div className="card space-y-3 p-5">
-            <p className="text-[12px] font-medium text-[var(--ink-faint)]">Preview · Weekly outline</p>
-            {outline.map((w) => (
-              <div key={w.weekStart} className="space-y-1 border-t border-[var(--line)] pt-3 first:border-0 first:pt-0">
-                <p className="font-semibold">
-                  {w.label} · {w.weekStart}
-                </p>
-                <p className="text-[14px]">{w.suggestedOutcome}</p>
-              </div>
-            ))}
-            <button
-              type="button"
-              className="btn btn-ink"
-              disabled={busy}
-              onClick={async () => {
-                await post({
-                  action: "applyWeekOutline",
-                  planId: plan.id,
-                  phaseId: currentPhase?.id,
-                  outline,
-                });
-                setOutline(null);
-              }}
-            >
-              Apply to weeks
-            </button>
-          </div>
-        ) : null}
-
-        {dayBreak ? (
-          <div className="card space-y-3 p-5">
-            <p className="text-[12px] font-medium text-[var(--ink-faint)]">Preview · Days</p>
-            {dayBreak.map((d) => (
-              <div key={d.date} className="flex gap-3 text-[14px]">
-                <span className="w-24 shrink-0 text-[var(--ink-faint)]">{d.dayLabel}</span>
-                <span>{d.titles.join(", ") || "—"}</span>
-              </div>
-            ))}
-            <button
-              type="button"
-              className="btn btn-ink"
-              disabled={busy}
-              onClick={async () => {
-                await post({
-                  action: "applyDayTasks",
-                  planId: plan.id,
-                  phaseId: currentPhase?.id,
-                  weekStart: currentWeek?.weekStart,
-                  days: dayBreak,
-                });
-                setDayBreak(null);
-              }}
-            >
-              Apply to days
-            </button>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Today</p>
-          <Link href="/today" className="text-[13px] font-medium text-[var(--ink-faint)]">
-            Today →
-          </Link>
-        </div>
-        {today.length === 0 ? (
-          <p className="text-[13px] text-[var(--ink-faint)]">Нет задач на сегодня из этого плана</p>
-        ) : (
           <ul className="space-y-2">
             {today.map((t) => (
               <li key={t.id} className="text-[15px]">
@@ -526,8 +506,8 @@ export default function PlanDashboardPage() {
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }

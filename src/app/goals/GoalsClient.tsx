@@ -105,40 +105,31 @@ export default function GoalsClient() {
   }, [goals]);
 
   function Bucket({ label, items }: { label: string; items: GoalView[] }) {
+    if (items.length === 0) return null;
     return (
       <section className="space-y-4">
         <p className="text-[12px] font-medium text-[var(--ink-faint)]">{label}</p>
-        {items.length === 0 ? (
-          <p className="text-[13px] text-[var(--ink-faint)]">—</p>
-        ) : (
-          <div className="space-y-2">
-            {items.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                className="card block w-full space-y-1 p-4 text-left"
-                onClick={() => setSelected(g)}
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-semibold">
-                    {g.area?.emoji ? `${g.area.emoji} ` : ""}
-                    {g.title}
-                  </span>
-                  <span className="tabular-nums text-[var(--ink-soft)]">{g.progress}%</span>
-                </div>
-                {g.currentPhase ? (
-                  <p className="text-[13px] text-[var(--ink-faint)]">Phase · {g.currentPhase.title}</p>
-                ) : null}
-                {!g.workPlanId && !g.workPlan ? (
-                  <p className="text-[12px] text-[var(--ink-faint)]">Plan not created</p>
-                ) : null}
-                <div className="meter mt-2">
-                  <span style={{ width: `${g.progress}%` }} />
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="space-y-2">
+          {items.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              className="card block w-full space-y-1 p-4 text-left"
+              onClick={() => setSelected(g)}
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-semibold">{g.title}</span>
+                <span className="tabular-nums text-[var(--ink-soft)]">{g.progress}%</span>
+              </div>
+              {g.currentPhase ? (
+                <p className="text-[13px] text-[var(--ink-faint)]">Этап · {g.currentPhase.title}</p>
+              ) : null}
+              <div className="meter mt-2">
+                <span style={{ width: `${g.progress}%` }} />
+              </div>
+            </button>
+          ))}
+        </div>
       </section>
     );
   }
@@ -154,14 +145,13 @@ export default function GoalsClient() {
           setCreatingPlan(false);
         }}
       >
-        ← Goals
+        ← Цели
       </button>
       <header className="space-y-3">
         <h1 className="font-display text-3xl">{selected.title}</h1>
         <p className="text-[14px] text-[var(--ink-soft)]">
-          {selected.area?.name ?? "Life area"}
-          {selected.priority ? ` · ${selected.priority}` : ""}
-          {selected.deadline ? ` · ${selected.deadline}` : ""}
+          {selected.area?.name ?? ""}
+          {selected.deadline ? ` · до ${selected.deadline}` : ""}
           {` · ${selected.progress}%`}
         </p>
           {selected.description ? (
@@ -173,18 +163,18 @@ export default function GoalsClient() {
         </header>
 
         <section className="card space-y-4 p-6">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Plan</p>
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">План</p>
           {selected.workPlan ? (
             <>
               <div className="flex items-baseline justify-between gap-3">
                 <div>
                   <p className="font-semibold">{selected.workPlan.title}</p>
                   <p className="text-[13px] text-[var(--ink-faint)]">
-                    {selected.workPlan.progress}% complete
+                    {selected.workPlan.progress}%
                   </p>
                 </div>
                 <Link href={`/plans/${selected.workPlan.id}`} className="btn btn-ink">
-                  Open Plan
+                  Открыть план
                 </Link>
               </div>
               {selected.workPlan.desiredResult ? (
@@ -193,13 +183,12 @@ export default function GoalsClient() {
             </>
           ) : creatingPlan ? (
             <div className="space-y-3">
-              <p className="text-[13px] text-[var(--ink-soft)]">Plan this goal</p>
               {(
                 [
-                  ["desiredResult", "Desired Result"],
-                  ["why", "Why"],
-                  ["startingPoint", "Starting Point"],
-                  ["strategy", "Strategy"],
+                  ["desiredResult", "Результат"],
+                  ["why", "Зачем"],
+                  ["startingPoint", "С чего начинаю"],
+                  ["strategy", "Как двигаюсь"],
                 ] as const
               ).map(([key, label]) => (
                 <label key={key} className="block space-y-1">
@@ -225,7 +214,7 @@ export default function GoalsClient() {
                         action: "create",
                         ownerType: "goal",
                         ownerId: selected.id,
-                        title: `Plan: ${selected.title}`,
+                        title: `План: ${selected.title}`,
                         ...planDraft,
                       });
                       if (!result.ok && result.error) setError(String(result.error));
@@ -248,38 +237,38 @@ export default function GoalsClient() {
                     }
                   }}
                 >
-                  Create Plan
+                  Создать план
                 </button>
                 <button
                   type="button"
                   className="btn btn-ghost"
                   onClick={() => setCreatingPlan(false)}
                 >
-                  Cancel
+                  Отмена
                 </button>
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
-              <p className="text-[14px] text-[var(--ink-soft)]">Plan not created</p>
-              <button
-                type="button"
-                className="btn btn-ink"
-                onClick={() => setCreatingPlan(true)}
-              >
-                + Create Plan
-              </button>
-            </div>
+            <button
+              type="button"
+              className="btn btn-ink"
+              onClick={() => setCreatingPlan(true)}
+            >
+              + Создать план
+            </button>
           )}
         </section>
 
         <section className="space-y-2">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Current Phase</p>
-          <p className="font-display text-xl">{selected.currentPhase?.title ?? "—"}</p>
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Текущий этап</p>
+          {selected.currentPhase?.title ? (
+            <p className="font-display text-xl">{selected.currentPhase.title}</p>
+          ) : null}
         </section>
 
+        {(selected.stages ?? []).filter((s) => !s.archived).length > 0 || !selected.workPlan ? (
         <section className="space-y-2">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Phases</p>
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Этапы</p>
           {(selected.stages ?? [])
             .filter((s) => !s.archived)
             .map((st) => (
@@ -312,7 +301,7 @@ export default function GoalsClient() {
                       post({ action: "activateStage", goalId: selected.id, stageId: st.id })
                     }
                   >
-                    Activate
+                    Сделать текущим
                   </button>
                 ) : null}
               </div>
@@ -321,7 +310,7 @@ export default function GoalsClient() {
             <div className="flex gap-2">
               <input
                 className="min-w-0 flex-1"
-                placeholder="Phase"
+                placeholder="Этап"
                 value={phaseTitle}
                 onChange={(e) => setPhaseTitle(e.target.value)}
               />
@@ -342,18 +331,15 @@ export default function GoalsClient() {
               href={`/plans/${selected.workPlan.id}`}
               className="text-[13px] font-medium text-[var(--ink-faint)]"
             >
-              Manage phases in Plan →
+              Этапы и модули в плане →
             </Link>
           )}
         </section>
+        ) : null}
 
+        {(selected.weekObjectives ?? []).length > 0 ? (
         <section className="space-y-2">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">This Week</p>
-          {(selected.weekObjectives ?? []).length === 0 ? (
-            <p className="text-[13px] text-[var(--ink-faint)]">
-              <Link href="/week">Задай objective в Week →</Link>
-            </p>
-          ) : (
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Эта неделя</p>
             <ul className="space-y-1">
               {selected.weekObjectives.map((o) => (
                 <li key={o.id} className="text-[14px]">
@@ -362,16 +348,12 @@ export default function GoalsClient() {
                 </li>
               ))}
             </ul>
-          )}
         </section>
+        ) : null}
 
+        {(selected.todayActions ?? []).length > 0 ? (
         <section className="space-y-2">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Today&apos;s Actions</p>
-          {(selected.todayActions ?? []).length === 0 ? (
-            <p className="text-[13px] text-[var(--ink-faint)]">
-              <Link href="/today">Нет задач · Today →</Link>
-            </p>
-          ) : (
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Сегодня</p>
             <ul className="space-y-1">
               {selected.todayActions.map((t) => (
                 <li key={t.id} className="text-[14px]">
@@ -380,8 +362,8 @@ export default function GoalsClient() {
                 </li>
               ))}
             </ul>
-          )}
         </section>
+        ) : null}
 
         {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
       </div>
@@ -391,8 +373,8 @@ export default function GoalsClient() {
   return (
     <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
       <header className="space-y-2">
-        <h1 className="font-display text-3xl">Goals</h1>
-        <p className="text-[15px] text-[var(--ink-soft)]">{plan?.title ?? "6 Month Plan"}</p>
+        <h1 className="font-display text-3xl">Цели</h1>
+        <p className="text-[15px] text-[var(--ink-soft)]">{plan?.title ?? ""}</p>
       </header>
 
       {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
@@ -401,22 +383,22 @@ export default function GoalsClient() {
         <input
           className="min-w-[120px] flex-1"
           value={title}
-          placeholder="Goal"
+          placeholder="Цель"
           disabled={busy}
           onChange={(e) => setTitle(e.target.value)}
         />
         <select value={areaId} onChange={(e) => setAreaId(e.target.value)} disabled={busy}>
-          <option value="">Area</option>
+          <option value="">Сфера</option>
           {areas.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.emoji} {a.name}
+              {a.name}
             </option>
           ))}
         </select>
         <select value={bucket} onChange={(e) => setBucket(e.target.value)} disabled={busy}>
-          <option value="foundation">Foundation</option>
-          <option value="development">Development</option>
-          <option value="later">Later</option>
+          <option value="foundation">Основа</option>
+          <option value="development">Развитие</option>
+          <option value="later">Позже</option>
         </select>
         <button
           type="button"
@@ -436,9 +418,9 @@ export default function GoalsClient() {
         </button>
       </div>
 
-      <Bucket label="Foundation" items={foundation} />
-      <Bucket label="Development" items={development} />
-      <Bucket label="Later" items={later} />
+      <Bucket label="Основа" items={foundation} />
+      <Bucket label="Развитие" items={development} />
+      <Bucket label="Позже" items={later} />
 
       <PageToolbar
         mode={mode}

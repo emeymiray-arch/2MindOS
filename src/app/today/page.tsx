@@ -69,9 +69,9 @@ function TodayInner() {
   }
 
   const groups: { key: TaskPriority; label: string }[] = [
-    { key: "must", label: "Must" },
-    { key: "should", label: "Should" },
-    { key: "optional", label: "Optional" },
+    { key: "must", label: "Обязательно" },
+    { key: "should", label: "Желательно" },
+    { key: "optional", label: "По возможности" },
   ];
 
   const byPriority = useMemo(() => {
@@ -92,9 +92,9 @@ function TodayInner() {
   return (
     <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="font-display text-3xl">Today</h1>
+        <h1 className="font-display text-3xl">Сегодня</h1>
         <Link href="/week" className="text-[13px] font-medium text-[var(--ink-faint)]">
-          Week →
+          Неделя →
         </Link>
       </div>
 
@@ -131,11 +131,11 @@ function TodayInner() {
       </div>
 
       <div className="space-y-1 px-1">
-        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Daily load</p>
+        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Нагрузка</p>
         <p className="font-display text-3xl tabular-nums tracking-[-0.04em]">{load.percent}%</p>
         {load.percent > 100 ? (
           <p className="text-[13px] text-[var(--ink-soft)]">
-            Перегруз — перенеси, сделай optional или оставь на неделю
+            Перегруз — перенеси или ослабь приоритет
           </p>
         ) : null}
       </div>
@@ -143,15 +143,14 @@ function TodayInner() {
       {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
       <div key={animKey} className="date-enter space-y-8">
-        {groups.map((g) => (
+        {groups
+          .filter((g) => byPriority[g.key].length > 0)
+          .map((g) => (
           <section key={g.key} className="space-y-3">
             <p className="text-[12px] font-medium text-[var(--ink-faint)]">{g.label}</p>
             <div className="card overflow-hidden">
               <div className="task-list">
-                {byPriority[g.key].length === 0 ? (
-                  <p className="p-4 text-[13px] text-[var(--ink-faint)]">—</p>
-                ) : (
-                  byPriority[g.key].map((t) => (
+                  {byPriority[g.key].map((t) => (
                     <div key={t.id} className="task-row flex-col items-stretch !gap-1">
                       <div className="flex items-center gap-3">
                         <button
@@ -180,8 +179,7 @@ function TodayInner() {
                         </p>
                       )}
                     </div>
-                  ))
-                )}
+                  ))}
               </div>
             </div>
           </section>
@@ -199,9 +197,9 @@ function TodayInner() {
             value={edit.priority}
             onChange={(e) => setEdit({ ...edit, priority: e.target.value as TaskPriority })}
           >
-            <option value="must">Must</option>
-            <option value="should">Should</option>
-            <option value="optional">Optional</option>
+            <option value="must">Обязательно</option>
+            <option value="should">Желательно</option>
+            <option value="optional">По возможности</option>
           </select>
           <div className="flex gap-2">
             <button

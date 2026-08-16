@@ -10,7 +10,7 @@ import {
 } from "./lifeos";
 import { randomBytes } from "crypto";
 
-const CURRENT_VERSION = 8;
+const CURRENT_VERSION = 9;
 
 function freshToken() {
   return `mos_${randomBytes(18).toString("hex")}`;
@@ -295,13 +295,18 @@ export function migrateStore(raw: LifeStore): LifeStore {
     priority: t.priority ?? "should",
   }));
 
-  // v8: ensure workPlans array + re-link owners
+  // v8/v9: ensure workPlans array + modules from milestones
   if (!store.workPlans) store.workPlans = [];
   for (const wp of store.workPlans) {
     if (!wp.phases) wp.phases = [];
     for (const ph of wp.phases) {
       if (!ph.objectives) ph.objectives = [];
-      if (!ph.milestones) ph.milestones = [];
+      if (!ph.modules) ph.modules = [];
+      if (ph.modules.length === 0 && ph.milestones?.length) {
+        ph.modules = ph.milestones.map((m) => ({ ...m }));
+      }
+      if (!ph.milestones) ph.milestones = ph.modules;
+      else if (ph.modules.length && !ph.milestones.length) ph.milestones = ph.modules;
     }
     if (wp.ownerType === "goal") {
       const g = store.goals.find((x) => x.id === wp.ownerId);
@@ -312,6 +317,7 @@ export function migrateStore(raw: LifeStore): LifeStore {
     }
   }
 
+  // Strip emoji from sphere display names is UI-only; keep stored data.
   store.version = CURRENT_VERSION;
   return store;
 }

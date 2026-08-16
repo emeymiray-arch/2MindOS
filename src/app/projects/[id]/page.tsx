@@ -107,7 +107,7 @@ export default function ProjectCompanyPage({
       </div>
 
       <section className="card space-y-4 p-6">
-        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Plan</p>
+        <p className="text-[12px] font-medium text-[var(--ink-faint)]">План</p>
         {workPlan ? (
           <div className="flex items-baseline justify-between gap-3">
             <div>
@@ -115,18 +115,17 @@ export default function ProjectCompanyPage({
               <p className="text-[13px] text-[var(--ink-faint)]">{workPlan.progress}% complete</p>
             </div>
             <Link href={`/plans/${workPlan.id}`} className="btn btn-ink">
-              Open Plan
+              Открыть план
             </Link>
           </div>
         ) : creatingPlan ? (
           <div className="space-y-3">
-            <p className="text-[13px] text-[var(--ink-soft)]">Create Project Plan</p>
             {(
               [
-                ["desiredResult", "Desired Result"],
-                ["why", "Why"],
-                ["startingPoint", "Starting Point"],
-                ["strategy", "Strategy"],
+                ["desiredResult", "Результат"],
+                ["why", "Зачем"],
+                ["startingPoint", "С чего начинаю"],
+                ["strategy", "Как двигаюсь"],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="block space-y-1">
@@ -151,7 +150,7 @@ export default function ProjectCompanyPage({
                       action: "create",
                       ownerType: "project",
                       ownerId: project.id,
-                      title: `Plan: ${project.name}`,
+                      title: `План: ${project.name}`,
                       ...planDraft,
                     });
                     const plan = result.data?.plan as { id?: string } | undefined;
@@ -166,20 +165,17 @@ export default function ProjectCompanyPage({
                   }
                 }}
               >
-                Create Project Plan
+                Создать план
               </button>
               <button type="button" className="btn btn-ghost" onClick={() => setCreatingPlan(false)}>
-                Cancel
+                Отмена
               </button>
             </div>
           </div>
         ) : (
-          <div className="space-y-3">
-            <p className="text-[14px] text-[var(--ink-soft)]">This project has no plan yet.</p>
-            <button type="button" className="btn btn-ink" onClick={() => setCreatingPlan(true)}>
-              + Create Project Plan
-            </button>
-          </div>
+          <button type="button" className="btn btn-ink" onClick={() => setCreatingPlan(true)}>
+            + Создать план
+          </button>
         )}
       </section>
 

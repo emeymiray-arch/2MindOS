@@ -73,15 +73,11 @@ export default function WeekPage() {
   return (
     <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
       <header className="space-y-2">
-        <h1 className="font-display text-3xl">Week</h1>
+        <h1 className="font-display text-3xl">Неделя</h1>
         <p className="text-[15px] text-[var(--ink-soft)]">с {weekLabel}</p>
       </header>
 
       {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
-
-      <p className="text-[13px] text-[var(--ink-faint)]">
-        Goal → Plan → Phase → Week objective → Today
-      </p>
 
       <div className="space-y-5">
         {data.activeGoals.map((g) => {
@@ -94,22 +90,19 @@ export default function WeekPage() {
               <div className="flex items-baseline justify-between gap-2">
                 <div>
                   <Link href={`/goals?id=${g.id}`} className="font-semibold">
-                    {g.area?.emoji ? `${g.area.emoji} ` : ""}
                     {g.title}
                   </Link>
                   {g.currentPhase ? (
-                    <p className="text-[13px] text-[var(--ink-faint)]">Phase · {g.currentPhase.title}</p>
+                    <p className="text-[13px] text-[var(--ink-faint)]">Этап · {g.currentPhase.title}</p>
                   ) : null}
                   {workPlanId ? (
                     <Link
                       href={`/plans/${workPlanId}`}
                       className="text-[13px] font-medium text-[var(--ink-faint)]"
                     >
-                      Open Plan →
+                      План →
                     </Link>
-                  ) : (
-                    <p className="text-[13px] text-[var(--ink-faint)]">Plan not created</p>
-                  )}
+                  ) : null}
                 </div>
                 <span className="tabular-nums text-[var(--ink-soft)]">{g.progress}%</span>
               </div>
@@ -138,7 +131,7 @@ export default function WeekPage() {
                         })
                       }
                     >
-                      → Today
+                      → Сегодня
                     </button>
                   </li>
                 ))}
@@ -147,7 +140,7 @@ export default function WeekPage() {
               <div className="flex gap-2">
                 <input
                   className="min-w-0 flex-1"
-                  placeholder="Weekly objective"
+                  placeholder="Цель на неделю"
                   value={drafts[g.id] ?? ""}
                   disabled={busy}
                   onChange={(e) => setDrafts({ ...drafts, [g.id]: e.target.value })}

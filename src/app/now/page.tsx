@@ -6,26 +6,23 @@ import { useCallback, useEffect, useState } from "react";
 type LifePayload = {
   today: string;
   plan: { title: string; startDate: string; endDate: string } | null;
-  matters: { id: string; title: string; progress: number; hasPlan?: boolean }[];
+  matters: { id: string; title: string; progress: number }[];
   workingOn: {
     id: string;
     title: string;
     progress: number;
     phase: { title: string } | null;
-    area: { name: string; emoji?: string } | null;
+    area: { name: string } | null;
     workPlan?: { id: string; title: string; progress: number } | null;
-    hasPlan?: boolean;
   }[];
   notDoing: { id: string; title: string; area?: string }[];
   tasks: {
     id: string;
     title: string;
     done: boolean;
-    effectivePriority: string;
     chain: { goal?: string; phase?: string; area?: string; workPlan?: string; why?: string };
   }[];
-  load: { percent: number; must: number; should: number; optional: number };
-  currentWorkPlans?: { id: string; title: string; progress: number; phase?: string }[];
+  load: { percent: number };
 };
 
 export default function NowPage() {
@@ -47,17 +44,15 @@ export default function NowPage() {
   return (
     <div className="fade-in mx-auto max-w-2xl space-y-12 pb-16">
       <header className="space-y-3">
-        <h1 className="font-display text-4xl tracking-[-0.04em]">Now</h1>
-        <p className="text-[15px] text-[var(--ink-soft)]">
-          {data.plan?.title ?? "6-month plan"}
-        </p>
+        <h1 className="font-display text-4xl tracking-[-0.04em]">Сейчас</h1>
+        {data.plan?.title ? (
+          <p className="text-[15px] text-[var(--ink-soft)]">{data.plan.title}</p>
+        ) : null}
       </header>
 
-      <section className="space-y-4">
-        <p className="text-[12px] font-medium text-[var(--ink-faint)]">What matters now</p>
-        {data.matters.length === 0 ? (
-          <p className="text-[13px] text-[var(--ink-faint)]">Добавь цели в Foundation / Goals</p>
-        ) : (
+      {data.matters.length > 0 ? (
+        <section className="space-y-4">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Важно сейчас</p>
           <ul className="space-y-3">
             {data.matters.map((m) => (
               <li key={m.id}>
@@ -68,79 +63,69 @@ export default function NowPage() {
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">What I&apos;m working on</p>
-          <Link href="/week" className="text-[13px] font-medium text-[var(--ink-faint)]">
-            Week →
-          </Link>
-        </div>
-        <div className="space-y-3">
-          {data.workingOn.length === 0 ? (
-            <p className="text-[13px] text-[var(--ink-faint)]">Нет активных целей</p>
-          ) : (
-            data.workingOn.map((g) => (
+      {data.workingOn.length > 0 ? (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-[12px] font-medium text-[var(--ink-faint)]">В работе</p>
+            <Link href="/week" className="text-[13px] font-medium text-[var(--ink-faint)]">
+              Неделя →
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {data.workingOn.map((g) => (
               <Link key={g.id} href={`/goals?id=${g.id}`} className="card block space-y-2 p-5">
                 <div className="flex items-baseline justify-between gap-2">
-                  <p className="font-semibold tracking-[-0.02em]">
-                    {g.area?.emoji ? `${g.area.emoji} ` : ""}
-                    {g.title}
-                  </p>
+                  <p className="font-semibold tracking-[-0.02em]">{g.title}</p>
                   <span className="tabular-nums text-[14px] text-[var(--ink-faint)]">{g.progress}%</span>
                 </div>
                 {g.phase ? (
-                  <p className="text-[13px] text-[var(--ink-faint)]">Phase · {g.phase.title}</p>
+                  <p className="text-[13px] text-[var(--ink-faint)]">Этап · {g.phase.title}</p>
                 ) : null}
                 {g.workPlan ? (
                   <p className="text-[13px] text-[var(--ink-faint)]">
-                    Plan · {g.workPlan.title} · {g.workPlan.progress}%
+                    План · {g.workPlan.progress}%
                   </p>
-                ) : (
-                  <p className="text-[13px] text-[var(--ink-faint)]">Plan not created</p>
-                )}
+                ) : null}
               </Link>
-            ))
-          )}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Today</p>
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Сегодня</p>
           <Link href="/today" className="text-[13px] font-medium text-[var(--ink-faint)]">
-            Open →
+            Открыть →
           </Link>
         </div>
         <p className="font-display text-3xl tabular-nums tracking-[-0.04em]">
           {data.load.percent}%
-          <span className="ml-2 text-[13px] font-medium text-[var(--ink-faint)]">load</span>
+          <span className="ml-2 text-[13px] font-medium text-[var(--ink-faint)]">нагрузка</span>
         </p>
-        <ul className="space-y-3">
-          {open.slice(0, 5).map((t) => (
-            <li key={t.id} className="text-[15px]">
-              <span className="font-medium">{t.title}</span>
-              {t.chain.why || t.chain.goal ? (
-                <span className="meta-quiet">
-                  {" "}
-                  · {t.chain.why || [t.chain.goal, t.chain.phase].filter(Boolean).join(" → ")}
-                </span>
-              ) : null}
-            </li>
-          ))}
-          {open.length === 0 ? (
-            <li className="text-[13px] text-[var(--ink-faint)]">Пусто — открой Week</li>
-          ) : null}
-        </ul>
+        {open.length > 0 ? (
+          <ul className="space-y-3">
+            {open.slice(0, 5).map((t) => (
+              <li key={t.id} className="text-[15px]">
+                <span className="font-medium">{t.title}</span>
+                {t.chain.why || t.chain.goal ? (
+                  <span className="meta-quiet">
+                    {" "}
+                    · {t.chain.why || [t.chain.goal, t.chain.phase].filter(Boolean).join(" → ")}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
-      <section className="space-y-4">
-        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Intentionally not doing</p>
-        {data.notDoing.length === 0 ? (
-          <p className="text-[13px] text-[var(--ink-faint)]">Later-цели появятся здесь</p>
-        ) : (
+      {data.notDoing.length > 0 ? (
+        <section className="space-y-4">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Позже</p>
           <ul className="space-y-3">
             {data.notDoing.map((g) => (
               <li key={g.id} className="text-[15px] text-[var(--ink-soft)]">
@@ -149,8 +134,8 @@ export default function NowPage() {
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }

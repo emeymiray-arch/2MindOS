@@ -13,7 +13,7 @@ export function createEmptyStore(): LifeStore {
   const foodNode = id();
 
   return {
-    version: 8,
+    version: 9,
     spheres,
     nodes: [
       {

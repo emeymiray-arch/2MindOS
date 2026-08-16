@@ -54,7 +54,7 @@ export default function HabitsPage() {
 
   return (
     <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
-      <h1 className="font-display text-3xl">Habits</h1>
+      <h1 className="font-display text-3xl">Привычки</h1>
       {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
       <div className="card flex gap-2 p-4">
@@ -62,7 +62,7 @@ export default function HabitsPage() {
           className="min-w-0 flex-1"
           value={title}
           disabled={busy}
-          placeholder="Habit"
+          placeholder="Привычка"
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && title.trim()) {

@@ -5,11 +5,13 @@ import {
   calcWorkPlanProgress,
   createWorkPlan,
   currentWorkPhase,
+  ensurePhaseModules,
   ensureWeek,
   findWorkPlan,
   generateWeekOutline,
   milestoneProgress,
   ownerOfWorkPlan,
+  phaseModules,
   phasesOf,
   recomputeFromTaskToggle,
   stagesToPhases,
@@ -19,7 +21,7 @@ import {
 } from "@/lib/lifeos";
 import { getStore, updateStore } from "@/lib/store";
 import { tasksForDate } from "@/lib/tasks";
-import type { Milestone, PlanPhase, WeeklyObjective, WorkPlanOwner } from "@/lib/types";
+import type { PlanModule, PlanPhase, WeeklyObjective, WorkPlanOwner } from "@/lib/types";
 
 function enrich(store: Awaited<ReturnType<typeof getStore>>, planId: string) {
   const plan = findWorkPlan(store, planId);
@@ -43,6 +45,7 @@ function enrich(store: Awaited<ReturnType<typeof getStore>>, planId: string) {
       progress,
       phases: phasesOf(plan).map((ph) => ({
         ...ph,
+        modules: phaseModules(ph),
         progress: milestoneProgress(ph),
       })),
     },
@@ -131,7 +134,7 @@ export async function POST(request: Request) {
           order: i + 1,
           status: (t.done ? "done" : i === 0 ? "active" : "planned") as PlanPhase["status"],
           objectives: [] as string[],
-          milestones: [] as Milestone[],
+          modules: [] as PlanModule[],
           progress: t.done ? 100 : 0,
         }));
         const plan = createWorkPlan({
@@ -196,7 +199,7 @@ export async function POST(request: Request) {
         objectives: Array.isArray(body.objectives)
           ? body.objectives.map(String).filter(Boolean)
           : [],
-        milestones: [],
+        modules: [],
         progress: 0,
       };
       plan.phases.push(phase);
@@ -260,7 +263,7 @@ export async function POST(request: Request) {
     return NextResponse.json(enrich(store, planId));
   }
 
-  if (action === "addMilestone") {
+  if (action === "addMilestone" || action === "addModule") {
     const planId = String(body.planId ?? "");
     const phaseId = String(body.phaseId ?? "");
     const title = String(body.title ?? "").trim();
@@ -269,43 +272,108 @@ export async function POST(request: Request) {
       const plan = findWorkPlan(s, planId);
       const phase = plan?.phases.find((p) => p.id === phaseId);
       if (!plan || !phase) return;
-      if (!phase.milestones) phase.milestones = [];
-      phase.milestones.push({
+      const modules = ensurePhaseModules(phase);
+      modules.push({
         id: id(),
         title,
         done: false,
-        order: phase.milestones.length + 1,
+        order: modules.length + 1,
+        deadlineStart: body.deadlineStart ? String(body.deadlineStart) : undefined,
+        deadlineEnd: body.deadlineEnd ? String(body.deadlineEnd) : undefined,
       });
       syncWorkPlanProgress(s, plan);
     });
     return NextResponse.json(enrich(store, planId));
   }
 
-  if (action === "toggleMilestone") {
+  if (action === "updateModule") {
     const planId = String(body.planId ?? "");
     const phaseId = String(body.phaseId ?? "");
-    const milestoneId = String(body.milestoneId ?? "");
+    const moduleId = String(body.moduleId ?? body.milestoneId ?? "");
     const store = await updateStore((s) => {
       const plan = findWorkPlan(s, planId);
       const phase = plan?.phases.find((p) => p.id === phaseId);
-      const ms = phase?.milestones.find((m) => m.id === milestoneId);
-      if (!plan || !ms) return;
+      if (!plan || !phase) return;
+      const modules = ensurePhaseModules(phase);
+      const mod = modules.find((m) => m.id === moduleId);
+      if (!mod) return;
+      if (body.title != null) mod.title = String(body.title);
+      if (body.deadlineStart !== undefined)
+        mod.deadlineStart = String(body.deadlineStart || "") || undefined;
+      if (body.deadlineEnd !== undefined)
+        mod.deadlineEnd = String(body.deadlineEnd || "") || undefined;
+      syncWorkPlanProgress(s, plan);
+    });
+    return NextResponse.json(enrich(store, planId));
+  }
+
+  if (action === "toggleMilestone" || action === "toggleModule") {
+    const planId = String(body.planId ?? "");
+    const phaseId = String(body.phaseId ?? "");
+    const milestoneId = String(body.milestoneId ?? body.moduleId ?? "");
+    const store = await updateStore((s) => {
+      const plan = findWorkPlan(s, planId);
+      const phase = plan?.phases.find((p) => p.id === phaseId);
+      if (!plan || !phase) return;
+      const modules = ensurePhaseModules(phase);
+      const ms = modules.find((m) => m.id === milestoneId);
+      if (!ms) return;
       ms.done = body.done != null ? Boolean(body.done) : !ms.done;
       syncWorkPlanProgress(s, plan);
     });
     return NextResponse.json(enrich(store, planId));
   }
 
-  if (action === "deleteMilestone") {
+  if (action === "deleteMilestone" || action === "deleteModule") {
     const planId = String(body.planId ?? "");
     const phaseId = String(body.phaseId ?? "");
-    const milestoneId = String(body.milestoneId ?? "");
+    const milestoneId = String(body.milestoneId ?? body.moduleId ?? "");
     const store = await updateStore((s) => {
       const plan = findWorkPlan(s, planId);
       const phase = plan?.phases.find((p) => p.id === phaseId);
       if (!plan || !phase) return;
-      phase.milestones = phase.milestones.filter((m) => m.id !== milestoneId);
+      const modules = ensurePhaseModules(phase).filter((m) => m.id !== milestoneId);
+      phase.modules = modules;
+      phase.milestones = modules;
       syncWorkPlanProgress(s, plan);
+    });
+    return NextResponse.json(enrich(store, planId));
+  }
+
+  if (action === "addTaskFromModule") {
+    const planId = String(body.planId ?? "");
+    const phaseId = String(body.phaseId ?? "");
+    const moduleId = String(body.moduleId ?? "");
+    const date = String(body.date ?? todayKey());
+    const title = String(body.title ?? "").trim();
+    const store = await updateStore((s) => {
+      const plan = findWorkPlan(s, planId);
+      const phase = plan?.phases.find((p) => p.id === phaseId);
+      if (!plan || !phase) return;
+      const mod = ensurePhaseModules(phase).find((m) => m.id === moduleId);
+      if (!mod) return;
+      const owner = ownerOfWorkPlan(s, plan);
+      const weekStart = weekStartMonday(date);
+      const week = ensureWeek(s, weekStart);
+      week.workPlanId = plan.id;
+      week.phaseId = phaseId;
+      s.dayTasks.push({
+        id: id(),
+        date,
+        title: title || mod.title,
+        done: false,
+        workPlanId: plan.id,
+        stageId: phaseId,
+        milestoneId: mod.id,
+        goalId: owner.goal?.id,
+        goalTitle: owner.goal?.title,
+        projectId: owner.project?.id,
+        weekId: week.id,
+        lifeAreaId: owner.lifeAreaId,
+        priority: "must",
+        deadlineStart: mod.deadlineStart,
+        deadlineEnd: mod.deadlineEnd,
+      });
     });
     return NextResponse.json(enrich(store, planId));
   }

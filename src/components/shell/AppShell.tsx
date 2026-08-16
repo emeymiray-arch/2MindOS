@@ -5,15 +5,15 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const NAV = [
-  { href: "/now", label: "Now" },
-  { href: "/goals", label: "Goals" },
-  { href: "/week", label: "Week" },
-  { href: "/today", label: "Today" },
-  { href: "/habits", label: "Habits" },
-  { href: "/mind", label: "Second Brain" },
-  { href: "/things", label: "Things" },
-  { href: "/projects", label: "Projects" },
-  { href: "/settings", label: "Settings" },
+  { href: "/now", label: "Сейчас" },
+  { href: "/goals", label: "Цели" },
+  { href: "/week", label: "Неделя" },
+  { href: "/today", label: "Сегодня" },
+  { href: "/habits", label: "Привычки" },
+  { href: "/mind", label: "Мысли" },
+  { href: "/things", label: "Вещи" },
+  { href: "/projects", label: "Проекты" },
+  { href: "/settings", label: "Настройки" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -69,10 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/graph" className="block hover:text-[var(--ink-soft)]">
             Карта
           </Link>
-          <Link href="/horizon" className="block hover:text-[var(--ink-soft)]">
-            Horizon
-          </Link>
-          <span className="block opacity-40">{theme}</span>
+          <span className="block opacity-40">{theme === "dark" ? "тёмная" : "светлая"}</span>
         </div>
       </aside>
       <main className="min-w-0 flex-1 px-6 py-10 md:px-14 md:py-14">

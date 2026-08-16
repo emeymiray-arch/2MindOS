@@ -63,9 +63,9 @@ export async function GET() {
         phase: c.phase?.title,
         week: c.week?.weekStart,
         why: [
-          c.workPlan?.title && `Plan: ${c.workPlan.title}`,
-          c.phase?.title && `Phase: ${c.phase.title}`,
-          c.goal?.title && `Goal: ${c.goal.title}`,
+          c.workPlan?.title && `План: ${c.workPlan.title}`,
+          c.phase?.title && `Этап: ${c.phase.title}`,
+          c.goal?.title && `Цель: ${c.goal.title}`,
         ]
           .filter(Boolean)
           .join(" · "),

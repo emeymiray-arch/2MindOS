@@ -5,10 +5,10 @@ import { ActionMode, ActionOption, PageToolbar } from "@/components/ui/PageToolb
 import type { WishBlock, WishBucket } from "@/lib/types";
 
 const TABS: { id: WishBucket; label: string }[] = [
-  { id: "shopping", label: "Shopping" },
+  { id: "shopping", label: "Покупки" },
   { id: "wishlist", label: "Wishlist" },
-  { id: "ideas", label: "Ideas" },
-  { id: "someday", label: "Someday" },
+  { id: "ideas", label: "Идеи" },
+  { id: "someday", label: "Когда-нибудь" },
 ];
 
 export default function ThingsPage() {
@@ -69,8 +69,8 @@ export default function ThingsPage() {
   return (
     <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
       <header className="space-y-2">
-        <h1 className="font-display text-3xl">Things</h1>
-        <p className="text-[13px] text-[var(--ink-faint)]">Покупки ≠ цели. Someday не попадает в Today.</p>
+        <h1 className="font-display text-3xl">Вещи</h1>
+        <p className="text-[13px] text-[var(--ink-faint)]">Покупки и идеи — отдельно от целей.</p>
       </header>
 
       <div className="flex flex-wrap gap-2">

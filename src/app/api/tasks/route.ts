@@ -29,11 +29,11 @@ function enrichTasks(store: Awaited<ReturnType<typeof getStore>>, date: string, 
         milestone: chain.milestone?.title,
         week: chain.week?.weekStart,
         why: [
-          chain.workPlan?.title && `Plan: ${chain.workPlan.title}`,
-          chain.phase?.title && `Phase: ${chain.phase.title}`,
-          chain.goal?.title && `Goal: ${chain.goal.title}`,
-          chain.project?.name && `Project: ${chain.project.name}`,
-          chain.area?.name && `Area: ${chain.area.name}`,
+          chain.workPlan?.title && `План: ${chain.workPlan.title}`,
+          chain.phase?.title && `Этап: ${chain.phase.title}`,
+          chain.goal?.title && `Цель: ${chain.goal.title}`,
+          chain.project?.name && `Проект: ${chain.project.name}`,
+          chain.area?.name && `Сфера: ${chain.area.name}`,
         ]
           .filter(Boolean)
           .join(" · "),

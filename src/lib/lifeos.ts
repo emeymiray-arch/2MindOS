@@ -5,6 +5,7 @@ import type {
   GoalStage,
   LifeStore,
   Milestone,
+  PlanModule,
   PlanPhase,
   PriorityLevel,
   Project,
@@ -19,48 +20,42 @@ import type {
 export const DEFAULT_LIFE_AREAS: Omit<Sphere, "id">[] = [
   {
     slug: "health",
-    name: "Health",
-    emoji: "🧬",
+    name: "Здоровье",
     description: "Анализы, питание, позвоночник, осанка, зубы, зрение, волосы",
     priority: "critical",
     order: 1,
   },
   {
     slug: "career",
-    name: "Career / Business",
-    emoji: "💻",
+    name: "Карьера / Бизнес",
     description: "Engineering / AI + Fast Food Business",
     priority: "critical",
     order: 2,
   },
   {
     slug: "religion",
-    name: "Religion",
-    emoji: "🕌",
+    name: "Религия",
     description: "Таджвид и религиозное развитие",
     priority: "high",
     order: 3,
   },
   {
     slug: "personal",
-    name: "Personal Development",
-    emoji: "🧠",
+    name: "Личное развитие",
     description: "Поведение, речь, английский, чтение",
     priority: "high",
     order: 4,
   },
   {
     slug: "culture",
-    name: "Culture & Creativity",
-    emoji: "🎨",
+    name: "Культура и творчество",
     description: "История, литература, искусство, шитьё",
     priority: "medium",
     order: 5,
   },
   {
     slug: "body",
-    name: "Body & Style",
-    emoji: "✨",
+    name: "Тело и стиль",
     description: "Зал, гардероб, уход",
     priority: "medium",
     order: 6,
@@ -276,7 +271,7 @@ export function taskChain(store: LifeStore, task: DailyTaskItem): TaskChain {
   const area = areaId ? store.spheres.find((s) => s.id === areaId) : undefined;
   const milestone =
     task.milestoneId && workPhase
-      ? workPhase.milestones.find((m) => m.id === task.milestoneId)
+      ? phaseModules(workPhase).find((m) => m.id === task.milestoneId)
       : undefined;
 
   return {
@@ -342,13 +337,28 @@ export function currentWorkPhase(plan: WorkPlan): PlanPhase | undefined {
 }
 
 export function milestoneProgress(phase: PlanPhase): number {
-  const ms = phase.milestones ?? [];
+  const ms = phaseModules(phase);
   if (ms.length === 0) {
     if (phase.progress != null) return phase.progress;
     return phase.status === "done" ? 100 : 0;
   }
   const done = ms.filter((m) => m.done).length;
   return Math.round((done / ms.length) * 100);
+}
+
+export function phaseModules(phase: PlanPhase): PlanModule[] {
+  if (phase.modules?.length) return phase.modules;
+  return phase.milestones ?? [];
+}
+
+/** Ensure modules array exists and mirrors legacy milestones. */
+export function ensurePhaseModules(phase: PlanPhase): PlanModule[] {
+  if (!phase.modules) phase.modules = [];
+  if (phase.modules.length === 0 && phase.milestones?.length) {
+    phase.modules = [...phase.milestones];
+  }
+  phase.milestones = phase.modules;
+  return phase.modules;
 }
 
 export function calcWorkPlanProgress(plan: WorkPlan): number {
@@ -415,9 +425,9 @@ export function stagesToPhases(stages: GoalStage[]): PlanPhase[] {
       deadlineEnd: s.deadlineEnd,
       status: s.status ?? (s.done ? ("done" as const) : i === 0 ? ("active" as const) : ("planned" as const)),
       objectives: [] as string[],
-      milestones: s.done
-        ? [{ id: id(), title: `Complete: ${s.title}`, done: true, order: 1 }]
-        : ([] as Milestone[]),
+      modules: s.done
+        ? [{ id: id(), title: s.title, done: true, order: 1 }]
+        : ([] as PlanModule[]),
       progress: s.progress ?? (s.done ? 100 : 0),
     }));
 }
@@ -495,7 +505,7 @@ export function generateWeekOutline(plan: WorkPlan, phase: PlanPhase): {
   const actions =
     phase.objectives.length > 0
       ? phase.objectives
-      : phase.milestones.map((m) => m.title).filter(Boolean);
+      : phaseModules(phase).map((m) => m.title).filter(Boolean);
   const out: {
     weekStart: string;
     weekEnd: string;
@@ -568,15 +578,16 @@ export function recomputeFromTaskToggle(store: LifeStore, task: DailyTaskItem): 
   if (task.milestoneId && task.workPlanId) {
     const plan = findWorkPlan(store, task.workPlanId);
     const phase = plan?.phases.find((p) =>
-      (p.milestones ?? []).some((m) => m.id === task.milestoneId)
+      phaseModules(p).some((m) => m.id === task.milestoneId)
     );
-    const ms = phase?.milestones.find((m) => m.id === task.milestoneId);
-    if (ms && plan) {
+    const ms = phase ? phaseModules(phase).find((m) => m.id === task.milestoneId) : undefined;
+    if (ms && plan && phase) {
       const related = (store.dayTasks ?? []).filter(
         (t) => t.milestoneId === ms.id && !t.archived
       );
       if (related.length) ms.done = related.every((t) => t.done);
       else ms.done = Boolean(task.done);
+      ensurePhaseModules(phase);
       syncWorkPlanProgress(store, plan);
     }
   } else if (task.workPlanId) {
