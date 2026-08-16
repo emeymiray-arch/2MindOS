@@ -15,8 +15,14 @@ export async function GET(request: Request) {
     .filter((g) => g.active && !g.archived && (g.bucket ?? "development") !== "later")
     .map((g) => ({
       ...g,
-      progress: calcGoalProgress(g),
+      progress: calcGoalProgress(g, store),
+      workPlanId: g.workPlanId,
       area: store.spheres.find((s) => s.id === g.lifeAreaId) ?? null,
+      currentPhase: g.workPlanId
+        ? store.workPlans
+            ?.find((p) => p.id === g.workPlanId)
+            ?.phases.find((ph) => ph.status === "active" && !ph.archived) ?? null
+        : null,
     }));
 
   return NextResponse.json({
@@ -49,14 +55,20 @@ export async function POST(request: Request) {
     if (!goalId || !title) return NextResponse.json({ error: "fields" }, { status: 400 });
     const store = await updateStore((s) => {
       const week = ensureWeek(s, weekStart);
+      const goal = s.goals.find((g) => g.id === goalId);
       const obj: WeeklyObjective = {
         id: id(),
         goalId,
         phaseId: body.phaseId ? String(body.phaseId) : undefined,
+        workPlanId: body.workPlanId
+          ? String(body.workPlanId)
+          : goal?.workPlanId,
         title,
         done: false,
       };
       week.objectives.push(obj);
+      if (obj.workPlanId) week.workPlanId = obj.workPlanId;
+      if (obj.phaseId) week.phaseId = obj.phaseId;
     });
     return NextResponse.json({
       week: store.weeks.find((w) => w.weekStart === weekStart),
@@ -108,11 +120,12 @@ export async function POST(request: Request) {
           date: taskDate,
           title: t,
           done: false,
-          goalId: obj.goalId,
+          goalId: obj.goalId || undefined,
           goalTitle: goal?.title,
           stageId: obj.phaseId,
           weekId: week.id,
           objectiveId: obj.id,
+          workPlanId: obj.workPlanId ?? week.workPlanId,
           lifeAreaId: goal?.lifeAreaId,
           priority: "must",
         });

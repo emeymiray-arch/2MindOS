@@ -10,7 +10,7 @@ import {
 } from "./lifeos";
 import { randomBytes } from "crypto";
 
-const CURRENT_VERSION = 7;
+const CURRENT_VERSION = 8;
 
 function freshToken() {
   return `mos_${randomBytes(18).toString("hex")}`;
@@ -51,6 +51,7 @@ export function migrateStore(raw: LifeStore): LifeStore {
   if (!store.wishBlocks) store.wishBlocks = [];
   if (!store.plans) store.plans = [];
   if (!store.weeks) store.weeks = [];
+  if (!store.workPlans) store.workPlans = [];
   if (!store.spheres) store.spheres = [];
   if (!store.habits) store.habits = [];
   if (!store.habitLogs) store.habitLogs = [];
@@ -293,6 +294,23 @@ export function migrateStore(raw: LifeStore): LifeStore {
     ...t,
     priority: t.priority ?? "should",
   }));
+
+  // v8: ensure workPlans array + re-link owners
+  if (!store.workPlans) store.workPlans = [];
+  for (const wp of store.workPlans) {
+    if (!wp.phases) wp.phases = [];
+    for (const ph of wp.phases) {
+      if (!ph.objectives) ph.objectives = [];
+      if (!ph.milestones) ph.milestones = [];
+    }
+    if (wp.ownerType === "goal") {
+      const g = store.goals.find((x) => x.id === wp.ownerId);
+      if (g && !g.workPlanId) g.workPlanId = wp.id;
+    } else if (wp.ownerType === "project") {
+      const p = store.projects.find((x) => x.id === wp.ownerId);
+      if (p && !p.workPlanId) p.workPlanId = wp.id;
+    }
+  }
 
   store.version = CURRENT_VERSION;
   return store;

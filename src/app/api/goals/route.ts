@@ -1,26 +1,53 @@
 import { NextResponse } from "next/server";
-import { id, now } from "@/lib/id";
-import { activePlan, currentPhase, ensureActivePlan } from "@/lib/lifeos";
+import { id, now, todayKey } from "@/lib/id";
+import {
+  activePlan,
+  calcWorkPlanProgress,
+  currentPhase,
+  currentWorkPhase,
+  ensureActivePlan,
+  findWorkPlan,
+  weekStartMonday,
+} from "@/lib/lifeos";
 import { getStore, updateStore } from "@/lib/store";
 import { calcGoalProgress, goalAnalytics, tasksForDate } from "@/lib/tasks";
 import type { Goal, GoalStage, PlanBucket, PriorityLevel } from "@/lib/types";
-import { todayKey } from "@/lib/id";
-import { weekStartMonday } from "@/lib/lifeos";
 
 function enrichGoal(store: Awaited<ReturnType<typeof getStore>>, g: Goal) {
-  const progress = calcGoalProgress(g);
-  const phase = currentPhase(g);
+  const workPlan = g.workPlanId ? findWorkPlan(store, g.workPlanId) : undefined;
+  const progress = workPlan ? calcWorkPlanProgress(workPlan) : calcGoalProgress(g, store);
+  const phase = workPlan ? currentWorkPhase(workPlan) : currentPhase(g);
   const weekStart = weekStartMonday(todayKey());
   const week = store.weeks?.find((w) => w.weekStart === weekStart);
-  const weekObj = week?.objectives.filter((o) => o.goalId === g.id) ?? [];
-  const todayTasks = tasksForDate(store, todayKey()).filter((t) => t.goalId === g.id);
+  const weekObj =
+    week?.objectives.filter((o) => o.goalId === g.id || o.workPlanId === g.workPlanId) ?? [];
+  const todayTasks = tasksForDate(store, todayKey()).filter(
+    (t) => t.goalId === g.id || t.workPlanId === g.workPlanId
+  );
   return {
     ...g,
     progress,
+    workPlanId: g.workPlanId ?? workPlan?.id,
+    workPlan: workPlan
+      ? {
+          id: workPlan.id,
+          title: workPlan.title,
+          progress: calcWorkPlanProgress(workPlan),
+          desiredResult: workPlan.desiredResult,
+          status: workPlan.status,
+        }
+      : null,
     analytics: goalAnalytics(g, store.stageDayLogs),
     area: store.spheres.find((s) => s.id === g.lifeAreaId) ?? null,
     plan: g.planId ? store.plans?.find((p) => p.id === g.planId) ?? null : activePlan(store) ?? null,
-    currentPhase: phase ?? null,
+    currentPhase: phase
+      ? {
+          id: phase.id,
+          title: phase.title,
+          status: phase.status,
+          done: "done" in phase ? Boolean((phase as GoalStage).done) : phase.status === "done",
+        }
+      : null,
     weekObjectives: weekObj,
     todayActions: todayTasks,
   };

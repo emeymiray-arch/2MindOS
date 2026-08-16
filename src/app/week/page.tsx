@@ -7,6 +7,7 @@ type GoalRow = {
   id: string;
   title: string;
   progress: number;
+  workPlanId?: string;
   area: { name: string; emoji?: string } | null;
   currentPhase: { id: string; title: string } | null;
 };
@@ -19,6 +20,7 @@ type WeekData = {
       id: string;
       goalId: string;
       phaseId?: string;
+      workPlanId?: string;
       title: string;
       done: boolean;
     }[];
@@ -78,12 +80,15 @@ export default function WeekPage() {
       {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
       <p className="text-[13px] text-[var(--ink-faint)]">
-        Active goals → weekly objective → tasks for Today
+        Goal → Plan → Phase → Week objective → Today
       </p>
 
       <div className="space-y-5">
         {data.activeGoals.map((g) => {
-          const objs = (data.week?.objectives ?? []).filter((o) => o.goalId === g.id);
+          const objs = (data.week?.objectives ?? []).filter(
+            (o) => o.goalId === g.id || (g.workPlanId && o.workPlanId === g.workPlanId)
+          );
+          const workPlanId = g.workPlanId;
           return (
             <section key={g.id} className="card space-y-4 p-6">
               <div className="flex items-baseline justify-between gap-2">
@@ -95,6 +100,16 @@ export default function WeekPage() {
                   {g.currentPhase ? (
                     <p className="text-[13px] text-[var(--ink-faint)]">Phase · {g.currentPhase.title}</p>
                   ) : null}
+                  {workPlanId ? (
+                    <Link
+                      href={`/plans/${workPlanId}`}
+                      className="text-[13px] font-medium text-[var(--ink-faint)]"
+                    >
+                      Open Plan →
+                    </Link>
+                  ) : (
+                    <p className="text-[13px] text-[var(--ink-faint)]">Plan not created</p>
+                  )}
                 </div>
                 <span className="tabular-nums text-[var(--ink-soft)]">{g.progress}%</span>
               </div>
@@ -142,6 +157,7 @@ export default function WeekPage() {
                         action: "addObjective",
                         goalId: g.id,
                         phaseId: g.currentPhase?.id,
+                        workPlanId: g.workPlanId,
                         title: drafts[g.id].trim(),
                       });
                       setDrafts({ ...drafts, [g.id]: "" });
@@ -157,6 +173,7 @@ export default function WeekPage() {
                       action: "addObjective",
                       goalId: g.id,
                       phaseId: g.currentPhase?.id,
+                      workPlanId: g.workPlanId,
                       title: drafts[g.id].trim(),
                     });
                     setDrafts({ ...drafts, [g.id]: "" });

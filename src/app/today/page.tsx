@@ -7,7 +7,14 @@ import type { DailyTaskItem, TaskPriority } from "@/lib/types";
 
 type TaskView = DailyTaskItem & {
   effectivePriority?: TaskPriority;
-  chain?: { area?: string; goal?: string; phase?: string; week?: string };
+  chain?: {
+    area?: string;
+    goal?: string;
+    phase?: string;
+    week?: string;
+    workPlan?: string;
+    why?: string;
+  };
 };
 
 function shiftDate(iso: string, delta: number) {
@@ -160,13 +167,16 @@ function TodayInner() {
                             })
                           }
                         >
-                          {t.done ? "✓" : "×"}
+                          {t.done ? "✓" : ""}
                         </button>
                         <p className="item-title min-w-0 flex-1">{t.title}</p>
                       </div>
-                      {(t.chain?.goal || t.chain?.phase) && (
+                      {(t.chain?.why || t.chain?.goal || t.chain?.phase || t.chain?.workPlan) && (
                         <p className="pl-8 text-[11px] text-[var(--ink-faint)]">
-                          {[t.chain.area, t.chain.goal, t.chain.phase].filter(Boolean).join(" → ")}
+                          {t.chain.why ||
+                            [t.chain.workPlan, t.chain.area, t.chain.goal, t.chain.phase]
+                              .filter(Boolean)
+                              .join(" → ")}
                         </p>
                       )}
                     </div>

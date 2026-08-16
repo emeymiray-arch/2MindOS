@@ -1,4 +1,5 @@
 import { id } from "./id";
+import { calcWorkPlanProgress } from "./lifeos";
 import type { DailyTaskItem, Goal, LifeStore, StageDayLog, TaskCategory } from "./types";
 
 function inRange(date: string, start?: string, end?: string): boolean {
@@ -8,7 +9,11 @@ function inRange(date: string, start?: string, end?: string): boolean {
   return date >= s && date <= e;
 }
 
-export function calcGoalProgress(goal: Goal): number {
+export function calcGoalProgress(goal: Goal, store?: LifeStore): number {
+  if (store && goal.workPlanId) {
+    const wp = store.workPlans?.find((p) => p.id === goal.workPlanId);
+    if (wp) return calcWorkPlanProgress(wp);
+  }
   const stages = (goal.stages ?? []).filter((s) => !s.archived);
   if (!stages.length) return goal.progress ?? 0;
   const done = stages.filter((s) => s.done).length;
@@ -128,6 +133,9 @@ export function ensureDayTask(
     weekId: patch.weekId,
     objectiveId: patch.objectiveId,
     lifeAreaId: patch.lifeAreaId,
+    workPlanId: patch.workPlanId,
+    milestoneId: patch.milestoneId,
+    projectId: patch.projectId,
     priority: patch.priority ?? "should",
     deadlineStart: patch.deadlineStart,
     deadlineEnd: patch.deadlineEnd,

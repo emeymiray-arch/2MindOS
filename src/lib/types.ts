@@ -115,7 +115,10 @@ export interface Goal {
   archived?: boolean;
   createdAt: string;
   lifeAreaId?: string;
+  /** SixMonthPlan id (life horizon) */
   planId?: string;
+  /** Execution WorkPlan for this goal */
+  workPlanId?: string;
   priority?: PriorityLevel;
   status?: GoalStatus;
   /** Plan bucket: foundation / development / later */
@@ -134,10 +137,57 @@ export interface SixMonthPlan {
   createdAt: string;
 }
 
+/** Milestone inside a PlanPhase */
+export interface Milestone {
+  id: string;
+  title: string;
+  done: boolean;
+  order: number;
+}
+
+/** Phase inside a WorkPlan (execution plan for a Goal or Project) */
+export interface PlanPhase {
+  id: string;
+  title: string;
+  order: number;
+  durationWeeks?: number;
+  deadlineStart?: string;
+  deadlineEnd?: string;
+  status?: PhaseStatus;
+  objectives: string[];
+  milestones: Milestone[];
+  archived?: boolean;
+  progress?: number;
+}
+
+export type WorkPlanStatus = "draft" | "active" | "done" | "archived";
+export type WorkPlanOwner = "goal" | "project";
+
+/**
+ * Execution plan for a Goal or Project.
+ * Distinct from SixMonthPlan (life horizon).
+ */
+export interface WorkPlan {
+  id: string;
+  ownerType: WorkPlanOwner;
+  ownerId: string;
+  title: string;
+  desiredResult?: string;
+  why?: string;
+  startingPoint?: string;
+  strategy?: string;
+  deadline?: string;
+  status: WorkPlanStatus;
+  phases: PlanPhase[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface WeeklyObjective {
   id: string;
   goalId: string;
   phaseId?: string;
+  workPlanId?: string;
   title: string;
   done: boolean;
 }
@@ -145,7 +195,10 @@ export interface WeeklyObjective {
 export interface WeeklyPlan {
   id: string;
   weekStart: string;
+  /** SixMonthPlan id */
   planId?: string;
+  workPlanId?: string;
+  phaseId?: string;
   objectives: WeeklyObjective[];
   createdAt: string;
 }
@@ -212,6 +265,10 @@ export interface Project {
   tagline?: string;
   status: "active" | "paused" | "archived";
   lifeAreaId?: string;
+  workPlanId?: string;
+  description?: string;
+  priority?: PriorityLevel;
+  deadline?: string;
   kpi: { label: string; value: string }[];
   modules: {
     docs: string[];
@@ -452,13 +509,16 @@ export interface DailyTaskItem {
   done: boolean;
   archived?: boolean;
   categoryId?: string;
-  /** Phase id (GoalStage.id) */
+  /** Phase id (PlanPhase.id or legacy GoalStage.id) */
   stageId?: string;
   goalId?: string;
   goalTitle?: string;
   weekId?: string;
   objectiveId?: string;
   lifeAreaId?: string;
+  workPlanId?: string;
+  milestoneId?: string;
+  projectId?: string;
   priority?: TaskPriority;
   deadlineStart?: string;
   deadlineEnd?: string;
@@ -472,6 +532,7 @@ export interface LifeStore {
   captures: Capture[];
   goals: Goal[];
   plans: SixMonthPlan[];
+  workPlans: WorkPlan[];
   weeks: WeeklyPlan[];
   stageDayLogs: StageDayLog[];
   dayTasks: DailyTaskItem[];

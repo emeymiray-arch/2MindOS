@@ -12,6 +12,14 @@ type GoalView = Goal & {
   currentPhase: GoalStage | null;
   weekObjectives: { id: string; title: string; done: boolean }[];
   todayActions: { id: string; title: string; done: boolean }[];
+  workPlanId?: string;
+  workPlan?: {
+    id: string;
+    title: string;
+    progress: number;
+    desiredResult?: string;
+    status: string;
+  } | null;
 };
 
 export default function GoalsClient() {
@@ -33,6 +41,13 @@ export default function GoalsClient() {
   const [mode, setMode] = useState<ActionMode>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [creatingPlan, setCreatingPlan] = useState(false);
+  const [planDraft, setPlanDraft] = useState({
+    desiredResult: "",
+    why: "",
+    startingPoint: "",
+    strategy: "",
+  });
 
   const load = useCallback(async () => {
     await fetch("/api/plans", {
@@ -114,6 +129,9 @@ export default function GoalsClient() {
                 {g.currentPhase ? (
                   <p className="text-[13px] text-[var(--ink-faint)]">Phase · {g.currentPhase.title}</p>
                 ) : null}
+                {!g.workPlanId && !g.workPlan ? (
+                  <p className="text-[12px] text-[var(--ink-faint)]">Plan not created</p>
+                ) : null}
                 <div className="meter mt-2">
                   <span style={{ width: `${g.progress}%` }} />
                 </div>
@@ -131,27 +149,137 @@ export default function GoalsClient() {
       <button
         type="button"
         className="text-[13px] font-medium text-[var(--ink-faint)]"
-        onClick={() => setSelected(null)}
+        onClick={() => {
+          setSelected(null);
+          setCreatingPlan(false);
+        }}
       >
         ← Goals
       </button>
       <header className="space-y-3">
         <h1 className="font-display text-3xl">{selected.title}</h1>
         <p className="text-[14px] text-[var(--ink-soft)]">
-          {selected.area?.name ?? "Life area"} · {selected.progress}%
+          {selected.area?.name ?? "Life area"}
+          {selected.priority ? ` · ${selected.priority}` : ""}
+          {selected.deadline ? ` · ${selected.deadline}` : ""}
+          {` · ${selected.progress}%`}
         </p>
           {selected.description ? (
             <p className="text-[14px] text-[var(--ink-faint)]">{selected.description}</p>
           ) : null}
+          <div className="meter">
+            <span style={{ width: `${selected.progress}%` }} />
+          </div>
         </header>
 
-        <section className="card space-y-2 p-5">
-          <p className="text-[12px] font-semibold text-[var(--ink-faint)]">Current Phase</p>
+        <section className="card space-y-4 p-6">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Plan</p>
+          {selected.workPlan ? (
+            <>
+              <div className="flex items-baseline justify-between gap-3">
+                <div>
+                  <p className="font-semibold">{selected.workPlan.title}</p>
+                  <p className="text-[13px] text-[var(--ink-faint)]">
+                    {selected.workPlan.progress}% complete
+                  </p>
+                </div>
+                <Link href={`/plans/${selected.workPlan.id}`} className="btn btn-ink">
+                  Open Plan
+                </Link>
+              </div>
+              {selected.workPlan.desiredResult ? (
+                <p className="text-[14px] text-[var(--ink-soft)]">{selected.workPlan.desiredResult}</p>
+              ) : null}
+            </>
+          ) : creatingPlan ? (
+            <div className="space-y-3">
+              <p className="text-[13px] text-[var(--ink-soft)]">Plan this goal</p>
+              {(
+                [
+                  ["desiredResult", "Desired Result"],
+                  ["why", "Why"],
+                  ["startingPoint", "Starting Point"],
+                  ["strategy", "Strategy"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="block space-y-1">
+                  <span className="text-[12px] text-[var(--ink-faint)]">{label}</span>
+                  <textarea
+                    rows={2}
+                    value={planDraft[key]}
+                    onChange={(e) => setPlanDraft({ ...planDraft, [key]: e.target.value })}
+                  />
+                </label>
+              ))}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-ink"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setError("");
+                    try {
+                      const { apiPost } = await import("@/lib/client-api");
+                      const result = await apiPost("/api/work-plans", {
+                        action: "create",
+                        ownerType: "goal",
+                        ownerId: selected.id,
+                        title: `Plan: ${selected.title}`,
+                        ...planDraft,
+                      });
+                      if (!result.ok && result.error) setError(String(result.error));
+                      else {
+                        const plan = result.data.plan as { id?: string } | undefined;
+                        if (plan?.id) {
+                          window.location.href = `/plans/${plan.id}`;
+                          return;
+                        }
+                      }
+                      await load();
+                      const res = await fetch(`/api/goals?id=${selected.id}`);
+                      const data = await res.json();
+                      setSelected(data.goal ?? null);
+                      setCreatingPlan(false);
+                    } catch {
+                      setError("Не удалось создать план");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  Create Plan
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setCreatingPlan(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[14px] text-[var(--ink-soft)]">Plan not created</p>
+              <button
+                type="button"
+                className="btn btn-ink"
+                onClick={() => setCreatingPlan(true)}
+              >
+                + Create Plan
+              </button>
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-2">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Current Phase</p>
           <p className="font-display text-xl">{selected.currentPhase?.title ?? "—"}</p>
         </section>
 
         <section className="space-y-2">
-          <p className="text-[12px] font-semibold text-[var(--ink-faint)]">Phases</p>
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Phases</p>
           {(selected.stages ?? [])
             .filter((s) => !s.archived)
             .map((st) => (
@@ -169,7 +297,7 @@ export default function GoalsClient() {
                     })
                   }
                 >
-                  {st.done ? "✓" : "×"}
+                  {st.done ? "✓" : ""}
                 </button>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{st.title}</p>
@@ -189,29 +317,38 @@ export default function GoalsClient() {
                 ) : null}
               </div>
             ))}
-          <div className="flex gap-2">
-            <input
-              className="min-w-0 flex-1"
-              placeholder="Phase"
-              value={phaseTitle}
-              onChange={(e) => setPhaseTitle(e.target.value)}
-            />
-            <button
-              type="button"
-              className="btn btn-ink"
-              disabled={busy || !phaseTitle.trim()}
-              onClick={() => {
-                post({ action: "addStage", goalId: selected.id, title: phaseTitle.trim() });
-                setPhaseTitle("");
-              }}
+          {!selected.workPlan ? (
+            <div className="flex gap-2">
+              <input
+                className="min-w-0 flex-1"
+                placeholder="Phase"
+                value={phaseTitle}
+                onChange={(e) => setPhaseTitle(e.target.value)}
+              />
+              <button
+                type="button"
+                className="btn btn-ink"
+                disabled={busy || !phaseTitle.trim()}
+                onClick={() => {
+                  post({ action: "addStage", goalId: selected.id, title: phaseTitle.trim() });
+                  setPhaseTitle("");
+                }}
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <Link
+              href={`/plans/${selected.workPlan.id}`}
+              className="text-[13px] font-medium text-[var(--ink-faint)]"
             >
-              +
-            </button>
-          </div>
+              Manage phases in Plan →
+            </Link>
+          )}
         </section>
 
-        <section className="card space-y-2 p-5">
-          <p className="text-[12px] font-semibold text-[var(--ink-faint)]">This Week</p>
+        <section className="space-y-2">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">This Week</p>
           {(selected.weekObjectives ?? []).length === 0 ? (
             <p className="text-[13px] text-[var(--ink-faint)]">
               <Link href="/week">Задай objective в Week →</Link>
@@ -228,8 +365,8 @@ export default function GoalsClient() {
           )}
         </section>
 
-        <section className="card space-y-2 p-5">
-          <p className="text-[12px] font-semibold text-[var(--ink-faint)]">Today&apos;s Actions</p>
+        <section className="space-y-2">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Today&apos;s Actions</p>
           {(selected.todayActions ?? []).length === 0 ? (
             <p className="text-[13px] text-[var(--ink-faint)]">
               <Link href="/today">Нет задач · Today →</Link>
@@ -245,6 +382,8 @@ export default function GoalsClient() {
             </ul>
           )}
         </section>
+
+        {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
       </div>
     );
   }

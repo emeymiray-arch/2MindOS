@@ -13,7 +13,7 @@ export function createEmptyStore(): LifeStore {
   const foodNode = id();
 
   return {
-    version: 7,
+    version: 8,
     spheres,
     nodes: [
       {
@@ -41,6 +41,7 @@ export function createEmptyStore(): LifeStore {
     captures: [],
     goals: [],
     plans: [plan],
+    workPlans: [],
     weeks: [],
     stageDayLogs: [],
     dayTasks: [],

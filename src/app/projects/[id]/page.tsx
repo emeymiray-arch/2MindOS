@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import type { LifeNode, Project, ProjectDiaryEntry } from "@/lib/types";
 
@@ -8,6 +8,13 @@ interface Payload {
   project: Project;
   node?: LifeNode;
   relatedNodes: LifeNode[];
+  workPlan?: {
+    id: string;
+    title: string;
+    progress: number;
+    desiredResult?: string;
+  } | null;
+  error?: string;
 }
 
 export default function ProjectCompanyPage({
@@ -17,18 +24,44 @@ export default function ProjectCompanyPage({
 }) {
   const { id } = use(params);
   const [data, setData] = useState<Payload | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"company" | "diary">("company");
   const [diary, setDiary] = useState<ProjectDiaryEntry[]>([]);
   const [entry, setEntry] = useState({ kind: "idea", title: "", body: "" });
+  const [creatingPlan, setCreatingPlan] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [planDraft, setPlanDraft] = useState({
+    desiredResult: "",
+    why: "",
+    startingPoint: "",
+    strategy: "",
+  });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const res = await fetch(`/api/projects/${id}`);
+      const d = await res.json();
+      if (!res.ok || d.error || !d.project) {
+        setData(null);
+        setLoadError(d.error === "not found" ? "Проект не найден" : d.error || "Ошибка загрузки");
+        return;
+      }
+      setData(d);
+      setDiary(d.project?.diary ?? []);
+    } catch {
+      setData(null);
+      setLoadError("Не удалось загрузить проект");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    fetch(`/api/projects/${id}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setData(d);
-        setDiary(d.project?.diary ?? []);
-      });
-  }, [id]);
+    load();
+  }, [load]);
 
   async function addDiary() {
     if (!entry.title.trim()) return;
@@ -42,45 +75,143 @@ export default function ProjectCompanyPage({
     setEntry({ kind: "idea", title: "", body: "" });
   }
 
-  if (!data?.project) {
-    return <div className="text-[var(--ink-faint)]">Загрузка…</div>;
+  if (loading) {
+    return <div className="text-[var(--ink-faint)]">…</div>;
   }
 
-  const { project, relatedNodes } = data;
+  if (!data?.project) {
+    return (
+      <div className="fade-in mx-auto max-w-2xl space-y-4">
+        <Link href="/projects" className="text-[13px] font-medium text-[var(--ink-faint)]">
+          ← Projects
+        </Link>
+        <p className="text-[15px] text-[var(--ink-soft)]">{loadError || "Проект не найден"}</p>
+      </div>
+    );
+  }
+
+  const { project, relatedNodes, workPlan } = data;
   const m = project.modules;
 
   return (
-    <div className="fade-in mx-auto max-w-4xl space-y-6">
+    <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
       <div>
-        <Link href="/projects" className="meta-quiet text-[13px] font-semibold">
-          ←
+        <Link href="/projects" className="text-[13px] font-medium text-[var(--ink-faint)]">
+          ← Projects
         </Link>
-        <p className="meta-quiet mt-4">{project.status}</p>
-        <h1 className="font-display mt-2 text-3xl md:text-4xl">{project.name}</h1>
+        <p className="mt-4 text-[12px] text-[var(--ink-faint)]">{project.status}</p>
+        <h1 className="font-display mt-2 text-3xl">{project.name}</h1>
         {project.tagline && (
           <p className="mt-2 text-[15px] text-[var(--ink-soft)]">{project.tagline}</p>
         )}
       </div>
 
+      <section className="card space-y-4 p-6">
+        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Plan</p>
+        {workPlan ? (
+          <div className="flex items-baseline justify-between gap-3">
+            <div>
+              <p className="font-semibold">{workPlan.title}</p>
+              <p className="text-[13px] text-[var(--ink-faint)]">{workPlan.progress}% complete</p>
+            </div>
+            <Link href={`/plans/${workPlan.id}`} className="btn btn-ink">
+              Open Plan
+            </Link>
+          </div>
+        ) : creatingPlan ? (
+          <div className="space-y-3">
+            <p className="text-[13px] text-[var(--ink-soft)]">Create Project Plan</p>
+            {(
+              [
+                ["desiredResult", "Desired Result"],
+                ["why", "Why"],
+                ["startingPoint", "Starting Point"],
+                ["strategy", "Strategy"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="block space-y-1">
+                <span className="text-[12px] text-[var(--ink-faint)]">{label}</span>
+                <textarea
+                  rows={2}
+                  value={planDraft[key]}
+                  onChange={(e) => setPlanDraft({ ...planDraft, [key]: e.target.value })}
+                />
+              </label>
+            ))}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn btn-ink"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    const { apiPost } = await import("@/lib/client-api");
+                    const result = await apiPost("/api/work-plans", {
+                      action: "create",
+                      ownerType: "project",
+                      ownerId: project.id,
+                      title: `Plan: ${project.name}`,
+                      ...planDraft,
+                    });
+                    const plan = result.data?.plan as { id?: string } | undefined;
+                    if (plan?.id) {
+                      window.location.href = `/plans/${plan.id}`;
+                      return;
+                    }
+                    await load();
+                    setCreatingPlan(false);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Create Project Plan
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setCreatingPlan(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-[14px] text-[var(--ink-soft)]">This project has no plan yet.</p>
+            <button type="button" className="btn btn-ink" onClick={() => setCreatingPlan(true)}>
+              + Create Project Plan
+            </button>
+          </div>
+        )}
+      </section>
+
       <div className="flex gap-2">
-        <button type="button" className={`chip ${tab === "company" ? "chip-on" : ""}`} onClick={() => setTab("company")}>
+        <button
+          type="button"
+          className={`chip ${tab === "company" ? "chip-on" : ""}`}
+          onClick={() => setTab("company")}
+        >
           Компания
         </button>
-        <button type="button" className={`chip ${tab === "diary" ? "chip-on" : ""}`} onClick={() => setTab("diary")}>
+        <button
+          type="button"
+          className={`chip ${tab === "diary" ? "chip-on" : ""}`}
+          onClick={() => setTab("diary")}
+        >
           Дневник
         </button>
       </div>
 
       {tab === "company" ? (
         <>
-          <section className="grid gap-3 sm:grid-cols-3">
-            {project.kpi.map((k) => (
-              <div key={k.label} className="card p-4">
-                <p className="eyebrow">{k.label}</p>
-                <p className="mt-2 text-2xl font-bold">{k.value}</p>
-              </div>
-            ))}
-          </section>
+          {project.kpi.length > 0 ? (
+            <section className="grid gap-3 sm:grid-cols-3">
+              {project.kpi.map((k) => (
+                <div key={k.label} className="card p-4">
+                  <p className="eyebrow">{k.label}</p>
+                  <p className="mt-2 text-2xl font-bold">{k.value}</p>
+                </div>
+              ))}
+            </section>
+          ) : null}
           <Dept title="Документы" items={m.docs} />
           <Dept title="Задачи" items={m.tasks.map((t) => `${t.done ? "✓" : "·"} ${t.title}`)} />
           <Dept title="Идеи" items={m.ideas} />

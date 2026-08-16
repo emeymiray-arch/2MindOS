@@ -6,13 +6,15 @@ import { useCallback, useEffect, useState } from "react";
 type LifePayload = {
   today: string;
   plan: { title: string; startDate: string; endDate: string } | null;
-  matters: { id: string; title: string; progress: number }[];
+  matters: { id: string; title: string; progress: number; hasPlan?: boolean }[];
   workingOn: {
     id: string;
     title: string;
     progress: number;
     phase: { title: string } | null;
     area: { name: string; emoji?: string } | null;
+    workPlan?: { id: string; title: string; progress: number } | null;
+    hasPlan?: boolean;
   }[];
   notDoing: { id: string; title: string; area?: string }[];
   tasks: {
@@ -20,9 +22,10 @@ type LifePayload = {
     title: string;
     done: boolean;
     effectivePriority: string;
-    chain: { goal?: string; phase?: string; area?: string };
+    chain: { goal?: string; phase?: string; area?: string; workPlan?: string; why?: string };
   }[];
   load: { percent: number; must: number; should: number; optional: number };
+  currentWorkPlans?: { id: string; title: string; progress: number; phase?: string }[];
 };
 
 export default function NowPage() {
@@ -91,6 +94,13 @@ export default function NowPage() {
                 {g.phase ? (
                   <p className="text-[13px] text-[var(--ink-faint)]">Phase · {g.phase.title}</p>
                 ) : null}
+                {g.workPlan ? (
+                  <p className="text-[13px] text-[var(--ink-faint)]">
+                    Plan · {g.workPlan.title} · {g.workPlan.progress}%
+                  </p>
+                ) : (
+                  <p className="text-[13px] text-[var(--ink-faint)]">Plan not created</p>
+                )}
               </Link>
             ))
           )}
@@ -112,8 +122,11 @@ export default function NowPage() {
           {open.slice(0, 5).map((t) => (
             <li key={t.id} className="text-[15px]">
               <span className="font-medium">{t.title}</span>
-              {t.chain.goal ? (
-                <span className="meta-quiet"> · {t.chain.goal}</span>
+              {t.chain.why || t.chain.goal ? (
+                <span className="meta-quiet">
+                  {" "}
+                  · {t.chain.why || [t.chain.goal, t.chain.phase].filter(Boolean).join(" → ")}
+                </span>
               ) : null}
             </li>
           ))}

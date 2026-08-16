@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { calcWorkPlanProgress, findWorkPlan } from "@/lib/lifeos";
 import { getStore } from "@/lib/store";
 
 export async function GET(
@@ -16,5 +17,19 @@ export async function GET(
   const relatedNodes = store.nodes.filter((n) =>
     relatedEdges.some((e) => e.sourceId === n.id || e.targetId === n.id)
   );
-  return NextResponse.json({ project, node, relatedNodes, relatedEdges });
+  const workPlan = project.workPlanId ? findWorkPlan(store, project.workPlanId) : undefined;
+  return NextResponse.json({
+    project,
+    node,
+    relatedNodes,
+    relatedEdges,
+    workPlan: workPlan
+      ? {
+          id: workPlan.id,
+          title: workPlan.title,
+          progress: calcWorkPlanProgress(workPlan),
+          desiredResult: workPlan.desiredResult,
+        }
+      : null,
+  });
 }

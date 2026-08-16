@@ -8,7 +8,7 @@ import {
   tasksForDate,
   upsertStageDayLog,
 } from "@/lib/tasks";
-import { dailyLoad, inheritTaskPriority, taskChain } from "@/lib/lifeos";
+import { dailyLoad, inheritTaskPriority, recomputeFromTaskToggle, taskChain } from "@/lib/lifeos";
 import type { TaskPriority } from "@/lib/types";
 
 function enrichTasks(store: Awaited<ReturnType<typeof getStore>>, date: string, archived?: boolean) {
@@ -21,9 +21,22 @@ function enrichTasks(store: Awaited<ReturnType<typeof getStore>>, date: string, 
         area: chain.area?.name,
         areaId: chain.area?.id,
         plan: chain.plan?.title,
+        workPlan: chain.workPlan?.title,
+        workPlanId: chain.workPlan?.id,
         goal: chain.goal?.title,
+        project: chain.project?.name,
         phase: chain.phase?.title,
+        milestone: chain.milestone?.title,
         week: chain.week?.weekStart,
+        why: [
+          chain.workPlan?.title && `Plan: ${chain.workPlan.title}`,
+          chain.phase?.title && `Phase: ${chain.phase.title}`,
+          chain.goal?.title && `Goal: ${chain.goal.title}`,
+          chain.project?.name && `Project: ${chain.project.name}`,
+          chain.area?.name && `Area: ${chain.area.name}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       },
     };
   });
@@ -92,13 +105,8 @@ export async function POST(request: Request) {
         const persisted = ensureDayTask(s, { ...task, done, archived: false });
         if (persisted.stageId) {
           upsertStageDayLog(s, persisted.stageId, date, done, id);
-          if (done) {
-            for (const g of s.goals) {
-              const st = g.stages.find((x) => x.id === persisted.stageId);
-              if (st) st.done = true;
-            }
-          }
         }
+        recomputeFromTaskToggle(s, persisted);
       });
       return NextResponse.json(taskPayload(store, date, month));
     }
