@@ -43,31 +43,33 @@ function colorForArea(areaName?: string) {
     /здоров|сон|спорт|тело|питани|медиц|энерги|wellness|health/.test(n)
   ) {
     return {
-      border: "#30D158",
-      soft: "rgba(48, 209, 88, 0.14)",
-      badge: "Здоровье",
+      border: "#00E676",
+      soft: "rgba(0, 230, 118, 0.2)",
     };
   }
   if (
     /само|развит|обуч|англий|коран|чтен|книг|навык|education|skill/.test(n)
   ) {
     return {
-      border: "#0A84FF",
-      soft: "rgba(10, 132, 255, 0.14)",
-      badge: "Саморазвитие",
+      border: "#2E8BFF",
+      soft: "rgba(46, 139, 255, 0.2)",
     };
   }
   if (/стиль|эстет|дом|гардероб|beauty|style/.test(n)) {
     return {
-      border: "#FF9F0A",
-      soft: "rgba(255, 159, 10, 0.16)",
-      badge: "Стиль",
+      border: "#FFB020",
+      soft: "rgba(255, 176, 32, 0.22)",
+    };
+  }
+  if (/работ|бизнес|проект|карьер|деньг|finance|work/.test(n)) {
+    return {
+      border: "#D96BFF",
+      soft: "rgba(217, 107, 255, 0.2)",
     };
   }
   return {
-    border: "#8E8E93",
-    soft: "rgba(142, 142, 147, 0.14)",
-    badge: "Другое",
+    border: "#FF5A5F",
+    soft: "rgba(255, 90, 95, 0.18)",
   };
 }
 
@@ -187,7 +189,7 @@ export default function GoalsClient() {
             <button
               key={g.id}
               type="button"
-              className="card block w-full space-y-1 p-3 text-left"
+              className="card block w-full space-y-1 p-2.5 text-left"
               style={{
                 borderColor: colorForArea(g.area?.name).border,
                 background: `linear-gradient(180deg, ${colorForArea(g.area?.name).soft}, transparent)`,
@@ -199,7 +201,7 @@ export default function GoalsClient() {
                 <span className="tabular-nums text-[12px] text-[var(--ink-soft)]">{g.progress}%</span>
               </div>
               <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--ink-faint)]">
-                <span>{colorForArea(g.area?.name).badge}</span>
+                <span>Lv.{Math.max(1, Math.round(g.progress / 10))}</span>
                 <span>{g.currentPhase ? `Этап: ${g.currentPhase.title}` : "Без этапа"}</span>
               </div>
               <div className="meter mt-1.5">
@@ -234,15 +236,9 @@ export default function GoalsClient() {
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <span
-            className="chip"
-            style={{
-              borderColor: colorForArea(selected.area?.name).border,
-              background: colorForArea(selected.area?.name).soft,
-              color: "var(--ink)",
-            }}
-          >
-            {colorForArea(selected.area?.name).badge}
-          </span>
+            className="inline-block h-3 w-12 rounded-full"
+            style={{ background: colorForArea(selected.area?.name).border }}
+          />
           <select
             value={selected.bucket ?? "development"}
             onChange={(e) => post({ action: "update", id: selected.id, bucket: e.target.value })}
@@ -255,6 +251,51 @@ export default function GoalsClient() {
               </option>
             ))}
           </select>
+        </div>
+        <div className="card mt-2 space-y-2 p-3">
+          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Изменить цель</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input
+              value={selected.title}
+              onChange={(e) => setSelected({ ...selected, title: e.target.value })}
+              placeholder="Название цели"
+            />
+            <select
+              value={selected.lifeAreaId ?? ""}
+              onChange={(e) => setSelected({ ...selected, lifeAreaId: e.target.value || undefined })}
+            >
+              <option value="">Сфера</option>
+              {areas.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+            <input
+              type="date"
+              value={selected.deadline ?? ""}
+              onChange={(e) => setSelected({ ...selected, deadline: e.target.value || undefined })}
+            />
+            <button
+              type="button"
+              className="btn btn-ink"
+              disabled={busy || !selected.title.trim()}
+              onClick={() =>
+                post({
+                  action: "update",
+                  id: selected.id,
+                  title: selected.title.trim(),
+                  lifeAreaId: selected.lifeAreaId ?? "",
+                  deadline: selected.deadline ?? "",
+                  bucket: selected.bucket ?? "development",
+                })
+              }
+            >
+              Сохранить
+            </button>
+          </div>
         </div>
           {selected.description ? (
             <p className="text-[14px] text-[var(--ink-faint)]">{selected.description}</p>
