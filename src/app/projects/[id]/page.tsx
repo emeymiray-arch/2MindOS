@@ -2,6 +2,7 @@
 
 import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { StorageAnalytics } from "@/components/ui/StorageAnalytics";
 import type { LifeNode, Project, ProjectDiaryEntry } from "@/lib/types";
 
 interface Payload {
@@ -15,6 +16,27 @@ interface Payload {
     desiredResult?: string;
   } | null;
   error?: string;
+}
+
+const STORAGE_COLORS = {
+  blue: "#0A84FF",
+  green: "#30D158",
+  orange: "#FF9F0A",
+  purple: "#BF5AF2",
+};
+
+function buildProjectSegments(project: Project) {
+  const tasks = project.modules.tasks ?? [];
+  const done = tasks.filter((task) => task.done).length;
+  const active = Math.max(tasks.length - done, 0);
+  const docs = project.modules.docs?.length ?? 0;
+  const ideas = project.modules.ideas?.length ?? 0;
+  return [
+    { label: "Готово", value: done, color: STORAGE_COLORS.blue },
+    { label: "В работе", value: active, color: STORAGE_COLORS.green },
+    { label: "Документы", value: docs, color: STORAGE_COLORS.orange },
+    { label: "Идеи", value: ideas, color: STORAGE_COLORS.purple },
+  ];
 }
 
 export default function ProjectCompanyPage({
@@ -92,6 +114,9 @@ export default function ProjectCompanyPage({
 
   const { project, relatedNodes, workPlan } = data;
   const m = project.modules;
+  const doneTasks = (m.tasks ?? []).filter((task) => task.done).length;
+  const totalTasks = (m.tasks ?? []).length;
+  const progress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   return (
     <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
@@ -178,6 +203,14 @@ export default function ProjectCompanyPage({
           </button>
         )}
       </section>
+
+      <StorageAnalytics
+        title="Аналитика проекта"
+        subtitle={`${doneTasks}/${totalTasks} задач закрыто`}
+        segments={buildProjectSegments(project)}
+        centerValue={`${progress}%`}
+        centerLabel="готово"
+      />
 
       <div className="flex gap-2">
         <button

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ActionMode, ActionOption, PageToolbar } from "@/components/ui/PageToolbar";
+import { StorageAnalytics } from "@/components/ui/StorageAnalytics";
 import type { Goal, GoalStage, Sphere } from "@/lib/types";
 
 type GoalView = Goal & {
@@ -21,6 +22,33 @@ type GoalView = Goal & {
     status: string;
   } | null;
 };
+
+const STORAGE_COLORS = {
+  blue: "#0A84FF",
+  green: "#30D158",
+  orange: "#FF9F0A",
+  red: "#FF453A",
+  gray: "#8E8E93",
+};
+
+function buildGoalSegments(goal: GoalView) {
+  const stages = (goal.stages ?? []).filter((stage) => !stage.archived);
+  const done = stages.filter((stage) => stage.done).length;
+  const active = stages.filter((stage) => !stage.done && stage.status === "active").length;
+  const overdue = stages.filter(
+    (stage) =>
+      !stage.done &&
+      Boolean(stage.deadlineEnd) &&
+      new Date(stage.deadlineEnd as string).getTime() < Date.now()
+  ).length;
+  const planned = Math.max(stages.length - done - active - overdue, 0);
+  return [
+    { label: "Готово", value: done, color: STORAGE_COLORS.blue },
+    { label: "Активно", value: active, color: STORAGE_COLORS.green },
+    { label: "Просрочено", value: overdue, color: STORAGE_COLORS.red },
+    { label: "План", value: planned, color: STORAGE_COLORS.gray },
+  ];
+}
 
 export default function GoalsClient() {
   const search = useSearchParams();
@@ -161,6 +189,13 @@ export default function GoalsClient() {
             <span style={{ width: `${selected.progress}%` }} />
           </div>
         </header>
+        <StorageAnalytics
+          title="Аналитика цели"
+          subtitle={`${(selected.stages ?? []).filter((s) => !s.archived).length} этапов`}
+          segments={buildGoalSegments(selected)}
+          centerValue={`${selected.progress}%`}
+          centerLabel="прогресс"
+        />
 
         <section className="card space-y-4 p-6">
           <p className="text-[12px] font-medium text-[var(--ink-faint)]">План</p>

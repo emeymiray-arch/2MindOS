@@ -5,6 +5,14 @@ import Link from "next/link";
 import { ActionMode, ActionOption, PageToolbar } from "@/components/ui/PageToolbar";
 import type { Project } from "@/lib/types";
 
+function projectStats(project: Project) {
+  const tasks = project.modules.tasks ?? [];
+  const done = tasks.filter((task) => task.done).length;
+  const total = tasks.length;
+  const progress = total ? Math.round((done / total) * 100) : 0;
+  return { done, total, progress };
+}
+
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [name, setName] = useState("");
@@ -97,6 +105,22 @@ export default function ProjectsPage() {
       <div className="space-y-3">
         {projects.map((p) => (
           <Link key={p.id} href={`/projects/${p.id}`} className="card block p-5">
+            {(() => {
+              const stats = projectStats(p);
+              return (
+                <>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="chip chip-on">Прогресс {stats.progress}%</span>
+                    <span className="meta-quiet">
+                      {stats.done}/{stats.total || 0} задач
+                    </span>
+                  </div>
+                  <div className="meter mb-3">
+                    <span style={{ width: `${stats.progress}%` }} />
+                  </div>
+                </>
+              );
+            })()}
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="item-title text-[18px]">{p.name}</h2>
               <span className="meta-quiet">{p.status}</span>

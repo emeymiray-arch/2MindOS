@@ -437,6 +437,55 @@ select:focus {
   font-weight: 700;
 }
 
+.storage-ring {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  flex-shrink: 0;
+}
+
+.storage-ring-svg {
+  width: 132px;
+  height: 132px;
+}
+
+.storage-ring-bg {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 3.6;
+}
+
+.storage-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.storage-ring-value {
+  margin: 0;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.storage-ring-label {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.storage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .page-toolbar {
   margin-top: 28px;
   padding-top: 8px;
