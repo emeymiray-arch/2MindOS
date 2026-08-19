@@ -14,6 +14,14 @@ export default function SettingsPage() {
     serviceKey?: string;
     ping?: { ok: boolean; snapshotTable: string; detail?: string };
   }>({ configured: false, url: "missing", anonKey: "missing", serviceKey: "missing" });
+  const [durability, setDurability] = useState<{
+    weight: number;
+    sparse: boolean;
+    cloudOk: boolean | null;
+    cloudReadable: boolean | null;
+    backupCount: number;
+    lastBackup: string | null;
+  } | null>(null);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -32,6 +40,7 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d?.supabase) setDb(d.supabase);
+        if (d?.durability) setDurability(d.durability);
       })
       .catch(() => undefined);
   }, []);
@@ -45,6 +54,38 @@ export default function SettingsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "settings", settings: patch }),
     });
+  }
+
+  async function restoreSafest() {
+    const res = await fetch("/api/state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "restoreSafest" }),
+    });
+    const data = await res.json();
+    if (data.restored) {
+      window.location.reload();
+      return;
+    }
+    alert("Более полной копии, чем сейчас, нет.");
+  }
+
+  async function restoreCloud() {
+    const res = await fetch("/api/state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "restoreCloud" }),
+    });
+    const data = await res.json();
+    if (data.restored) {
+      window.location.reload();
+      return;
+    }
+    alert(
+      data.error
+        ? `Не удалось: ${data.error}`
+        : "В облаке нет более полной копии, чем сейчас на этом устройстве."
+    );
   }
 
   async function exportData() {
@@ -250,7 +291,28 @@ alter table lifeos_snapshots enable row level security;`}</pre>
 
       <section className="card space-y-2 p-5">
         <p className="font-semibold">Данные</p>
+        {durability ? (
+          <p className="meta-quiet">
+            Сохранено локально
+            {durability.backupCount ? ` · копий ${durability.backupCount}` : ""}
+            {durability.cloudReadable === false
+              ? " · облако недоступно, пустое не записывается"
+              : durability.cloudOk
+                ? " · облако синхронизировано"
+                : ""}
+          </p>
+        ) : null}
+        <p className="meta-quiet">
+          Каждое сохранение остаётся на диске, в истории копий и в браузере. Пустая копия не затирает
+          полную.
+        </p>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn btn-ink" onClick={restoreSafest}>
+            Собрать из копий
+          </button>
+          <button type="button" className="btn btn-soft" onClick={restoreCloud}>
+            Вернуть из облака
+          </button>
           <button type="button" className="btn btn-soft" onClick={exportData}>
             Экспорт
           </button>

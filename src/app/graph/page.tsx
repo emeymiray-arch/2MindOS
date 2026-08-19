@@ -1,5 +1,5 @@
-import { LifeGraph } from "@/components/graph/LifeGraph";
+import { redirect } from "next/navigation";
 
-export default function GraphPage() {
-  return <LifeGraph />;
+export default function GraphRedirect() {
+  redirect("/now");
 }

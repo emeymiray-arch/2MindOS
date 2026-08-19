@@ -35,8 +35,8 @@ export function NodeDetail({ id }: { id: string }) {
   return (
     <div className="fade-in mx-auto max-w-3xl space-y-8">
       <div>
-        <Link href="/graph" className="text-[13px] font-semibold text-[var(--ink)]">
-          ← Карта
+        <Link href="/mind" className="text-[13px] font-semibold text-[var(--ink)]">
+          ← Мысли
         </Link>
         <p className="eyebrow mt-4">
           {node.kind}

@@ -63,12 +63,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/passwords" className="block hover:text-[var(--ink-soft)]">
             Пароли
           </Link>
-          <Link href="/oracle" className="block hover:text-[var(--ink-soft)]">
-            Oracle
-          </Link>
-          <Link href="/graph" className="block hover:text-[var(--ink-soft)]">
-            Карта
-          </Link>
           <span className="block opacity-40">{theme === "dark" ? "тёмная" : "светлая"}</span>
         </div>
       </aside>

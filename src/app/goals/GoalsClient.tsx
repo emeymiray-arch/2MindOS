@@ -31,6 +31,51 @@ const STORAGE_COLORS = {
   gray: "#8E8E93",
 };
 
+const PHASES = [
+  { value: "foundation", label: "Фаза 1 · 1-2 месяц" },
+  { value: "development", label: "Фаза 2 · 3-4 месяц" },
+  { value: "later", label: "Фаза 3 · 5-6 месяц" },
+] as const;
+
+function colorForArea(areaName?: string) {
+  const n = (areaName ?? "").toLowerCase();
+  if (
+    /здоров|сон|спорт|тело|питани|медиц|энерги|wellness|health/.test(n)
+  ) {
+    return {
+      border: "#30D158",
+      soft: "rgba(48, 209, 88, 0.14)",
+      badge: "Здоровье",
+    };
+  }
+  if (
+    /само|развит|обуч|англий|коран|чтен|книг|навык|education|skill/.test(n)
+  ) {
+    return {
+      border: "#0A84FF",
+      soft: "rgba(10, 132, 255, 0.14)",
+      badge: "Саморазвитие",
+    };
+  }
+  if (/стиль|эстет|дом|гардероб|beauty|style/.test(n)) {
+    return {
+      border: "#FF9F0A",
+      soft: "rgba(255, 159, 10, 0.16)",
+      badge: "Стиль",
+    };
+  }
+  return {
+    border: "#8E8E93",
+    soft: "rgba(142, 142, 147, 0.14)",
+    badge: "Другое",
+  };
+}
+
+function phaseLabel(bucket?: string) {
+  const found = PHASES.find((phase) => phase.value === (bucket ?? "development"));
+  return found?.label ?? "Фаза 2 · 3-4 месяц";
+}
+
 function buildGoalSegments(goal: GoalView) {
   const stages = (goal.stages ?? []).filter((stage) => !stage.archived);
   const done = stages.filter((stage) => stage.done).length;
@@ -135,24 +180,29 @@ export default function GoalsClient() {
   function Bucket({ label, items }: { label: string; items: GoalView[] }) {
     if (items.length === 0) return null;
     return (
-      <section className="space-y-4">
+      <section className="space-y-3">
         <p className="text-[12px] font-medium text-[var(--ink-faint)]">{label}</p>
         <div className="space-y-2">
           {items.map((g) => (
             <button
               key={g.id}
               type="button"
-              className="card block w-full space-y-1 p-4 text-left"
+              className="card block w-full space-y-1 p-3 text-left"
+              style={{
+                borderColor: colorForArea(g.area?.name).border,
+                background: `linear-gradient(180deg, ${colorForArea(g.area?.name).soft}, transparent)`,
+              }}
               onClick={() => setSelected(g)}
             >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-semibold">{g.title}</span>
-                <span className="tabular-nums text-[var(--ink-soft)]">{g.progress}%</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[14px] font-semibold">{g.title}</span>
+                <span className="tabular-nums text-[12px] text-[var(--ink-soft)]">{g.progress}%</span>
               </div>
-              {g.currentPhase ? (
-                <p className="text-[13px] text-[var(--ink-faint)]">Этап · {g.currentPhase.title}</p>
-              ) : null}
-              <div className="meter mt-2">
+              <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--ink-faint)]">
+                <span>{colorForArea(g.area?.name).badge}</span>
+                <span>{g.currentPhase ? `Этап: ${g.currentPhase.title}` : "Без этапа"}</span>
+              </div>
+              <div className="meter mt-1.5">
                 <span style={{ width: `${g.progress}%` }} />
               </div>
             </button>
@@ -182,6 +232,30 @@ export default function GoalsClient() {
           {selected.deadline ? ` · до ${selected.deadline}` : ""}
           {` · ${selected.progress}%`}
         </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className="chip"
+            style={{
+              borderColor: colorForArea(selected.area?.name).border,
+              background: colorForArea(selected.area?.name).soft,
+              color: "var(--ink)",
+            }}
+          >
+            {colorForArea(selected.area?.name).badge}
+          </span>
+          <select
+            value={selected.bucket ?? "development"}
+            onChange={(e) => post({ action: "update", id: selected.id, bucket: e.target.value })}
+            className="text-[12px]"
+            disabled={busy}
+          >
+            {PHASES.map((phase) => (
+              <option key={phase.value} value={phase.value}>
+                {phase.label}
+              </option>
+            ))}
+          </select>
+        </div>
           {selected.description ? (
             <p className="text-[14px] text-[var(--ink-faint)]">{selected.description}</p>
           ) : null}
@@ -431,9 +505,11 @@ export default function GoalsClient() {
           ))}
         </select>
         <select value={bucket} onChange={(e) => setBucket(e.target.value)} disabled={busy}>
-          <option value="foundation">Основа</option>
-          <option value="development">Развитие</option>
-          <option value="later">Позже</option>
+          {PHASES.map((phase) => (
+            <option key={phase.value} value={phase.value}>
+              {phase.label}
+            </option>
+          ))}
         </select>
         <button
           type="button"
@@ -453,9 +529,9 @@ export default function GoalsClient() {
         </button>
       </div>
 
-      <Bucket label="Основа" items={foundation} />
-      <Bucket label="Развитие" items={development} />
-      <Bucket label="Позже" items={later} />
+      <Bucket label={phaseLabel("foundation")} items={foundation} />
+      <Bucket label={phaseLabel("development")} items={development} />
+      <Bucket label={phaseLabel("later")} items={later} />
 
       <PageToolbar
         mode={mode}

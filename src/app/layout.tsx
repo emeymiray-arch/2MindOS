@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AppShell } from "@/components/shell/AppShell";
+import { DataGuard } from "@/components/shell/DataGuard";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="ru" className="h-full" data-theme="light">
       <body className="min-h-full">
-        <AppShell>{children}</AppShell>
+        <DataGuard>
+          <AppShell>{children}</AppShell>
+        </DataGuard>
       </body>
     </html>
   );

@@ -63,7 +63,7 @@ export function getSupabaseBrowser(): SupabaseClient | null {
   return pubClient;
 }
 
-  export async function pingSupabase(): Promise<{
+export async function pingSupabase(): Promise<{
   ok: boolean;
   snapshotTable: "ok" | "missing" | "error";
   detail?: string;

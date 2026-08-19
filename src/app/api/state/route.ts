@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { defaultSettings, migrateStore } from "@/lib/migrate";
 import { publicStore } from "@/lib/sanitize";
-import { getStore, resetStore, updateStore } from "@/lib/store";
+import { getStore, resetStore, restoreFromCloud, restoreSafest, updateStore } from "@/lib/store";
 import type { LifeStore } from "@/lib/types";
 
 export async function GET() {
@@ -12,8 +12,10 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   if (body.action === "reset") {
+    if (body.confirm !== "RESET") {
+      return NextResponse.json({ error: "confirm required" }, { status: 400 });
+    }
     await resetStore();
-    // Keep response tiny so the browser never aborts on a huge dump.
     return NextResponse.json({ ok: true });
   }
   if (body.action === "theme") {
@@ -26,11 +28,21 @@ export async function POST(request: Request) {
   if (body.action === "settings") {
     const store = await updateStore((s) => {
       const patch = { ...(body.settings as object) } as Record<string, unknown>;
-      // never wipe token to empty accidentally
       if (patch.shortcutsToken === "") delete patch.shortcutsToken;
       s.settings = { ...defaultSettings(s.settings), ...patch };
     });
     return NextResponse.json({ ok: true, settings: store.settings });
+  }
+  if (body.action === "restoreCloud") {
+    const result = await restoreFromCloud();
+    return NextResponse.json(result);
+  }
+  if (body.action === "restoreSafest") {
+    const incoming = body.store as LifeStore | undefined;
+    const result = await restoreSafest(
+      incoming && typeof incoming === "object" && Array.isArray(incoming.goals) ? incoming : undefined
+    );
+    return NextResponse.json(result);
   }
   if (body.action === "export") {
     const store = await getStore();
