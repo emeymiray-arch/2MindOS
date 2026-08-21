@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { PlanScheme } from "@/components/plan/PlanScheme";
 import { ActionMode, ActionOption, PageToolbar } from "@/components/ui/PageToolbar";
 import { StorageAnalytics } from "@/components/ui/StorageAnalytics";
 import type { Goal, GoalStage, Sphere } from "@/lib/types";
@@ -112,7 +113,6 @@ export default function GoalsClient() {
   const [title, setTitle] = useState("");
   const [areaId, setAreaId] = useState("");
   const [bucket, setBucket] = useState("development");
-  const [phaseTitle, setPhaseTitle] = useState("");
   const [mode, setMode] = useState<ActionMode>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -311,24 +311,26 @@ export default function GoalsClient() {
           centerLabel="прогресс"
         />
 
-        <section className="card space-y-4 p-6">
+        <section className="card space-y-4 p-5">
           <p className="text-[12px] font-medium text-[var(--ink-faint)]">План</p>
           {selected.workPlan ? (
-            <div className="flex items-baseline justify-between gap-3">
-              <div>
-                <p className="font-semibold">{selected.workPlan.title}</p>
-                <p className="text-[13px] text-[var(--ink-faint)]">
-                  Этапы · темы · дедлайны · оценка 0–2 · {selected.workPlan.progress}%
-                </p>
-              </div>
-              <Link href={`/plans/${selected.workPlan.id}`} className="btn btn-ink">
-                Открыть план
-              </Link>
-            </div>
+            <PlanScheme
+              key={selected.workPlan.id}
+              planId={selected.workPlan.id}
+              onProgress={(progress) =>
+                setSelected({
+                  ...selected,
+                  progress,
+                  workPlan: selected.workPlan
+                    ? { ...selected.workPlan, progress }
+                    : selected.workPlan,
+                })
+              }
+            />
           ) : (
             <div className="space-y-3">
               <p className="text-[14px] text-[var(--ink-soft)]">
-                Этапный план: темы с дедлайнами, галочки и оценка понимания 0–2.
+                Этапы, темы с дедлайнами, галочки и оценка понимания 0–2.
               </p>
               <button
                 type="button"
@@ -344,15 +346,26 @@ export default function GoalsClient() {
                       ownerType: "goal",
                       ownerId: selected.id,
                       title: `План: ${selected.title}`,
+                      lite: true,
                     });
                     if (!result.ok && result.error) {
                       setError(String(result.error));
                       return;
                     }
-                    const plan = result.data.plan as { id?: string } | undefined;
+                    const plan = result.data.plan as
+                      | { id: string; title: string; progress: number }
+                      | undefined;
                     if (plan?.id) {
-                      window.location.href = `/plans/${plan.id}`;
-                      return;
+                      setSelected({
+                        ...selected,
+                        workPlanId: plan.id,
+                        workPlan: {
+                          id: plan.id,
+                          title: plan.title,
+                          progress: plan.progress ?? 0,
+                          status: "active",
+                        },
+                      });
                     }
                     await load();
                   } catch {
@@ -362,89 +375,11 @@ export default function GoalsClient() {
                   }
                 }}
               >
-                + Открыть схему плана
+                + Создать план здесь
               </button>
             </div>
           )}
         </section>
-
-        <section className="space-y-2">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Текущий этап</p>
-          {selected.currentPhase?.title ? (
-            <p className="font-display text-xl">{selected.currentPhase.title}</p>
-          ) : null}
-        </section>
-
-        {(selected.stages ?? []).filter((s) => !s.archived).length > 0 || !selected.workPlan ? (
-        <section className="space-y-2">
-          <p className="text-[12px] font-medium text-[var(--ink-faint)]">Этапы</p>
-          {(selected.stages ?? [])
-            .filter((s) => !s.archived)
-            .map((st) => (
-              <div key={st.id} className="card flex items-center gap-3 p-4">
-                <button
-                  type="button"
-                  className={`check ${st.done ? "check-on" : "check-off"}`}
-                  disabled={busy}
-                  onClick={() =>
-                    post({
-                      action: "toggleStage",
-                      goalId: selected.id,
-                      stageId: st.id,
-                      done: !st.done,
-                    })
-                  }
-                >
-                  {st.done ? "✓" : ""}
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{st.title}</p>
-                  <p className="text-[12px] text-[var(--ink-faint)]">{st.status ?? "planned"}</p>
-                </div>
-                {!st.done && st.status !== "active" ? (
-                  <button
-                    type="button"
-                    className="btn btn-soft text-[12px]"
-                    disabled={busy}
-                    onClick={() =>
-                      post({ action: "activateStage", goalId: selected.id, stageId: st.id })
-                    }
-                  >
-                    Сделать текущим
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          {!selected.workPlan ? (
-            <div className="flex gap-2">
-              <input
-                className="min-w-0 flex-1"
-                placeholder="Этап"
-                value={phaseTitle}
-                onChange={(e) => setPhaseTitle(e.target.value)}
-              />
-              <button
-                type="button"
-                className="btn btn-ink"
-                disabled={busy || !phaseTitle.trim()}
-                onClick={() => {
-                  post({ action: "addStage", goalId: selected.id, title: phaseTitle.trim() });
-                  setPhaseTitle("");
-                }}
-              >
-                +
-              </button>
-            </div>
-          ) : (
-            <Link
-              href={`/plans/${selected.workPlan.id}`}
-              className="text-[13px] font-medium text-[var(--ink-faint)]"
-            >
-              Этапы и модули в плане →
-            </Link>
-          )}
-        </section>
-        ) : null}
 
         {(selected.weekObjectives ?? []).length > 0 ? (
         <section className="space-y-2">

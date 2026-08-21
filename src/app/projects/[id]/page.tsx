@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { use, useCallback, useEffect, useState } from "react";
+import { PlanScheme } from "@/components/plan/PlanScheme";
 import { StorageAnalytics } from "@/components/ui/StorageAnalytics";
 import type { LifeNode, Project, ProjectDiaryEntry } from "@/lib/types";
 
@@ -124,24 +125,14 @@ export default function ProjectCompanyPage({
         )}
       </div>
 
-      <section className="card space-y-4 p-6">
+      <section className="card space-y-4 p-5">
         <p className="text-[12px] font-medium text-[var(--ink-faint)]">План</p>
         {workPlan ? (
-          <div className="flex items-baseline justify-between gap-3">
-            <div>
-              <p className="font-semibold">{workPlan.title}</p>
-              <p className="text-[13px] text-[var(--ink-faint)]">
-                Этапы · темы · дедлайны · оценка 0–2 · {workPlan.progress}%
-              </p>
-            </div>
-            <Link href={`/plans/${workPlan.id}`} className="btn btn-ink">
-              Открыть план
-            </Link>
-          </div>
+          <PlanScheme key={workPlan.id} planId={workPlan.id} />
         ) : (
           <div className="space-y-3">
             <p className="text-[14px] text-[var(--ink-soft)]">
-              Этапный план: темы с дедлайнами, галочки и оценка понимания 0–2.
+              Этапы, темы с дедлайнами, галочки и оценка понимания 0–2.
             </p>
             <button
               type="button"
@@ -156,19 +147,15 @@ export default function ProjectCompanyPage({
                     ownerType: "project",
                     ownerId: project.id,
                     title: `План: ${project.name}`,
+                    lite: true,
                   });
-                  const plan = result.data?.plan as { id?: string } | undefined;
-                  if (plan?.id) {
-                    window.location.href = `/plans/${plan.id}`;
-                    return;
-                  }
                   await load();
                 } finally {
                   setBusy(false);
                 }
               }}
             >
-              + Открыть схему плана
+              + Создать план здесь
             </button>
           </div>
         )}

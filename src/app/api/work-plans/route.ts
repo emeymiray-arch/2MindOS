@@ -23,11 +23,32 @@ import { getStore, updateStore } from "@/lib/store";
 import { tasksForDate } from "@/lib/tasks";
 import type { PlanModule, PlanPhase, WeeklyObjective, WorkPlanOwner } from "@/lib/types";
 
-function enrich(store: Awaited<ReturnType<typeof getStore>>, planId: string) {
+function enrich(
+  store: Awaited<ReturnType<typeof getStore>>,
+  planId: string,
+  lite = false
+) {
   const plan = findWorkPlan(store, planId);
   if (!plan) return null;
-  const owner = ownerOfWorkPlan(store, plan);
   const progress = calcWorkPlanProgress(plan);
+  const phases = phasesOf(plan).map((ph) => ({
+    ...ph,
+    modules: phaseModules(ph),
+    progress: milestoneProgress(ph),
+  }));
+
+  if (lite) {
+    return {
+      plan: {
+        id: plan.id,
+        title: plan.title,
+        progress,
+        phases,
+      },
+    };
+  }
+
+  const owner = ownerOfWorkPlan(store, plan);
   const phase = currentWorkPhase(plan);
   const weekStart = weekStartMonday(todayKey());
   const week =
@@ -43,11 +64,7 @@ function enrich(store: Awaited<ReturnType<typeof getStore>>, planId: string) {
     plan: {
       ...plan,
       progress,
-      phases: phasesOf(plan).map((ph) => ({
-        ...ph,
-        modules: phaseModules(ph),
-        progress: milestoneProgress(ph),
-      })),
+      phases,
     },
     owner,
     currentPhase: phase
@@ -65,9 +82,10 @@ export async function GET(request: Request) {
   const planId = url.searchParams.get("id");
   const ownerType = url.searchParams.get("ownerType") as WorkPlanOwner | null;
   const ownerId = url.searchParams.get("ownerId");
+  const lite = url.searchParams.get("lite") === "1";
 
   if (planId) {
-    const data = enrich(store, planId);
+    const data = enrich(store, planId, lite);
     if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json(data);
   }
@@ -75,12 +93,16 @@ export async function GET(request: Request) {
   if (ownerType && ownerId) {
     const existing = workPlanForOwner(store, ownerType, ownerId);
     if (!existing) return NextResponse.json({ plan: null, ownerType, ownerId });
-    return NextResponse.json(enrich(store, existing.id));
+    return NextResponse.json(enrich(store, existing.id, lite));
   }
 
   return NextResponse.json({
     workPlans: (store.workPlans ?? []).map((p) => ({
-      ...p,
+      id: p.id,
+      title: p.title,
+      ownerType: p.ownerType,
+      ownerId: p.ownerId,
+      status: p.status,
       progress: calcWorkPlanProgress(p),
     })),
   });
@@ -89,6 +111,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const action = String(body.action ?? "create");
+  const lite = body.lite === true || body.lite === "1";
 
   if (action === "create") {
     const ownerType = String(body.ownerType ?? "") as WorkPlanOwner;
@@ -172,7 +195,7 @@ export async function POST(request: Request) {
 
     const created = workPlanForOwner(store, ownerType, ownerId);
     if (!created) return NextResponse.json({ error: "owner not found" }, { status: 404 });
-    return NextResponse.json(enrich(store, created.id));
+    return NextResponse.json(enrich(store, created.id, lite));
   }
 
   if (action === "update") {
@@ -191,7 +214,7 @@ export async function POST(request: Request) {
       plan.updatedAt = now();
       syncWorkPlanProgress(s, plan);
     });
-    const data = enrich(store, planId);
+    const data = enrich(store, planId, lite);
     if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json(data);
   }
@@ -221,7 +244,7 @@ export async function POST(request: Request) {
       plan.phases.push(phase);
       syncWorkPlanProgress(s, plan);
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "updatePhase") {
@@ -248,7 +271,7 @@ export async function POST(request: Request) {
       if (body.status != null) phase.status = body.status;
       syncWorkPlanProgress(s, plan);
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "activatePhase") {
@@ -263,7 +286,7 @@ export async function POST(request: Request) {
       }
       syncWorkPlanProgress(s, plan);
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "archivePhase") {
@@ -276,7 +299,7 @@ export async function POST(request: Request) {
       phase.archived = true;
       syncWorkPlanProgress(s, plan);
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "addMilestone" || action === "addModule") {
@@ -299,7 +322,7 @@ export async function POST(request: Request) {
       });
       syncWorkPlanProgress(s, plan);
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "updateModule") {
@@ -327,7 +350,7 @@ export async function POST(request: Request) {
       }
       syncWorkPlanProgress(s, plan);
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "toggleMilestone" || action === "toggleModule") {
@@ -344,7 +367,7 @@ export async function POST(request: Request) {
       ms.done = body.done != null ? Boolean(body.done) : !ms.done;
       syncWorkPlanProgress(s, plan);
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "deleteMilestone" || action === "deleteModule") {
@@ -360,7 +383,7 @@ export async function POST(request: Request) {
       phase.milestones = modules;
       syncWorkPlanProgress(s, plan);
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "addTaskFromModule") {
@@ -398,7 +421,7 @@ export async function POST(request: Request) {
         deadlineEnd: mod.deadlineEnd,
       });
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "generateWeekOutline") {
@@ -445,7 +468,7 @@ export async function POST(request: Request) {
         week.objectives.push(obj);
       }
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "breakWeekIntoDays") {
@@ -496,7 +519,7 @@ export async function POST(request: Request) {
         }
       }
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   if (action === "ensureWeek") {
@@ -512,7 +535,7 @@ export async function POST(request: Request) {
       week.workPlanId = plan.id;
       if (phaseId) week.phaseId = phaseId;
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   // keep recompute available for tasks route
@@ -526,7 +549,7 @@ export async function POST(request: Request) {
         if (task) recomputeFromTaskToggle(s, task);
       }
     });
-    return NextResponse.json(enrich(store, planId));
+    return NextResponse.json(enrich(store, planId, lite));
   }
 
   return NextResponse.json({ error: "unknown" }, { status: 400 });
