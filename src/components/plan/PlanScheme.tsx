@@ -7,6 +7,7 @@ type Module = {
   title: string;
   done: boolean;
   order: number;
+  deadlineStart?: string;
   deadlineEnd?: string;
   understanding?: 0 | 1 | 2;
 };
@@ -15,9 +16,9 @@ type Stage = {
   id: string;
   title: string;
   order: number;
+  deadlineStart?: string;
   deadlineEnd?: string;
   modules: Module[];
-  progress?: number;
 };
 
 type PlanLite = {
@@ -27,27 +28,50 @@ type PlanLite = {
   phases: Stage[];
 };
 
-const UNDERSTANDING = [
-  { value: 0 as const, label: "0", hint: "Не поняла" },
-  { value: 1 as const, label: "1", hint: "Частично" },
-  { value: 2 as const, label: "2", hint: "Поняла" },
-];
-
 type Props = {
   planId: string;
-  /** Optional seed from create response — skips first empty flash */
   initial?: PlanLite | null;
   onProgress?: (progress: number) => void;
 };
 
+function DateRange({
+  start,
+  end,
+  disabled,
+  onChange,
+}: {
+  start?: string;
+  end?: string;
+  disabled?: boolean;
+  onChange: (next: { deadlineStart?: string; deadlineEnd?: string }) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[11px] tabular-nums tracking-tight text-[var(--ink-faint)]">
+      <span className="opacity-60">с</span>
+      <input
+        type="date"
+        className="date-range-input"
+        value={start ?? ""}
+        disabled={disabled}
+        onChange={(e) => onChange({ deadlineStart: e.target.value || undefined, deadlineEnd: end })}
+      />
+      <span className="opacity-60">по</span>
+      <input
+        type="date"
+        className="date-range-input"
+        value={end ?? ""}
+        disabled={disabled}
+        onChange={(e) => onChange({ deadlineStart: start, deadlineEnd: e.target.value || undefined })}
+      />
+    </div>
+  );
+}
+
 export function PlanScheme({ planId, initial = null, onProgress }: Props) {
   const [plan, setPlan] = useState<PlanLite | null>(initial);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [stageDraft, setStageDraft] = useState({ title: "", deadlineEnd: "" });
-  const [moduleDrafts, setModuleDrafts] = useState<
-    Record<string, { title: string; deadlineEnd: string }>
-  >({});
+  const [topicDraft, setTopicDraft] = useState<Record<string, string>>({});
+  const [stageTitle, setStageTitle] = useState("");
 
   const applyPlan = useCallback(
     (next: PlanLite) => {
@@ -61,10 +85,7 @@ export function PlanScheme({ planId, initial = null, onProgress }: Props) {
     const res = await fetch(`/api/work-plans?id=${encodeURIComponent(planId)}&lite=1`, {
       cache: "no-store",
     });
-    if (!res.ok) {
-      setError("Не удалось загрузить план");
-      return;
-    }
+    if (!res.ok) return;
     const json = await res.json();
     if (json.plan) applyPlan(json.plan as PlanLite);
   }, [planId, applyPlan]);
@@ -79,74 +100,45 @@ export function PlanScheme({ planId, initial = null, onProgress }: Props) {
 
   async function post(body: Record<string, unknown>) {
     setBusy(true);
-    setError("");
     try {
       const { apiPost } = await import("@/lib/client-api");
       const result = await apiPost("/api/work-plans", { ...body, lite: true });
-      if (!result.ok && result.error) {
-        setError(String(result.error));
-        return;
-      }
       const next = result.data.plan as PlanLite | undefined;
       if (next) applyPlan(next);
       else await load();
-    } catch {
-      setError("Не удалось сохранить");
     } finally {
       setBusy(false);
     }
   }
 
-  function modDraft(stageId: string) {
-    return moduleDrafts[stageId] ?? { title: "", deadlineEnd: "" };
-  }
-
-  if (!plan && !error) {
-    return <p className="text-[13px] text-[var(--ink-faint)]">Загрузка плана…</p>;
-  }
   if (!plan) {
-    return <p className="text-[13px] text-[var(--ink-soft)]">{error}</p>;
+    return <p className="text-[12px] text-[var(--ink-faint)]">…</p>;
   }
 
   const stages = [...(plan.phases ?? [])].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[13px] text-[var(--ink-faint)]">
-          Этапы · темы · дедлайны · оценка 0–2
-        </p>
-        <p className="text-[12px] text-[var(--ink-faint)]">{plan.progress}%</p>
-      </div>
-      <div className="meter">
-        <span style={{ width: `${plan.progress}%` }} />
-      </div>
-      <p className="text-[12px] text-[var(--ink-faint)]">
-        <strong>0</strong> не поняла · <strong>1</strong> частично · <strong>2</strong> поняла
-      </p>
-      {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
-
+    <div className="plan-scheme space-y-7">
       {stages.map((stage, stageIndex) => {
-        const d = modDraft(stage.id);
         const modules = [...(stage.modules ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        const draft = topicDraft[stage.id] ?? "";
         return (
-          <article key={stage.id} className="space-y-3">
-            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--line)] pb-2">
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ink-faint)]">
-                  Этап {stageIndex + 1}
-                </p>
+          <section key={stage.id} className="space-y-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+              <div className="flex min-w-0 flex-1 items-baseline gap-2">
+                <span className="shrink-0 text-[12px] text-[var(--ink-faint)]">{stageIndex + 1}.</span>
                 <input
-                  className="w-full border-0 bg-transparent p-0 text-[17px] font-semibold outline-none"
+                  className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[16px] font-medium outline-none"
                   value={stage.title}
                   disabled={busy}
-                  onChange={(e) => {
-                    const title = e.target.value;
+                  onChange={(e) =>
                     setPlan({
                       ...plan,
-                      phases: plan.phases.map((p) => (p.id === stage.id ? { ...p, title } : p)),
-                    });
-                  }}
+                      phases: plan.phases.map((p) =>
+                        p.id === stage.id ? { ...p, title: e.target.value } : p
+                      ),
+                    })
+                  }
                   onBlur={(e) =>
                     post({
                       action: "updatePhase",
@@ -157,33 +149,25 @@ export function PlanScheme({ planId, initial = null, onProgress }: Props) {
                   }
                 />
               </div>
-              <label className="flex items-center gap-2 text-[11px] text-[var(--ink-faint)]">
-                Дедлайн
-                <input
-                  type="date"
-                  className="w-auto"
-                  value={stage.deadlineEnd ?? ""}
-                  disabled={busy}
-                  onChange={(e) =>
-                    post({
-                      action: "updatePhase",
-                      planId: plan.id,
-                      phaseId: stage.id,
-                      deadlineEnd: e.target.value,
-                    })
-                  }
-                />
-              </label>
+              <DateRange
+                start={stage.deadlineStart}
+                end={stage.deadlineEnd}
+                disabled={busy}
+                onChange={(dates) =>
+                  post({
+                    action: "updatePhase",
+                    planId: plan.id,
+                    phaseId: stage.id,
+                    ...dates,
+                  })
+                }
+              />
             </div>
 
-            <ol className="space-y-2">
+            <ul className="space-y-2 pl-4">
               {modules.map((m, i) => (
-                <li
-                  key={m.id}
-                  className="grid gap-2 rounded-[14px] bg-[var(--bg)] px-3 py-2.5 sm:grid-cols-[auto_1fr_auto] sm:items-center"
-                >
+                <li key={m.id} className="space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="w-5 text-[12px] text-[var(--ink-faint)]">{i + 1}.</span>
                     <button
                       type="button"
                       className={`check ${m.done ? "check-on" : "check-off"}`}
@@ -200,14 +184,12 @@ export function PlanScheme({ planId, initial = null, onProgress }: Props) {
                     >
                       {m.done ? "✓" : ""}
                     </button>
-                  </div>
-                  <div className="min-w-0 space-y-1.5">
+                    <span className="w-4 shrink-0 text-[12px] text-[var(--ink-faint)]">{i + 1}</span>
                     <input
-                      className="w-full border-0 bg-transparent p-0 text-[14px] font-medium outline-none"
+                      className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[14px] outline-none"
                       value={m.title}
                       disabled={busy}
-                      onChange={(e) => {
-                        const title = e.target.value;
+                      onChange={(e) =>
                         setPlan({
                           ...plan,
                           phases: plan.phases.map((p) =>
@@ -215,13 +197,13 @@ export function PlanScheme({ planId, initial = null, onProgress }: Props) {
                               ? {
                                   ...p,
                                   modules: p.modules.map((x) =>
-                                    x.id === m.id ? { ...x, title } : x
+                                    x.id === m.id ? { ...x, title: e.target.value } : x
                                   ),
                                 }
                               : p
                           ),
-                        });
-                      }}
+                        })
+                      }
                       onBlur={(e) =>
                         post({
                           action: "updateModule",
@@ -232,136 +214,122 @@ export function PlanScheme({ planId, initial = null, onProgress }: Props) {
                         })
                       }
                     />
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {UNDERSTANDING.map((opt) => {
-                        const active = m.understanding === opt.value;
-                        return (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            title={opt.hint}
-                            disabled={busy}
-                            className={`min-w-8 rounded-[8px] px-2 py-0.5 text-[12px] font-semibold ${
-                              active
-                                ? "bg-[var(--ink)] text-[var(--bg)]"
-                                : "bg-[var(--bg-panel)] text-[var(--ink-soft)]"
-                            }`}
-                            onClick={() =>
-                              post({
-                                action: "updateModule",
-                                planId: plan.id,
-                                phaseId: stage.id,
-                                moduleId: m.id,
-                                understanding: opt.value,
-                              })
-                            }
-                          >
-                            {opt.label}
-                          </button>
-                        );
-                      })}
+                    <div className="flex gap-0.5">
+                      {([0, 1, 2] as const).map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          disabled={busy}
+                          className={`h-6 w-6 rounded-md text-[11px] ${
+                            m.understanding === v
+                              ? "bg-[var(--ink)] text-[var(--bg)]"
+                              : "text-[var(--ink-faint)] hover:bg-[var(--bg)]"
+                          }`}
+                          onClick={() =>
+                            post({
+                              action: "updateModule",
+                              planId: plan.id,
+                              phaseId: stage.id,
+                              moduleId: m.id,
+                              understanding: v,
+                            })
+                          }
+                        >
+                          {v}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                  <label className="flex flex-col gap-1 text-[11px] text-[var(--ink-faint)] sm:items-end">
-                    Дедлайн
-                    <input
-                      type="date"
-                      className="w-auto"
-                      value={m.deadlineEnd ?? ""}
+                  <div className="pl-12">
+                    <DateRange
+                      start={m.deadlineStart}
+                      end={m.deadlineEnd}
                       disabled={busy}
-                      onChange={(e) =>
+                      onChange={(dates) =>
                         post({
                           action: "updateModule",
                           planId: plan.id,
                           phaseId: stage.id,
                           moduleId: m.id,
-                          deadlineEnd: e.target.value,
+                          ...dates,
                         })
                       }
                     />
-                  </label>
+                  </div>
                 </li>
               ))}
-            </ol>
+            </ul>
 
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="flex gap-2 pl-4">
               <input
-                className="min-w-[140px] flex-1"
-                placeholder="Тема (например: Python)"
-                value={d.title}
+                className="min-w-0 flex-1"
+                placeholder="Тема"
+                value={draft}
                 disabled={busy}
-                onChange={(e) =>
-                  setModuleDrafts({
-                    ...moduleDrafts,
-                    [stage.id]: { ...d, title: e.target.value },
-                  })
-                }
-              />
-              <input
-                type="date"
-                value={d.deadlineEnd}
-                disabled={busy}
-                onChange={(e) =>
-                  setModuleDrafts({
-                    ...moduleDrafts,
-                    [stage.id]: { ...d, deadlineEnd: e.target.value },
-                  })
-                }
+                onChange={(e) => setTopicDraft({ ...topicDraft, [stage.id]: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" || !draft.trim()) return;
+                  post({
+                    action: "addModule",
+                    planId: plan.id,
+                    phaseId: stage.id,
+                    title: draft.trim(),
+                  });
+                  setTopicDraft({ ...topicDraft, [stage.id]: "" });
+                }}
               />
               <button
                 type="button"
-                className="btn btn-ink"
-                disabled={busy || !d.title.trim()}
+                className="btn btn-soft"
+                disabled={busy || !draft.trim()}
                 onClick={() => {
                   post({
                     action: "addModule",
                     planId: plan.id,
                     phaseId: stage.id,
-                    title: d.title.trim(),
-                    deadlineEnd: d.deadlineEnd || undefined,
+                    title: draft.trim(),
                   });
-                  setModuleDrafts({
-                    ...moduleDrafts,
-                    [stage.id]: { title: "", deadlineEnd: "" },
-                  });
+                  setTopicDraft({ ...topicDraft, [stage.id]: "" });
                 }}
               >
-                + Тема
+                +
               </button>
             </div>
-          </article>
+          </section>
         );
       })}
 
-      <div className="flex flex-wrap items-end gap-2 border-t border-[var(--line)] pt-4">
+      <div className="flex gap-2 border-t border-[var(--line)] pt-4">
         <input
-          className="min-w-[140px] flex-1"
-          placeholder="Новый этап"
-          value={stageDraft.title}
+          className="min-w-0 flex-1"
+          placeholder="Этап"
+          value={stageTitle}
           disabled={busy}
-          onChange={(e) => setStageDraft({ ...stageDraft, title: e.target.value })}
-        />
-        <input
-          type="date"
-          value={stageDraft.deadlineEnd}
-          disabled={busy}
-          onChange={(e) => setStageDraft({ ...stageDraft, deadlineEnd: e.target.value })}
+          onChange={(e) => setStageTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || !stageTitle.trim()) return;
+            post({
+              action: "addPhase",
+              planId: plan.id,
+              title: stageTitle.trim(),
+            });
+            setStageTitle("");
+          }}
         />
         <button
           type="button"
-          className="btn btn-ink"
-          disabled={busy || !stageDraft.title.trim()}
+          className="btn btn-soft"
+          disabled={busy || !stageTitle.trim()}
           onClick={() => {
             post({
               action: "addPhase",
               planId: plan.id,
-              title: stageDraft.title.trim(),
-              deadlineEnd: stageDraft.deadlineEnd || undefined,
+              title: stageTitle.trim(),
             });
-            setStageDraft({ title: "", deadlineEnd: "" });
+            setStageTitle("");
           }}
         >
-          + Этап
+          +
         </button>
       </div>
     </div>

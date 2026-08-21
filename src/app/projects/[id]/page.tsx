@@ -130,34 +130,29 @@ export default function ProjectCompanyPage({
         {workPlan ? (
           <PlanScheme key={workPlan.id} planId={workPlan.id} />
         ) : (
-          <div className="space-y-3">
-            <p className="text-[14px] text-[var(--ink-soft)]">
-              Этапы, темы с дедлайнами, галочки и оценка понимания 0–2.
-            </p>
-            <button
-              type="button"
-              className="btn btn-ink"
-              disabled={busy}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  const { apiPost } = await import("@/lib/client-api");
-                  const result = await apiPost("/api/work-plans", {
-                    action: "create",
-                    ownerType: "project",
-                    ownerId: project.id,
-                    title: `План: ${project.name}`,
-                    lite: true,
-                  });
-                  await load();
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              + Создать план здесь
-            </button>
-          </div>
+          <button
+            type="button"
+            className="btn btn-ink"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const { apiPost } = await import("@/lib/client-api");
+                await apiPost("/api/work-plans", {
+                  action: "create",
+                  ownerType: "project",
+                  ownerId: project.id,
+                  title: `План: ${project.name}`,
+                  lite: true,
+                });
+                await load();
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            + План
+          </button>
         )}
       </section>
 

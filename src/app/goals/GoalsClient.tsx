@@ -328,56 +328,51 @@ export default function GoalsClient() {
               }
             />
           ) : (
-            <div className="space-y-3">
-              <p className="text-[14px] text-[var(--ink-soft)]">
-                Этапы, темы с дедлайнами, галочки и оценка понимания 0–2.
-              </p>
-              <button
-                type="button"
-                className="btn btn-ink"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  setError("");
-                  try {
-                    const { apiPost } = await import("@/lib/client-api");
-                    const result = await apiPost("/api/work-plans", {
-                      action: "create",
-                      ownerType: "goal",
-                      ownerId: selected.id,
-                      title: `План: ${selected.title}`,
-                      lite: true,
-                    });
-                    if (!result.ok && result.error) {
-                      setError(String(result.error));
-                      return;
-                    }
-                    const plan = result.data.plan as
-                      | { id: string; title: string; progress: number }
-                      | undefined;
-                    if (plan?.id) {
-                      setSelected({
-                        ...selected,
-                        workPlanId: plan.id,
-                        workPlan: {
-                          id: plan.id,
-                          title: plan.title,
-                          progress: plan.progress ?? 0,
-                          status: "active",
-                        },
-                      });
-                    }
-                    await load();
-                  } catch {
-                    setError("Не удалось создать план");
-                  } finally {
-                    setBusy(false);
+            <button
+              type="button"
+              className="btn btn-ink"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError("");
+                try {
+                  const { apiPost } = await import("@/lib/client-api");
+                  const result = await apiPost("/api/work-plans", {
+                    action: "create",
+                    ownerType: "goal",
+                    ownerId: selected.id,
+                    title: `План: ${selected.title}`,
+                    lite: true,
+                  });
+                  if (!result.ok && result.error) {
+                    setError(String(result.error));
+                    return;
                   }
-                }}
-              >
-                + Создать план здесь
-              </button>
-            </div>
+                  const plan = result.data.plan as
+                    | { id: string; title: string; progress: number }
+                    | undefined;
+                  if (plan?.id) {
+                    setSelected({
+                      ...selected,
+                      workPlanId: plan.id,
+                      workPlan: {
+                        id: plan.id,
+                        title: plan.title,
+                        progress: plan.progress ?? 0,
+                        status: "active",
+                      },
+                    });
+                  }
+                  await load();
+                } catch {
+                  setError("Не удалось создать план");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              + План
+            </button>
           )}
         </section>
 
