@@ -1,4 +1,4 @@
-import { buildEngineeringPhase1Plan } from "@/lib/curricula/engineering-phase1";
+import { buildEngineeringPhase1Plan, ENGINEERING_PHASE1_META } from "@/lib/curricula/engineering-phase1";
 import { NextResponse } from "next/server";
 import { id, now, todayKey } from "@/lib/id";
 import {
@@ -235,7 +235,7 @@ export async function POST(request: Request) {
           priority: "critical",
           status: "active",
           bucket: "foundation",
-          deadline: "2026-09-25",
+          deadline: ENGINEERING_PHASE1_META.end,
         };
         s.goals.unshift(goal);
       }
@@ -248,12 +248,11 @@ export async function POST(request: Request) {
         ownerType: "goal",
         ownerId: goal.id,
       });
-      plan.deadline = "2026-09-25";
+      plan.deadline = ENGINEERING_PHASE1_META.end;
       s.workPlans.push(plan);
       goal.workPlanId = plan.id;
       goal.title = "Engineering Programming — Фаза 1";
-      goal.deadline = "2026-09-25";
-      goal.bucket = "foundation";
+      goal.deadline = ENGINEERING_PHASE1_META.end;      goal.bucket = "foundation";
       goal.priority = "critical";
       if (career?.id) goal.lifeAreaId = career.id;
       syncWorkPlanProgress(s, plan);

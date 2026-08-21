@@ -38,23 +38,23 @@ function stage(
   };
 }
 
-/** Engineering Programming — Phase 1 (Aug → Sep, 8 weeks). */
+/** Engineering Programming — Phase 1 (from 22 Aug, 8 weeks). */
 export function buildEngineeringPhase1Plan(owner: {
   ownerType: "goal" | "project";
   ownerId: string;
 }): WorkPlan {
-  const planStart = "2026-08-01";
-  const planEnd = "2026-09-25";
+  const planStart = "2026-08-22";
+  const planEnd = "2026-10-16";
 
   const weeks = [
-    { n: 1, start: "2026-08-01", end: "2026-08-07", focus: "Computer Science + Linux" },
-    { n: 2, start: "2026-08-08", end: "2026-08-14", focus: "Python fundamentals" },
-    { n: 3, start: "2026-08-15", end: "2026-08-21", focus: "Python + OOP + Git" },
-    { n: 4, start: "2026-08-22", end: "2026-08-28", focus: "Algorithms + Data Structures" },
-    { n: 5, start: "2026-08-29", end: "2026-09-04", focus: "SQL + PostgreSQL" },
-    { n: 6, start: "2026-09-05", end: "2026-09-11", focus: "Networking + HTTP + REST" },
-    { n: 7, start: "2026-09-12", end: "2026-09-18", focus: "Backend fundamentals + первый API" },
-    { n: 8, start: "2026-09-19", end: "2026-09-25", focus: "Большой проект + тестирование + GitHub" },
+    { n: 1, start: "2026-08-22", end: "2026-08-28", focus: "Computer Science + Linux" },
+    { n: 2, start: "2026-08-29", end: "2026-09-04", focus: "Python fundamentals" },
+    { n: 3, start: "2026-09-05", end: "2026-09-11", focus: "Python + OOP + Git" },
+    { n: 4, start: "2026-09-12", end: "2026-09-18", focus: "Algorithms + Data Structures" },
+    { n: 5, start: "2026-09-19", end: "2026-09-25", focus: "SQL + PostgreSQL" },
+    { n: 6, start: "2026-09-26", end: "2026-10-02", focus: "Networking + HTTP + REST" },
+    { n: 7, start: "2026-10-03", end: "2026-10-09", focus: "Backend fundamentals + первый API" },
+    { n: 8, start: "2026-10-10", end: "2026-10-16", focus: "Большой проект + тестирование + GitHub" },
   ];
 
   const phases: PlanPhase[] = [
@@ -198,7 +198,7 @@ export function buildEngineeringPhase1Plan(owner: {
 
 export const ENGINEERING_PHASE1_META = {
   label: "Engineering Programming — Фаза 1",
-  window: "Август → сентябрь · 8 недель",
-  start: "2026-08-01",
-  end: "2026-09-25",
+  window: "22 августа → 16 октября · 8 недель",
+  start: "2026-08-22",
+  end: "2026-10-16",
 } as const;
