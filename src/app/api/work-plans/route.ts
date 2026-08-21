@@ -114,12 +114,20 @@ export async function POST(request: Request) {
           ownerType,
           ownerId,
           title,
-          desiredResult: body.desiredResult ? String(body.desiredResult) : undefined,
-          why: body.why ? String(body.why) : undefined,
-          startingPoint: body.startingPoint ? String(body.startingPoint) : undefined,
-          strategy: body.strategy ? String(body.strategy) : undefined,
           deadline: body.deadline ? String(body.deadline) : g.deadline,
-          phases,
+          phases: phases.length
+            ? phases
+            : [
+                {
+                  id: id(),
+                  title: "Фундамент",
+                  order: 1,
+                  status: "active",
+                  objectives: [],
+                  modules: [],
+                  progress: 0,
+                },
+              ],
         });
         s.workPlans.push(plan);
         g.workPlanId = plan.id;
@@ -127,7 +135,7 @@ export async function POST(request: Request) {
       } else {
         const p = s.projects.find((x) => x.id === ownerId);
         if (!p) return;
-        title = title || `Plan: ${p.name}`;
+        title = title || `План: ${p.name}`;
         const fromModules = (p.modules?.tasks ?? []).map((t, i) => ({
           id: t.id || id(),
           title: t.title,
@@ -141,12 +149,20 @@ export async function POST(request: Request) {
           ownerType,
           ownerId,
           title,
-          desiredResult: body.desiredResult ? String(body.desiredResult) : p.tagline,
-          why: body.why ? String(body.why) : undefined,
-          startingPoint: body.startingPoint ? String(body.startingPoint) : undefined,
-          strategy: body.strategy ? String(body.strategy) : undefined,
           deadline: body.deadline ? String(body.deadline) : p.deadline,
-          phases: fromModules,
+          phases: fromModules.length
+            ? fromModules
+            : [
+                {
+                  id: id(),
+                  title: "Фундамент",
+                  order: 1,
+                  status: "active",
+                  objectives: [],
+                  modules: [],
+                  progress: 0,
+                },
+              ],
         });
         s.workPlans.push(plan);
         p.workPlanId = plan.id;

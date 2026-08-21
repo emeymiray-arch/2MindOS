@@ -116,13 +116,6 @@ export default function GoalsClient() {
   const [mode, setMode] = useState<ActionMode>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [creatingPlan, setCreatingPlan] = useState(false);
-  const [planDraft, setPlanDraft] = useState({
-    desiredResult: "",
-    why: "",
-    startingPoint: "",
-    strategy: "",
-  });
 
   const load = useCallback(async () => {
     const res = await fetch("/api/goals");
@@ -322,97 +315,57 @@ export default function GoalsClient() {
         <section className="card space-y-4 p-6">
           <p className="text-[12px] font-medium text-[var(--ink-faint)]">План</p>
           {selected.workPlan ? (
-            <>
-              <div className="flex items-baseline justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{selected.workPlan.title}</p>
-                  <p className="text-[13px] text-[var(--ink-faint)]">
-                    {selected.workPlan.progress}%
-                  </p>
-                </div>
-                <Link href={`/plans/${selected.workPlan.id}`} className="btn btn-ink">
-                  Открыть план
-                </Link>
+            <div className="flex items-baseline justify-between gap-3">
+              <div>
+                <p className="font-semibold">{selected.workPlan.title}</p>
+                <p className="text-[13px] text-[var(--ink-faint)]">
+                  Этапы · темы · дедлайны · оценка 0–2 · {selected.workPlan.progress}%
+                </p>
               </div>
-              {selected.workPlan.desiredResult ? (
-                <p className="text-[14px] text-[var(--ink-soft)]">{selected.workPlan.desiredResult}</p>
-              ) : null}
-            </>
-          ) : creatingPlan ? (
-            <div className="space-y-3">
-              {(
-                [
-                  ["desiredResult", "Результат"],
-                  ["why", "Зачем"],
-                  ["startingPoint", "С чего начинаю"],
-                  ["strategy", "Как двигаюсь"],
-                ] as const
-              ).map(([key, label]) => (
-                <label key={key} className="block space-y-1">
-                  <span className="text-[12px] text-[var(--ink-faint)]">{label}</span>
-                  <textarea
-                    rows={2}
-                    value={planDraft[key]}
-                    onChange={(e) => setPlanDraft({ ...planDraft, [key]: e.target.value })}
-                  />
-                </label>
-              ))}
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="btn btn-ink"
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    setError("");
-                    try {
-                      const { apiPost } = await import("@/lib/client-api");
-                      const result = await apiPost("/api/work-plans", {
-                        action: "create",
-                        ownerType: "goal",
-                        ownerId: selected.id,
-                        title: `План: ${selected.title}`,
-                        ...planDraft,
-                      });
-                      if (!result.ok && result.error) setError(String(result.error));
-                      else {
-                        const plan = result.data.plan as { id?: string } | undefined;
-                        if (plan?.id) {
-                          window.location.href = `/plans/${plan.id}`;
-                          return;
-                        }
-                      }
-                      await load();
-                      const res = await fetch(`/api/goals?id=${selected.id}`);
-                      const data = await res.json();
-                      setSelected(data.goal ?? null);
-                      setCreatingPlan(false);
-                    } catch {
-                      setError("Не удалось создать план");
-                    } finally {
-                      setBusy(false);
-                    }
-                  }}
-                >
-                  Создать план
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setCreatingPlan(false)}
-                >
-                  Отмена
-                </button>
-              </div>
+              <Link href={`/plans/${selected.workPlan.id}`} className="btn btn-ink">
+                Открыть план
+              </Link>
             </div>
           ) : (
-            <button
-              type="button"
-              className="btn btn-ink"
-              onClick={() => setCreatingPlan(true)}
-            >
-              + Создать план
-            </button>
+            <div className="space-y-3">
+              <p className="text-[14px] text-[var(--ink-soft)]">
+                Этапный план: темы с дедлайнами, галочки и оценка понимания 0–2.
+              </p>
+              <button
+                type="button"
+                className="btn btn-ink"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError("");
+                  try {
+                    const { apiPost } = await import("@/lib/client-api");
+                    const result = await apiPost("/api/work-plans", {
+                      action: "create",
+                      ownerType: "goal",
+                      ownerId: selected.id,
+                      title: `План: ${selected.title}`,
+                    });
+                    if (!result.ok && result.error) {
+                      setError(String(result.error));
+                      return;
+                    }
+                    const plan = result.data.plan as { id?: string } | undefined;
+                    if (plan?.id) {
+                      window.location.href = `/plans/${plan.id}`;
+                      return;
+                    }
+                    await load();
+                  } catch {
+                    setError("Не удалось создать план");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                + Открыть схему плана
+              </button>
+            </div>
           )}
         </section>
 

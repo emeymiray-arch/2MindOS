@@ -51,14 +51,7 @@ export default function ProjectCompanyPage({
   const [tab, setTab] = useState<"company" | "diary">("company");
   const [diary, setDiary] = useState<ProjectDiaryEntry[]>([]);
   const [entry, setEntry] = useState({ kind: "idea", title: "", body: "" });
-  const [creatingPlan, setCreatingPlan] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [planDraft, setPlanDraft] = useState({
-    desiredResult: "",
-    why: "",
-    startingPoint: "",
-    strategy: "",
-  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,70 +130,47 @@ export default function ProjectCompanyPage({
           <div className="flex items-baseline justify-between gap-3">
             <div>
               <p className="font-semibold">{workPlan.title}</p>
-              <p className="text-[13px] text-[var(--ink-faint)]">{workPlan.progress}% complete</p>
+              <p className="text-[13px] text-[var(--ink-faint)]">
+                Этапы · темы · дедлайны · оценка 0–2 · {workPlan.progress}%
+              </p>
             </div>
             <Link href={`/plans/${workPlan.id}`} className="btn btn-ink">
               Открыть план
             </Link>
           </div>
-        ) : creatingPlan ? (
-          <div className="space-y-3">
-            {(
-              [
-                ["desiredResult", "Результат"],
-                ["why", "Зачем"],
-                ["startingPoint", "С чего начинаю"],
-                ["strategy", "Как двигаюсь"],
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="block space-y-1">
-                <span className="text-[12px] text-[var(--ink-faint)]">{label}</span>
-                <textarea
-                  rows={2}
-                  value={planDraft[key]}
-                  onChange={(e) => setPlanDraft({ ...planDraft, [key]: e.target.value })}
-                />
-              </label>
-            ))}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="btn btn-ink"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    const { apiPost } = await import("@/lib/client-api");
-                    const result = await apiPost("/api/work-plans", {
-                      action: "create",
-                      ownerType: "project",
-                      ownerId: project.id,
-                      title: `План: ${project.name}`,
-                      ...planDraft,
-                    });
-                    const plan = result.data?.plan as { id?: string } | undefined;
-                    if (plan?.id) {
-                      window.location.href = `/plans/${plan.id}`;
-                      return;
-                    }
-                    await load();
-                    setCreatingPlan(false);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                Создать план
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={() => setCreatingPlan(false)}>
-                Отмена
-              </button>
-            </div>
-          </div>
         ) : (
-          <button type="button" className="btn btn-ink" onClick={() => setCreatingPlan(true)}>
-            + Создать план
-          </button>
+          <div className="space-y-3">
+            <p className="text-[14px] text-[var(--ink-soft)]">
+              Этапный план: темы с дедлайнами, галочки и оценка понимания 0–2.
+            </p>
+            <button
+              type="button"
+              className="btn btn-ink"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const { apiPost } = await import("@/lib/client-api");
+                  const result = await apiPost("/api/work-plans", {
+                    action: "create",
+                    ownerType: "project",
+                    ownerId: project.id,
+                    title: `План: ${project.name}`,
+                  });
+                  const plan = result.data?.plan as { id?: string } | undefined;
+                  if (plan?.id) {
+                    window.location.href = `/plans/${plan.id}`;
+                    return;
+                  }
+                  await load();
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              + Открыть схему плана
+            </button>
+          </div>
         )}
       </section>
 
