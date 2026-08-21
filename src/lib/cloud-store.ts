@@ -9,6 +9,8 @@ import type { LifeStore } from "./types";
 const SNAPSHOT_ID = "default";
 const HIST_PREFIX = "h-";
 const MAX_HISTORY = 12;
+const PULL_MS = 4000;
+const PUSH_MS = 5000;
 
 export type CloudPull =
   | { ok: true; store: LifeStore | null }
@@ -30,8 +32,30 @@ export async function pullCloudStore(): Promise<LifeStore | null> {
   return result.ok ? result.store : null;
 }
 
-/** Distinguishes "empty cloud" from "could not read cloud". */
+/** Fast path: only the live `default` snapshot (no history scan). */
 export async function pullCloudResult(): Promise<CloudPull> {
+  const sb = getSupabaseAdmin();
+  if (!sb) return { ok: false, store: null, error: "not configured" };
+  try {
+    const { data, error } = await withTimeout(
+      sb
+        .from("lifeos_snapshots")
+        .select("payload")
+        .eq("id", SNAPSHOT_ID)
+        .maybeSingle(),
+      PULL_MS
+    );
+    if (error) return { ok: false, store: null, error: error.message };
+    const payload = (data as { payload?: LifeStore | null } | null)?.payload;
+    if (!payload || typeof payload !== "object") return { ok: true, store: null };
+    return { ok: true, store: payload };
+  } catch (e) {
+    return { ok: false, store: null, error: e instanceof Error ? e.message : "pull failed" };
+  }
+}
+
+/** Richest among default + recent history — for restore only. */
+export async function pullCloudBest(): Promise<CloudPull> {
   const sb = getSupabaseAdmin();
   if (!sb) return { ok: false, store: null, error: "not configured" };
   try {
@@ -41,7 +65,7 @@ export async function pullCloudResult(): Promise<CloudPull> {
         .select("id, payload, updated_at")
         .order("updated_at", { ascending: false })
         .limit(MAX_HISTORY + 1),
-      15000
+      PULL_MS
     );
     if (error) return { ok: false, store: null, error: error.message };
     const rows = (data ?? []) as { id: string; payload: LifeStore | null }[];
@@ -86,15 +110,16 @@ export async function pushCloudStore(
   }
 
   try {
+    // History copy is best-effort — never block the user-facing save path.
     if (existing.store && !isSparseStore(existing.store)) {
-      await withTimeout(
+      void withTimeout(
         sb.from("lifeos_snapshots").upsert({
           id: histId(),
           payload: existing.store,
           updated_at: new Date().toISOString(),
         }),
-        8000
-      );
+        PUSH_MS
+      ).catch(() => undefined);
     }
 
     const { error } = await withTimeout(
@@ -103,7 +128,7 @@ export async function pushCloudStore(
         payload: store,
         updated_at: new Date().toISOString(),
       }),
-      8000
+      PUSH_MS
     );
     if (error) return { ok: false, error: error.message };
 

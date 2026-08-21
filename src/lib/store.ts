@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
-import { pullCloudResult, pushCloudStore } from "./cloud-store";
+import { pullCloudBest, pullCloudResult, pushCloudStore } from "./cloud-store";
 import { migrateStore } from "./migrate";
 import { createEmptyStore } from "./seed";
 import { isSupabaseConfigured } from "./supabase";
@@ -207,7 +207,7 @@ async function persistLocal(store: LifeStore): Promise<boolean> {
   }
 }
 
-async function persist(store: LifeStore, syncCloud = true): Promise<void> {
+async function persist(store: LifeStore, syncCloud = false): Promise<void> {
   const localOk = await persistLocal(store);
   if (!isServerless() && !localOk) {
     throw new Error("local persist failed");
@@ -224,14 +224,27 @@ async function persist(store: LifeStore, syncCloud = true): Promise<void> {
     return;
   }
 
-  const result = await pushCloudStore(store);
-  global.__mindosCloudReady = result.ok;
-  if (!result.ok) {
-    console.error("[mindos] cloud push:", result.skipped ?? result.error);
-    if (isServerless() && !result.skipped) {
+  const run = async () => {
+    const result = await pushCloudStore(store);
+    global.__mindosCloudReady = result.ok;
+    if (!result.ok) {
+      console.error("[mindos] cloud push:", result.skipped ?? result.error);
+    }
+    return result;
+  };
+
+  // Await cloud only on Vercel (no durable disk) or when caller forces sync.
+  if (isServerless() || syncCloud) {
+    const result = await run();
+    if (isServerless() && !result.ok && !result.skipped) {
       throw new Error(result.error ?? "cloud persist failed");
     }
+    return;
   }
+
+  void run().catch(() => {
+    global.__mindosCloudReady = false;
+  });
 }
 
 function richest(stores: Array<LifeStore | null | undefined>): LifeStore | null {
@@ -322,7 +335,7 @@ export async function restoreFromCloud(): Promise<{
     return { ok: false, restored: false, localWeight: 0, cloudWeight: 0, error: "cloud not configured" };
   }
   const current = await ensureLoaded();
-  const pulled = await pullCloudResult();
+  const pulled = await pullCloudBest();
   if (!pulled.ok) {
     return {
       ok: false,
@@ -363,7 +376,7 @@ export async function restoreSafest(candidate?: LifeStore): Promise<{
   const locals = await loadLocalCandidates();
   let cloud: LifeStore | null = null;
   if (isSupabaseConfigured()) {
-    const pulled = await pullCloudResult();
+    const pulled = await pullCloudBest();
     if (pulled.ok && pulled.store) cloud = migrateStore(pulled.store);
   }
   const incoming = candidate ? migrateStore(JSON.parse(JSON.stringify(candidate)) as LifeStore) : null;

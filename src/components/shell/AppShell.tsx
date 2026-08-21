@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         document.documentElement.setAttribute("data-theme", t);
       })
       .catch(() => undefined);
-  }, [pathname]);
+  }, []);
 
   return (
     <div className="flex min-h-full">

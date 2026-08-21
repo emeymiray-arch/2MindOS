@@ -29,7 +29,7 @@ async function recoverIfNeeded() {
     return;
   }
   const [healthRes, browser] = await Promise.all([
-    fetch("/api/health").then((r) => r.json()).catch(() => null),
+    fetch("/api/health?ping=0").then((r) => r.json()).catch(() => null),
     loadBrowserBackup(),
   ]);
   const serverWeight = Number(healthRes?.durability?.weight ?? 0);
