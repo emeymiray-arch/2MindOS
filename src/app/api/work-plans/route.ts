@@ -1,3 +1,4 @@
+import { buildEngineeringPhase1Plan } from "@/lib/curricula/engineering-phase1";
 import { NextResponse } from "next/server";
 import { id, now, todayKey } from "@/lib/id";
 import {
@@ -196,6 +197,79 @@ export async function POST(request: Request) {
     const created = workPlanForOwner(store, ownerType, ownerId);
     if (!created) return NextResponse.json({ error: "owner not found" }, { status: 404 });
     return NextResponse.json(enrich(store, created.id, lite));
+  }
+
+  if (action === "installEngineeringPhase1") {
+    const store = await updateStore((s) => {
+      if (!s.workPlans) s.workPlans = [];
+      const career = s.spheres.find((x) => x.slug === "career");
+      let goal = s.goals.find(
+        (g) =>
+          /engineering programming/i.test(g.title) ||
+          /инженерн.*программ/i.test(g.title) ||
+          g.title === "Engineering Programming — Фаза 1"
+      );
+      const t = now();
+      if (!goal) {
+        const nodeId = id();
+        s.nodes.unshift({
+          id: nodeId,
+          kind: "goal",
+          title: "Engineering Programming — Фаза 1",
+          metadata: {},
+          salience: 0.95,
+          createdAt: t,
+          updatedAt: t,
+          sphereId: career?.id,
+        });
+        goal = {
+          id: id(),
+          nodeId,
+          title: "Engineering Programming — Фаза 1",
+          stages: [],
+          progress: 0,
+          active: true,
+          archived: false,
+          createdAt: t,
+          lifeAreaId: career?.id,
+          priority: "critical",
+          status: "active",
+          bucket: "foundation",
+          deadline: "2026-09-25",
+        };
+        s.goals.unshift(goal);
+      }
+
+      // Replace previous plan for this goal if any
+      if (goal.workPlanId) {
+        s.workPlans = s.workPlans.filter((p) => p.id !== goal!.workPlanId);
+      }
+      const plan = buildEngineeringPhase1Plan({
+        ownerType: "goal",
+        ownerId: goal.id,
+      });
+      plan.deadline = "2026-09-25";
+      s.workPlans.push(plan);
+      goal.workPlanId = plan.id;
+      goal.title = "Engineering Programming — Фаза 1";
+      goal.deadline = "2026-09-25";
+      goal.bucket = "foundation";
+      goal.priority = "critical";
+      if (career?.id) goal.lifeAreaId = career.id;
+      syncWorkPlanProgress(s, plan);
+    });
+
+    const goal = store.goals.find(
+      (g) => g.title === "Engineering Programming — Фаза 1" || g.workPlanId
+    );
+    const planId =
+      store.goals.find((g) => g.title === "Engineering Programming — Фаза 1")?.workPlanId ??
+      goal?.workPlanId;
+    if (!planId) return NextResponse.json({ error: "install failed" }, { status: 500 });
+    return NextResponse.json({
+      ...enrich(store, planId, lite),
+      goalId: store.goals.find((g) => g.workPlanId === planId)?.id,
+    });
   }
 
   if (action === "update") {
