@@ -4,11 +4,22 @@ export async function apiPost(
   body: Record<string, unknown>
 ): Promise<{ ok: boolean; data: Record<string, unknown>; error?: string }> {
   try {
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
       body: JSON.stringify(body),
+      cache: "no-store",
     });
+    // One retry on transient cloud conflict / cold start.
+    if (res.status === 503) {
+      await new Promise((r) => setTimeout(r, 400));
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      });
+    }
     let data: Record<string, unknown> = {};
     try {
       data = (await res.json()) as Record<string, unknown>;

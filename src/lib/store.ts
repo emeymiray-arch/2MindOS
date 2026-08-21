@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import { existsSync, readFileSync } from "fs";
 import path from "path";
-import { pullCloudBest, pullCloudResult, pushCloudStore } from "./cloud-store";
+import { pullCloudBest, pullCloudResult, pushCloudCas, pushCloudStore } from "./cloud-store";
 import { migrateStore } from "./migrate";
 import { createEmptyStore } from "./seed";
 import { isSupabaseConfigured } from "./supabase";
@@ -17,6 +17,7 @@ export { storeWeight, isSparseStore } from "./store-weight";
 
 const MAX_FILE_BACKUPS = 30;
 const BACKUP_EVERY_MS = 15 * 60 * 1000;
+const SERVERLESS_WRITE_ATTEMPTS = 5;
 
 /** On Vercel the filesystem is ephemeral — Supabase snapshot is source of truth. */
 function isServerless(): boolean {
@@ -38,6 +39,23 @@ declare global {
   var __mindosCloudReadable: boolean | undefined;
   // eslint-disable-next-line no-var
   var __mindosRepoRoot: string | undefined;
+}
+
+export class StoreUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StoreUnavailableError";
+  }
+}
+
+function cloneStore(store: LifeStore): LifeStore {
+  return migrateStore(JSON.parse(JSON.stringify(store)) as LifeStore);
+}
+
+function emptyBrain(): LifeStore {
+  const s = migrateStore(createEmptyStore());
+  s.revision = 0;
+  return s;
 }
 
 /** Always resolve the real 2MindOS package root — never trust a drifted process.cwd(). */
@@ -252,28 +270,22 @@ function richest(stores: Array<LifeStore | null | undefined>): LifeStore | null 
 }
 
 async function ensureLoaded(): Promise<LifeStore> {
-  // On Vercel each request may hit a different isolate with a stale in-memory copy.
-  // Always re-merge with cloud so a cold instance cannot overwrite a newer save.
+  // Vercel: cloud is the only source of truth. Never invent an empty/demo brain
+  // when the cloud blips — that caused data to vanish and reappear.
   if (isServerless()) {
-    let cloud: LifeStore | null = null;
-    if (isSupabaseConfigured()) {
-      const pulled = await pullCloudResult();
-      global.__mindosCloudReadable = pulled.ok;
-      if (pulled.ok) {
-        cloud = pulled.store ? migrateStore(pulled.store) : null;
-        global.__mindosCloudReady = true;
-      } else {
-        global.__mindosCloudReady = false;
-        console.error("[mindos] cloud pull failed:", pulled.error);
-      }
+    if (!isSupabaseConfigured()) {
+      throw new StoreUnavailableError("cloud not configured");
     }
-    const mem = global.__mindosStore;
-    const picked = richest([cloud, mem]) ?? migrateStore(createEmptyStore());
-    global.__mindosStore = picked;
-    if (mem && cloud && pickRicher(mem, cloud) === mem && storeWeight(mem) > storeWeight(cloud)) {
-      void pushCloudStore(mem).catch(() => undefined);
+    const pulled = await pullCloudResult();
+    global.__mindosCloudReadable = pulled.ok;
+    if (!pulled.ok) {
+      if (global.__mindosStore) return global.__mindosStore;
+      throw new StoreUnavailableError(pulled.error || "cloud unavailable");
     }
-    return picked;
+    global.__mindosCloudReady = true;
+    const store = pulled.store ? migrateStore(pulled.store) : emptyBrain();
+    global.__mindosStore = store;
+    return store;
   }
 
   if (global.__mindosStore) return global.__mindosStore;
@@ -294,15 +306,14 @@ async function ensureLoaded(): Promise<LifeStore> {
     }
   }
 
-  const picked = richest([cloud, local]) ?? migrateStore(createEmptyStore());
+  const picked = richest([cloud, local]) ?? emptyBrain();
   global.__mindosStore = picked;
 
   if (cloud && local && !isDestructiveOverwrite(cloud, local) && storeWeight(cloud) > storeWeight(local)) {
     await persistLocal(picked);
   }
 
-  // First run: write local file only. Never push an empty/demo brain to the cloud.
-  if (!cloud && !local && !isServerless()) {
+  if (!cloud && !local) {
     await persistLocal(picked);
   }
 
@@ -313,9 +324,55 @@ export async function getStore(): Promise<LifeStore> {
   return ensureLoaded();
 }
 
+async function updateStoreServerless(
+  mutator: (store: LifeStore) => void | Promise<void>
+): Promise<LifeStore> {
+  if (!isSupabaseConfigured()) {
+    throw new StoreUnavailableError("cloud not configured");
+  }
+
+  let lastError = "conflict";
+  for (let attempt = 0; attempt < SERVERLESS_WRITE_ATTEMPTS; attempt++) {
+    const pulled = await pullCloudResult();
+    if (!pulled.ok) {
+      throw new StoreUnavailableError(pulled.error || "cloud unavailable");
+    }
+    const expectedRev = Math.max(
+      Number(pulled.store?.revision) || 0,
+      Number(pulled.rowRevision) || 0
+    );
+    const draft = pulled.store ? cloneStore(pulled.store) : emptyBrain();
+    draft.revision = expectedRev;
+    await mutator(draft);
+    draft.revision = expectedRev + 1;
+
+    const pushed = await pushCloudCas(draft, expectedRev);
+    if (pushed.ok) {
+      global.__mindosStore = draft;
+      global.__mindosCloudReady = true;
+      global.__mindosCloudReadable = true;
+      return draft;
+    }
+    if (pushed.conflict) {
+      lastError = "conflict";
+      continue;
+    }
+    if (pushed.skipped) {
+      lastError = pushed.skipped;
+      continue;
+    }
+    throw new StoreUnavailableError(pushed.error ?? "cloud persist failed");
+  }
+  throw new StoreUnavailableError(lastError);
+}
+
 export async function updateStore(
   mutator: (store: LifeStore) => void | Promise<void>
 ): Promise<LifeStore> {
+  if (isServerless()) {
+    return updateStoreServerless(mutator);
+  }
+
   const store = await ensureLoaded();
   const myEpoch = epoch();
   await mutator(store);
