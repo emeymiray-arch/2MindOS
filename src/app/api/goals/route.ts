@@ -53,6 +53,22 @@ function enrichGoal(store: Awaited<ReturnType<typeof getStore>>, g: Goal) {
   };
 }
 
+function goalsPayload(store: Awaited<ReturnType<typeof getStore>>, showArchived = false) {
+  const goals = store.goals.filter((g) => (showArchived ? g.archived : !g.archived && g.active));
+  return {
+    goals: goals.map((g) => enrichGoal(store, g)),
+    areas: store.spheres,
+    plan: activePlan(store),
+    foundation: goals
+      .filter((g) => (g.bucket ?? "development") === "foundation")
+      .map((g) => enrichGoal(store, g)),
+    development: goals
+      .filter((g) => (g.bucket ?? "development") === "development")
+      .map((g) => enrichGoal(store, g)),
+    later: goals.filter((g) => g.bucket === "later").map((g) => enrichGoal(store, g)),
+  };
+}
+
 export async function GET(request: Request) {
   const store = await getStore();
   const showArchived = new URL(request.url).searchParams.get("archived") === "1";
@@ -62,15 +78,7 @@ export async function GET(request: Request) {
     if (!g) return NextResponse.json({ error: "not found" }, { status: 404 });
     return NextResponse.json({ goal: enrichGoal(store, g), areas: store.spheres, plan: activePlan(store) });
   }
-  const goals = store.goals.filter((g) => (showArchived ? g.archived : !g.archived && g.active));
-  return NextResponse.json({
-    goals: goals.map((g) => enrichGoal(store, g)),
-    areas: store.spheres,
-    plan: activePlan(store),
-    foundation: goals.filter((g) => (g.bucket ?? "development") === "foundation").map((g) => enrichGoal(store, g)),
-    development: goals.filter((g) => (g.bucket ?? "development") === "development").map((g) => enrichGoal(store, g)),
-    later: goals.filter((g) => g.bucket === "later").map((g) => enrichGoal(store, g)),
-  });
+  return NextResponse.json(goalsPayload(store, showArchived));
 }
 
 export async function POST(request: Request) {
@@ -114,9 +122,7 @@ export async function POST(request: Request) {
       };
       s.goals.unshift(goal);
     });
-    return NextResponse.json({
-      goals: store.goals.filter((g) => !g.archived).map((g) => enrichGoal(store, g)),
-    });
+    return NextResponse.json(goalsPayload(store));
   }
 
   if (action === "update") {

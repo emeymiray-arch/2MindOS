@@ -252,6 +252,30 @@ function richest(stores: Array<LifeStore | null | undefined>): LifeStore | null 
 }
 
 async function ensureLoaded(): Promise<LifeStore> {
+  // On Vercel each request may hit a different isolate with a stale in-memory copy.
+  // Always re-merge with cloud so a cold instance cannot overwrite a newer save.
+  if (isServerless()) {
+    let cloud: LifeStore | null = null;
+    if (isSupabaseConfigured()) {
+      const pulled = await pullCloudResult();
+      global.__mindosCloudReadable = pulled.ok;
+      if (pulled.ok) {
+        cloud = pulled.store ? migrateStore(pulled.store) : null;
+        global.__mindosCloudReady = true;
+      } else {
+        global.__mindosCloudReady = false;
+        console.error("[mindos] cloud pull failed:", pulled.error);
+      }
+    }
+    const mem = global.__mindosStore;
+    const picked = richest([cloud, mem]) ?? migrateStore(createEmptyStore());
+    global.__mindosStore = picked;
+    if (mem && cloud && pickRicher(mem, cloud) === mem && storeWeight(mem) > storeWeight(cloud)) {
+      void pushCloudStore(mem).catch(() => undefined);
+    }
+    return picked;
+  }
+
   if (global.__mindosStore) return global.__mindosStore;
 
   const locals = await loadLocalCandidates();
@@ -295,6 +319,7 @@ export async function updateStore(
   const store = await ensureLoaded();
   const myEpoch = epoch();
   await mutator(store);
+  store.revision = (Number(store.revision) || 0) + 1;
   const write = (global.__mindosWriteQueue ?? Promise.resolve()).then(async () => {
     if (myEpoch !== epoch()) return;
     await persist(store);

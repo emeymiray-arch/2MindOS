@@ -534,6 +534,8 @@ export interface DailyTaskItem {
 
 export interface LifeStore {
   version: number;
+  /** Monotonic write counter — stale serverless instances must not overwrite newer cloud. */
+  revision?: number;
   spheres: Sphere[];
   nodes: LifeNode[];
   edges: LifeEdge[];

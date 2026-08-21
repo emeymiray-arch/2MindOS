@@ -99,6 +99,16 @@ export async function pushCloudStore(
   if (!existing.ok) {
     return { ok: false, error: `cloud unread, refuse push (${existing.error})` };
   }
+  if (existing.store) {
+    const nextRev = Number(store.revision) || 0;
+    const prevRev = Number(existing.store.revision) || 0;
+    if (nextRev < prevRev) {
+      return { ok: false, skipped: "stale revision, refuse push" };
+    }
+    if (nextRev === prevRev && storeWeight(store) < storeWeight(existing.store)) {
+      return { ok: false, skipped: "same revision but poorer snapshot" };
+    }
+  }
   if (existing.store && isDestructiveOverwrite(store, existing.store)) {
     return {
       ok: false,

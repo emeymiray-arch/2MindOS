@@ -125,11 +125,6 @@ export default function GoalsClient() {
   });
 
   const load = useCallback(async () => {
-    await fetch("/api/plans", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "ensure" }),
-    });
     const res = await fetch("/api/goals");
     const data = await res.json();
     setGoals(data.goals ?? []);
@@ -148,15 +143,27 @@ export default function GoalsClient() {
     load();
   }, [load]);
 
+  function applyGoalsPayload(data: Record<string, unknown>) {
+    if (Array.isArray(data.goals)) setGoals(data.goals as GoalView[]);
+    if (Array.isArray(data.foundation)) setFoundation(data.foundation as GoalView[]);
+    if (Array.isArray(data.development)) setDevelopment(data.development as GoalView[]);
+    if (Array.isArray(data.later)) setLater(data.later as GoalView[]);
+    if (data.plan && typeof data.plan === "object") setPlan(data.plan as { title: string });
+    if (Array.isArray(data.areas)) setAreas(data.areas as Sphere[]);
+  }
+
   async function post(body: Record<string, unknown>) {
     setBusy(true);
     setError("");
     try {
       const { apiPost } = await import("@/lib/client-api");
       const result = await apiPost("/api/goals", body);
-      if (!result.ok && result.error) setError(result.error);
-      await load();
-      if (selected) {
+      if (!result.ok && result.error) {
+        setError(result.error);
+        return;
+      }
+      applyGoalsPayload(result.data);
+      if (selected?.id) {
         const res = await fetch(`/api/goals?id=${selected.id}`);
         const data = await res.json();
         setSelected(data.goal ?? null);
@@ -557,13 +564,15 @@ export default function GoalsClient() {
           className="btn btn-ink"
           disabled={busy || !title.trim()}
           onClick={() => {
-            post({
+            const t = title.trim();
+            if (!t) return;
+            setTitle("");
+            void post({
               action: "create",
-              title: title.trim(),
+              title: t,
               lifeAreaId: areaId || undefined,
               bucket,
             });
-            setTitle("");
           }}
         >
           +

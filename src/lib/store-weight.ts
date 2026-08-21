@@ -50,5 +50,8 @@ export function pickRicher(
 ): LifeStore | null {
   if (!a) return b ?? null;
   if (!b) return a;
+  const ra = Number(a.revision) || 0;
+  const rb = Number(b.revision) || 0;
+  if (rb !== ra) return rb > ra ? b : a;
   return storeWeight(b) > storeWeight(a) ? b : a;
 }
