@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { pullCloudResult, pushCloudStore } from "./cloud-store";
 import { migrateStore } from "./migrate";
@@ -16,7 +17,6 @@ export { storeWeight, isSparseStore } from "./store-weight";
 
 const MAX_FILE_BACKUPS = 30;
 const BACKUP_EVERY_MS = 15 * 60 * 1000;
-const APP_DIR_NAME = "2MindOS";
 
 /** On Vercel the filesystem is ephemeral — Supabase snapshot is source of truth. */
 function isServerless(): boolean {
@@ -37,28 +37,66 @@ declare global {
   // eslint-disable-next-line no-var
   var __mindosCloudReadable: boolean | undefined;
   // eslint-disable-next-line no-var
-  var __mindosPrimaryDataDir: string | undefined;
+  var __mindosRepoRoot: string | undefined;
 }
 
-function dataDirCandidates(): string[] {
-  const set = new Set<string>();
+/** Always resolve the real 2MindOS package root — never trust a drifted process.cwd(). */
+function findRepoRoot(): string {
+  if (global.__mindosRepoRoot) return global.__mindosRepoRoot;
+
   const explicit = process.env.MINDOS_DATA_DIR?.trim();
-  if (explicit) set.add(path.resolve(explicit));
+  if (explicit) {
+    // Allow pointing at the data folder or the repo root.
+    const asDir = path.resolve(explicit);
+    const root = path.basename(asDir) === "data" ? path.dirname(asDir) : asDir;
+    global.__mindosRepoRoot = root;
+    return root;
+  }
+
+  let dir = process.cwd();
+  for (let i = 0; i < 10; i++) {
+    const pkgPath = path.join(dir, "package.json");
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { name?: string };
+        if (pkg.name === "2mindos") {
+          global.__mindosRepoRoot = dir;
+          return dir;
+        }
+      } catch {
+        /* keep walking */
+      }
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  // Last resort: if cwd itself is named 2MindOS
   const cwd = process.cwd();
-  set.add(path.join(cwd, "data"));
-  set.add(path.join(cwd, APP_DIR_NAME, "data"));
-  const parent = path.dirname(cwd);
-  set.add(path.join(parent, APP_DIR_NAME, "data"));
-  return [...set];
+  if (path.basename(cwd) === "2MindOS" || path.basename(cwd) === "2mindos") {
+    global.__mindosRepoRoot = cwd;
+    return cwd;
+  }
+
+  global.__mindosRepoRoot = cwd;
+  return cwd;
 }
 
-function pathsForDir(dataDir: string) {
-  return {
-    dataDir,
-    storePath: path.join(dataDir, "lifeos.json"),
-    prevPath: path.join(dataDir, "lifeos.prev.json"),
-    backupDir: path.join(dataDir, "backups"),
-  };
+function dataDir(): string {
+  return path.join(findRepoRoot(), "data");
+}
+
+function storePath(): string {
+  return path.join(dataDir(), "lifeos.json");
+}
+
+function prevPath(): string {
+  return path.join(dataDir(), "lifeos.prev.json");
+}
+
+function backupDir(): string {
+  return path.join(dataDir(), "backups");
 }
 
 function epoch() {
@@ -89,62 +127,38 @@ async function readStoreFile(file: string): Promise<LifeStore | null> {
   }
 }
 
-async function listBackupFiles(backupDir: string): Promise<string[]> {
+async function listBackupFiles(): Promise<string[]> {
   try {
-    const names = await fs.readdir(backupDir);
+    const names = await fs.readdir(backupDir());
     return names
       .filter((n) => n.startsWith("lifeos-") && n.endsWith(".json"))
       .sort()
       .reverse()
-      .map((n) => path.join(backupDir, n));
+      .map((n) => path.join(backupDir(), n));
   } catch {
     return [];
   }
 }
 
-async function resolvePrimaryDataDir(): Promise<string> {
-  if (global.__mindosPrimaryDataDir) return global.__mindosPrimaryDataDir;
-  const dirs = dataDirCandidates();
-  let bestDir = dirs[0];
-  let bestWeight = -1;
-  for (const dir of dirs) {
-    const { storePath } = pathsForDir(dir);
-    const store = await readStoreFile(storePath);
-    const weight = storeWeight(store);
-    if (weight > bestWeight) {
-      bestWeight = weight;
-      bestDir = dir;
-    }
-  }
-  global.__mindosPrimaryDataDir = bestDir;
-  return bestDir;
-}
-
 async function loadLocalCandidates(): Promise<LifeStore[]> {
   if (isServerless()) return [];
-  const dirs = dataDirCandidates();
+  await fs.mkdir(dataDir(), { recursive: true }).catch(() => undefined);
+  const files = [storePath(), prevPath(), ...(await listBackupFiles())];
   const out: LifeStore[] = [];
-  for (const dir of dirs) {
-    await fs.mkdir(dir, { recursive: true }).catch(() => undefined);
-    const p = pathsForDir(dir);
-    const files = [p.storePath, p.prevPath, ...(await listBackupFiles(p.backupDir))];
-    for (const file of files) {
-      const store = await readStoreFile(file);
-      if (store) out.push(store);
-    }
+  for (const file of files) {
+    const store = await readStoreFile(file);
+    if (store) out.push(store);
   }
   return out;
 }
 
 async function snapshotExistingLocal(): Promise<void> {
   if (isServerless()) return;
-  const dir = await resolvePrimaryDataDir();
-  const p = pathsForDir(dir);
-  const current = await readStoreFile(p.storePath);
+  const current = await readStoreFile(storePath());
   if (!current || isSparseStore(current)) return;
 
   try {
-    await fs.copyFile(p.storePath, p.prevPath);
+    await fs.copyFile(storePath(), prevPath());
   } catch {
     /* no previous file */
   }
@@ -153,34 +167,39 @@ async function snapshotExistingLocal(): Promise<void> {
   const last = global.__mindosLastFileBackupAt ?? 0;
   if (now - last < BACKUP_EVERY_MS) return;
 
-  await fs.mkdir(p.backupDir, { recursive: true });
+  await fs.mkdir(backupDir(), { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const dest = path.join(p.backupDir, `lifeos-${stamp}.json`);
-  await fs.copyFile(p.storePath, dest);
+  const dest = path.join(backupDir(), `lifeos-${stamp}.json`);
+  await fs.copyFile(storePath(), dest);
   global.__mindosLastFileBackupAt = now;
 
-  const extras = (await listBackupFiles(p.backupDir)).slice(MAX_FILE_BACKUPS);
+  const extras = (await listBackupFiles()).slice(MAX_FILE_BACKUPS);
   await Promise.all(extras.map((f) => fs.unlink(f).catch(() => undefined)));
 }
 
 async function persistLocal(store: LifeStore): Promise<boolean> {
   if (isServerless()) return false;
   try {
-    const primary = await resolvePrimaryDataDir();
-    const p = pathsForDir(primary);
-    await fs.mkdir(p.dataDir, { recursive: true });
+    await fs.mkdir(dataDir(), { recursive: true });
     await snapshotExistingLocal();
-    const tmp = `${p.storePath}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify(store, null, 2), "utf8");
-    await fs.rename(tmp, p.storePath);
+    const target = storePath();
+    const tmp = `${target}.tmp`;
+    const payload = JSON.stringify(store, null, 2);
+    await fs.writeFile(tmp, payload, "utf8");
+    await fs.rename(tmp, target);
 
-    // Mirror into other candidate roots so data survives root-directory drift.
-    for (const dir of dataDirCandidates()) {
-      if (dir === primary) continue;
-      const alt = pathsForDir(dir);
-      await fs.mkdir(alt.dataDir, { recursive: true }).catch(() => undefined);
-      await fs.writeFile(alt.storePath, JSON.stringify(store, null, 2), "utf8").catch(() => undefined);
+    // Verify bytes landed — otherwise treat as failure.
+    const verify = await fs.readFile(target, "utf8");
+    if (verify.length < 20) {
+      console.error("[mindos] local persist verify failed: tiny file");
+      return false;
     }
+    console.info("[mindos] local persist ok", {
+      path: target,
+      bytes: verify.length,
+      goals: store.goals?.length ?? 0,
+      weight: storeWeight(store),
+    });
     return true;
   } catch (e) {
     console.error("[mindos] local persist failed:", e);
@@ -188,7 +207,7 @@ async function persistLocal(store: LifeStore): Promise<boolean> {
   }
 }
 
-async function persist(store: LifeStore, syncCloud = false): Promise<void> {
+async function persist(store: LifeStore, syncCloud = true): Promise<void> {
   const localOk = await persistLocal(store);
   if (!isServerless() && !localOk) {
     throw new Error("local persist failed");
@@ -198,33 +217,21 @@ async function persist(store: LifeStore, syncCloud = false): Promise<void> {
     if (isServerless()) throw new Error("cloud not configured");
     return;
   }
-  if (global.__mindosCloudReadable === false) {
-    // Cloud is configured but unread — never guess by pushing.
-    if (isServerless()) throw new Error("cloud unread, refuse persist");
+
+  // Local is source of truth on disk. Cloud is best-effort unless serverless.
+  if (global.__mindosCloudReadable === false && !isServerless()) {
+    console.error("[mindos] cloud unread — kept local only");
     return;
   }
 
-  const shouldWait = isServerless() || syncCloud;
-  const run = async () => {
-    const result = await pushCloudStore(store);
-    global.__mindosCloudReady = result.ok;
-    if (!result.ok) {
-      console.error("[mindos] cloud push:", result.skipped ?? result.error);
-    }
-    return result;
-  };
-
-  if (shouldWait) {
-    const result = await run();
-    if (isServerless() && !result.ok && !result.skipped) {
+  const result = await pushCloudStore(store);
+  global.__mindosCloudReady = result.ok;
+  if (!result.ok) {
+    console.error("[mindos] cloud push:", result.skipped ?? result.error);
+    if (isServerless() && !result.skipped) {
       throw new Error(result.error ?? "cloud persist failed");
     }
-    return;
   }
-
-  void run().catch(() => {
-    global.__mindosCloudReady = false;
-  });
 }
 
 function richest(stores: Array<LifeStore | null | undefined>): LifeStore | null {
@@ -250,9 +257,7 @@ async function ensureLoaded(): Promise<LifeStore> {
     }
   }
 
-  const picked =
-    richest([cloud, local]) ?? migrateStore(createEmptyStore());
-
+  const picked = richest([cloud, local]) ?? migrateStore(createEmptyStore());
   global.__mindosStore = picked;
 
   if (cloud && local && !isDestructiveOverwrite(cloud, local) && storeWeight(cloud) > storeWeight(local)) {
@@ -398,10 +403,19 @@ export async function durabilityStatus(): Promise<{
   cloudReadable: boolean | null;
   backupCount: number;
   lastBackup: string | null;
+  repoRoot: string;
+  dataPath: string;
+  goals: number;
+  localBytes: number | null;
 }> {
   const store = await ensureLoaded();
-  const primary = await resolvePrimaryDataDir();
-  const backups = isServerless() ? [] : await listBackupFiles(pathsForDir(primary).backupDir);
+  const backups = isServerless() ? [] : await listBackupFiles();
+  let localBytes: number | null = null;
+  try {
+    localBytes = (await fs.stat(storePath())).size;
+  } catch {
+    localBytes = null;
+  }
   return {
     weight: storeWeight(store),
     sparse: isSparseStore(store),
@@ -409,5 +423,9 @@ export async function durabilityStatus(): Promise<{
     cloudReadable: global.__mindosCloudReadable ?? null,
     backupCount: backups.length,
     lastBackup: backups[0] ? path.basename(backups[0]) : null,
+    repoRoot: findRepoRoot(),
+    dataPath: storePath(),
+    goals: store.goals?.length ?? 0,
+    localBytes,
   };
 }

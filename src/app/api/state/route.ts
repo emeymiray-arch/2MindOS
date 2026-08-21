@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
+import { pushCloudStore } from "@/lib/cloud-store";
 import { defaultSettings, migrateStore } from "@/lib/migrate";
 import { publicStore } from "@/lib/sanitize";
-import { getStore, resetStore, restoreFromCloud, restoreSafest, updateStore } from "@/lib/store";
+import {
+  getStore,
+  resetStore,
+  restoreFromCloud,
+  restoreSafest,
+  storeWeight,
+  updateStore,
+} from "@/lib/store";
 import type { LifeStore } from "@/lib/types";
 
 export async function GET() {
@@ -32,6 +40,15 @@ export async function POST(request: Request) {
       s.settings = { ...defaultSettings(s.settings), ...patch };
     });
     return NextResponse.json({ ok: true, settings: store.settings });
+  }
+  if (body.action === "syncCloud") {
+    const store = await getStore();
+    const result = await pushCloudStore(store);
+    return NextResponse.json({
+      ...result,
+      weight: storeWeight(store),
+      goals: store.goals?.length ?? 0,
+    });
   }
   if (body.action === "restoreCloud") {
     const result = await restoreFromCloud();

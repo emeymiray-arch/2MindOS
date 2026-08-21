@@ -41,7 +41,7 @@ export async function pullCloudResult(): Promise<CloudPull> {
         .select("id, payload, updated_at")
         .order("updated_at", { ascending: false })
         .limit(MAX_HISTORY + 1),
-      6000
+      15000
     );
     if (error) return { ok: false, store: null, error: error.message };
     const rows = (data ?? []) as { id: string; payload: LifeStore | null }[];

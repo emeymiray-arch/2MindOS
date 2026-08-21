@@ -21,6 +21,10 @@ export default function SettingsPage() {
     cloudReadable: boolean | null;
     backupCount: number;
     lastBackup: string | null;
+    repoRoot?: string;
+    dataPath?: string;
+    goals?: number;
+    localBytes?: number | null;
   } | null>(null);
 
   useEffect(() => {
@@ -293,18 +297,18 @@ alter table lifeos_snapshots enable row level security;`}</pre>
         <p className="font-semibold">Данные</p>
         {durability ? (
           <p className="meta-quiet">
-            Сохранено локально
+            Целей: {durability.goals ?? 0}
+            {durability.localBytes != null ? ` · файл ${durability.localBytes} байт` : ""}
             {durability.backupCount ? ` · копий ${durability.backupCount}` : ""}
             {durability.cloudReadable === false
-              ? " · облако недоступно, пустое не записывается"
+              ? " · облако недоступно — пишем только локально"
               : durability.cloudOk
                 ? " · облако синхронизировано"
                 : ""}
           </p>
         ) : null}
         <p className="meta-quiet">
-          Каждое сохранение остаётся на диске, в истории копий и в браузере. Пустая копия не затирает
-          полную.
+          Коммит и пуш код не трогают. Данные живут в локальном файле и (если доступно) в Supabase.
         </p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn btn-ink" onClick={restoreSafest}>
@@ -331,7 +335,7 @@ alter table lifeos_snapshots enable row level security;`}</pre>
         </div>
       </section>
 
-      <section className="card p-5 text-[12px] text-[var(--ink-faint)]">2MindOS · v0.1.1</section>
+      <section className="card p-5 text-[12px] text-[var(--ink-faint)]">2MindOS · v0.1.2</section>
     </div>
   );
 }
