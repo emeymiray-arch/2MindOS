@@ -8,6 +8,7 @@ type Module = {
   id: string;
   title: string;
   done: boolean;
+  order: number;
   deadlineStart?: string;
   deadlineEnd?: string;
   understanding?: 0 | 1 | 2;
