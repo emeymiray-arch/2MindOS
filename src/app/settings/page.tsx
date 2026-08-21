@@ -331,7 +331,7 @@ alter table lifeos_snapshots enable row level security;`}</pre>
         </div>
       </section>
 
-      <section className="card p-5 text-[12px] text-[var(--ink-faint)]">2MindOS · v0.1</section>
+      <section className="card p-5 text-[12px] text-[var(--ink-faint)]">2MindOS · v0.1.1</section>
     </div>
   );
 }
