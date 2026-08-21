@@ -222,7 +222,6 @@ export default function GoalsClient() {
         className="text-[13px] font-medium text-[var(--ink-faint)]"
         onClick={() => {
           setSelected(null);
-          setCreatingPlan(false);
         }}
       >
         ← Цели
