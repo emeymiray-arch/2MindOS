@@ -302,6 +302,13 @@ export async function POST(request: Request) {
         mod.deadlineStart = String(body.deadlineStart || "") || undefined;
       if (body.deadlineEnd !== undefined)
         mod.deadlineEnd = String(body.deadlineEnd || "") || undefined;
+      if (body.understanding !== undefined) {
+        const u = Number(body.understanding);
+        if (u === 0 || u === 1 || u === 2) mod.understanding = u;
+        else if (body.understanding === null || body.understanding === "") {
+          delete mod.understanding;
+        }
+      }
       syncWorkPlanProgress(s, plan);
     });
     return NextResponse.json(enrich(store, planId));

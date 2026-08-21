@@ -145,6 +145,8 @@ export interface PlanModule {
   order: number;
   deadlineStart?: string;
   deadlineEnd?: string;
+  /** Self-check: 0 = не поняла, 1 = частично, 2 = поняла */
+  understanding?: 0 | 1 | 2;
 }
 
 /** @deprecated use PlanModule */

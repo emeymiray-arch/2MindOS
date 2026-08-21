@@ -342,8 +342,14 @@ export function milestoneProgress(phase: PlanPhase): number {
     if (phase.progress != null) return phase.progress;
     return phase.status === "done" ? 100 : 0;
   }
-  const done = ms.filter((m) => m.done).length;
-  return Math.round((done / ms.length) * 100);
+  let score = 0;
+  for (const m of ms) {
+    const understood = typeof m.understanding === "number" ? m.understanding / 2 : 0;
+    const checked = m.done ? 1 : 0;
+    // Half from checkbox, half from self-rating 0–2.
+    score += checked * 0.5 + understood * 0.5;
+  }
+  return Math.round((score / ms.length) * 100);
 }
 
 export function phaseModules(phase: PlanPhase): PlanModule[] {

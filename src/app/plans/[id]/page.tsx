@@ -10,6 +10,7 @@ type Module = {
   done: boolean;
   deadlineStart?: string;
   deadlineEnd?: string;
+  understanding?: 0 | 1 | 2;
 };
 
 type Stage = {
@@ -42,6 +43,18 @@ type PlanPayload = {
   today: { id: string; title: string; done: boolean; date: string; milestoneId?: string }[];
 };
 
+const UNDERSTANDING = [
+  { value: 0 as const, label: "0", hint: "Не поняла" },
+  { value: 1 as const, label: "1", hint: "Частично" },
+  { value: 2 as const, label: "2", hint: "Поняла" },
+];
+
+function fmtDeadline(end?: string, start?: string) {
+  if (end) return `до ${end}`;
+  if (start) return `с ${start}`;
+  return "без дедлайна";
+}
+
 export default function PlanDashboardPage() {
   const params = useParams();
   const router = useRouter();
@@ -50,21 +63,15 @@ export default function PlanDashboardPage() {
   const [data, setData] = useState<PlanPayload | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState({
-    title: "",
-    desiredResult: "",
-    why: "",
-    strategy: "",
-    deadline: "",
-  });
-  const [stageDraft, setStageDraft] = useState({ title: "", deadlineStart: "", deadlineEnd: "" });
+  const [stageDraft, setStageDraft] = useState({ title: "", deadlineEnd: "" });
   const [moduleDrafts, setModuleDrafts] = useState<
-    Record<string, { title: string; deadlineStart: string; deadlineEnd: string; taskDate: string }>
+    Record<string, { title: string; deadlineEnd: string }>
   >({});
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/work-plans?id=${encodeURIComponent(planId)}`);
+    const res = await fetch(`/api/work-plans?id=${encodeURIComponent(planId)}`, {
+      cache: "no-store",
+    });
     if (!res.ok) {
       setError("План не найден");
       setData(null);
@@ -72,13 +79,6 @@ export default function PlanDashboardPage() {
     }
     const json = await res.json();
     setData(json);
-    setDraft({
-      title: json.plan.title ?? "",
-      desiredResult: json.plan.desiredResult ?? "",
-      why: json.plan.why ?? "",
-      strategy: json.plan.strategy ?? "",
-      deadline: json.plan.deadline ?? "",
-    });
   }, [planId]);
 
   useEffect(() => {
@@ -101,14 +101,7 @@ export default function PlanDashboardPage() {
   }
 
   function modDraft(stageId: string) {
-    return (
-      moduleDrafts[stageId] ?? {
-        title: "",
-        deadlineStart: "",
-        deadlineEnd: "",
-        taskDate: new Date().toISOString().slice(0, 10),
-      }
-    );
+    return moduleDrafts[stageId] ?? { title: "", deadlineEnd: "" };
   }
 
   if (!data && !error) return <div className="text-[var(--ink-faint)]">…</div>;
@@ -123,32 +116,24 @@ export default function PlanDashboardPage() {
     );
   }
 
-  const { plan, owner, today } = data;
+  const { plan, owner } = data;
   const backHref =
     plan.ownerType === "goal" ? `/goals?id=${plan.ownerId}` : `/projects/${plan.ownerId}`;
+  const stages = [...(plan.phases ?? [])].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="fade-in mx-auto max-w-2xl space-y-10 pb-16">
+    <div className="fade-in mx-auto max-w-2xl space-y-8 pb-16">
       <div className="flex items-center justify-between gap-3">
         <Link href={backHref} className="text-[13px] font-medium text-[var(--ink-faint)]">
           ← {owner.title}
         </Link>
-        <button
-          type="button"
-          className="btn btn-soft"
-          disabled={busy}
-          onClick={() => setEditing((v) => !v)}
-        >
-          {editing ? "Готово" : "Изменить"}
-        </button>
+        <p className="text-[12px] text-[var(--ink-faint)]">{plan.progress}%</p>
       </div>
 
-      <header className="space-y-3">
+      <header className="space-y-2">
         <h1 className="font-display text-3xl tracking-[-0.03em]">{plan.title}</h1>
         <p className="text-[14px] text-[var(--ink-soft)]">
-          {owner.title}
-          {plan.deadline ? ` · до ${plan.deadline}` : ""}
-          {` · ${plan.progress}%`}
+          Этапный план · темы с дедлайнами · оценка понимания 0–2
         </p>
         <div className="meter">
           <span style={{ width: `${plan.progress}%` }} />
@@ -157,141 +142,54 @@ export default function PlanDashboardPage() {
 
       {error ? <p className="text-[13px] text-[var(--ink-soft)]">{error}</p> : null}
 
-      {editing ? (
-        <section className="card space-y-3 p-6">
-          {(
-            [
-              ["title", "Название"],
-              ["desiredResult", "Результат"],
-              ["why", "Зачем"],
-              ["strategy", "Как двигаюсь"],
-              ["deadline", "Дедлайн плана"],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key} className="block space-y-1">
-              <span className="text-[12px] text-[var(--ink-faint)]">{label}</span>
-              {key === "deadline" ? (
-                <input
-                  type="date"
-                  value={draft[key]}
-                  onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                />
-              ) : key === "title" ? (
-                <input
-                  value={draft[key]}
-                  onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                />
-              ) : (
-                <textarea
-                  rows={2}
-                  value={draft[key]}
-                  onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
-                />
-              )}
-            </label>
-          ))}
-          <button
-            type="button"
-            className="btn btn-ink"
-            disabled={busy}
-            onClick={async () => {
-              await post({ action: "update", id: plan.id, ...draft });
-              setEditing(false);
-            }}
-          >
-            Сохранить
-          </button>
-        </section>
-      ) : (
-        <section className="space-y-3">
-          {plan.desiredResult ? (
-            <div>
-              <p className="text-[12px] text-[var(--ink-faint)]">Результат</p>
-              <p className="text-[15px]">{plan.desiredResult}</p>
-            </div>
-          ) : null}
-          {plan.why ? (
-            <div>
-              <p className="text-[12px] text-[var(--ink-faint)]">Зачем</p>
-              <p className="text-[15px]">{plan.why}</p>
-            </div>
-          ) : null}
-          {plan.strategy ? (
-            <div>
-              <p className="text-[12px] text-[var(--ink-faint)]">Как двигаюсь</p>
-              <p className="text-[15px]">{plan.strategy}</p>
-            </div>
-          ) : null}
-        </section>
-      )}
+      <p className="text-[12px] text-[var(--ink-faint)]">
+        Шкала: <strong>0</strong> не поняла · <strong>1</strong> частично · <strong>2</strong> поняла
+      </p>
 
-      <section className="space-y-5">
-        <p className="text-[12px] font-medium text-[var(--ink-faint)]">Этапы</p>
-
-        {plan.phases.map((stage) => {
+      <section className="space-y-8">
+        {stages.map((stage, stageIndex) => {
           const d = modDraft(stage.id);
-          const modules = stage.modules ?? [];
+          const modules = [...(stage.modules ?? [])].sort((a, b) => a.order - b.order);
           return (
-            <div key={stage.id} className="card space-y-4 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="font-semibold">{stage.title}</p>
-                  <p className="text-[12px] text-[var(--ink-faint)]">
-                    {[
-                      stage.deadlineStart && stage.deadlineEnd
-                        ? `${stage.deadlineStart} — ${stage.deadlineEnd}`
-                        : stage.deadlineEnd
-                          ? `до ${stage.deadlineEnd}`
-                          : stage.deadlineStart
-                            ? `с ${stage.deadlineStart}`
-                            : null,
-                      `${stage.progress ?? 0}%`,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
+            <article key={stage.id} className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[var(--line)] pb-3">
+                <div className="min-w-0 space-y-1">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ink-faint)]">
+                    Этап {stageIndex + 1}
                   </p>
-                </div>
-                {stage.status !== "active" ? (
-                  <button
-                    type="button"
-                    className="btn btn-soft text-[12px]"
-                    disabled={busy}
-                    onClick={() =>
-                      post({ action: "activatePhase", planId: plan.id, phaseId: stage.id })
-                    }
-                  >
-                    Сделать текущим
-                  </button>
-                ) : (
-                  <span className="text-[12px] text-[var(--ink-faint)]">текущий</span>
-                )}
-              </div>
-
-              <div className="meter">
-                <span style={{ width: `${stage.progress ?? 0}%` }} />
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className="space-y-1 text-[12px] text-[var(--ink-faint)]">
-                  Начало этапа
                   <input
-                    type="date"
-                    value={stage.deadlineStart ?? ""}
-                    onChange={(e) =>
+                    className="w-full border-0 bg-transparent p-0 text-[20px] font-semibold tracking-[-0.02em] outline-none"
+                    value={stage.title}
+                    disabled={busy}
+                    onChange={(e) => {
+                      const title = e.target.value;
+                      setData({
+                        ...data,
+                        plan: {
+                          ...plan,
+                          phases: plan.phases.map((p) =>
+                            p.id === stage.id ? { ...p, title } : p
+                          ),
+                        },
+                      });
+                    }}
+                    onBlur={(e) =>
                       post({
                         action: "updatePhase",
                         planId: plan.id,
                         phaseId: stage.id,
-                        deadlineStart: e.target.value,
+                        title: e.target.value.trim() || stage.title,
                       })
                     }
                   />
-                </label>
-                <label className="space-y-1 text-[12px] text-[var(--ink-faint)]">
-                  Конец этапа
+                </div>
+                <label className="flex items-center gap-2 text-[12px] text-[var(--ink-faint)]">
+                  Дедлайн этапа
                   <input
                     type="date"
+                    className="w-auto"
                     value={stage.deadlineEnd ?? ""}
+                    disabled={busy}
                     onChange={(e) =>
                       post({
                         action: "updatePhase",
@@ -304,15 +202,19 @@ export default function PlanDashboardPage() {
                 </label>
               </div>
 
-              <div className="space-y-3">
-                <p className="text-[12px] text-[var(--ink-faint)]">Модули</p>
-                {modules.map((m) => (
-                  <div key={m.id} className="space-y-2 rounded-[14px] bg-[var(--bg)] p-3">
-                    <div className="flex items-center gap-2">
+              <ol className="space-y-3">
+                {modules.map((m, i) => (
+                  <li
+                    key={m.id}
+                    className="grid gap-3 rounded-[16px] bg-[var(--bg-panel)] px-3 py-3 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 text-[13px] text-[var(--ink-faint)]">{i + 1}.</span>
                       <button
                         type="button"
                         className={`check ${m.done ? "check-on" : "check-off"}`}
                         disabled={busy}
+                        aria-label={m.done ? "Снять отметку" : "Отметить"}
                         onClick={() =>
                           post({
                             action: "toggleModule",
@@ -325,25 +227,90 @@ export default function PlanDashboardPage() {
                       >
                         {m.done ? "✓" : ""}
                       </button>
-                      <span className="min-w-0 flex-1 text-[14px] font-medium">{m.title}</span>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
+
+                    <div className="min-w-0 space-y-2">
                       <input
-                        type="date"
-                        value={m.deadlineStart ?? ""}
-                        onChange={(e) =>
+                        className="w-full border-0 bg-transparent p-0 text-[15px] font-medium outline-none"
+                        value={m.title}
+                        disabled={busy}
+                        onChange={(e) => {
+                          const title = e.target.value;
+                          setData({
+                            ...data,
+                            plan: {
+                              ...plan,
+                              phases: plan.phases.map((p) =>
+                                p.id === stage.id
+                                  ? {
+                                      ...p,
+                                      modules: p.modules.map((x) =>
+                                        x.id === m.id ? { ...x, title } : x
+                                      ),
+                                    }
+                                  : p
+                              ),
+                            },
+                          });
+                        }}
+                        onBlur={(e) =>
                           post({
                             action: "updateModule",
                             planId: plan.id,
                             phaseId: stage.id,
                             moduleId: m.id,
-                            deadlineStart: e.target.value,
+                            title: e.target.value.trim() || m.title,
                           })
                         }
                       />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] text-[var(--ink-faint)]">Поняла</span>
+                        {UNDERSTANDING.map((opt) => {
+                          const active = m.understanding === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              title={opt.hint}
+                              disabled={busy}
+                              className={`min-w-9 rounded-[10px] px-2.5 py-1 text-[13px] font-semibold ${
+                                active
+                                  ? "bg-[var(--ink)] text-[var(--bg)]"
+                                  : "bg-[var(--bg)] text-[var(--ink-soft)]"
+                              }`}
+                              onClick={() =>
+                                post({
+                                  action: "updateModule",
+                                  planId: plan.id,
+                                  phaseId: stage.id,
+                                  moduleId: m.id,
+                                  understanding: opt.value,
+                                })
+                              }
+                            >
+                              {opt.label}
+                            </button>
+                          );
+                        })}
+                        <span className="text-[11px] text-[var(--ink-faint)]">
+                          {m.understanding === 0
+                            ? "не поняла"
+                            : m.understanding === 1
+                              ? "частично"
+                              : m.understanding === 2
+                                ? "поняла"
+                                : "ещё не оценила"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <label className="flex flex-col gap-1 text-[11px] text-[var(--ink-faint)] sm:items-end">
+                      Дедлайн
                       <input
                         type="date"
+                        className="w-auto"
                         value={m.deadlineEnd ?? ""}
+                        disabled={busy}
                         onChange={(e) =>
                           post({
                             action: "updateModule",
@@ -354,122 +321,81 @@ export default function PlanDashboardPage() {
                           })
                         }
                       />
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <input
-                        type="date"
-                        value={d.taskDate}
-                        onChange={(e) =>
-                          setModuleDrafts({
-                            ...moduleDrafts,
-                            [stage.id]: { ...d, taskDate: e.target.value },
-                          })
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-soft text-[12px]"
-                        disabled={busy}
-                        onClick={() =>
-                          post({
-                            action: "addTaskFromModule",
-                            planId: plan.id,
-                            phaseId: stage.id,
-                            moduleId: m.id,
-                            date: d.taskDate,
-                            title: m.title,
-                          })
-                        }
-                      >
-                        В день
-                      </button>
-                    </div>
-                  </div>
+                      <span className="text-[11px]">{fmtDeadline(m.deadlineEnd, m.deadlineStart)}</span>
+                    </label>
+                  </li>
                 ))}
+              </ol>
 
-                <div className="space-y-2">
+              <div className="flex flex-wrap items-end gap-2">
+                <input
+                  className="min-w-[160px] flex-1"
+                  placeholder="Тема / термин (например: Python)"
+                  value={d.title}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setModuleDrafts({
+                      ...moduleDrafts,
+                      [stage.id]: { ...d, title: e.target.value },
+                    })
+                  }
+                />
+                <label className="flex flex-col gap-1 text-[11px] text-[var(--ink-faint)]">
+                  Дедлайн
                   <input
-                    placeholder="Название модуля"
-                    value={d.title}
+                    type="date"
+                    value={d.deadlineEnd}
+                    disabled={busy}
                     onChange={(e) =>
                       setModuleDrafts({
                         ...moduleDrafts,
-                        [stage.id]: { ...d, title: e.target.value },
+                        [stage.id]: { ...d, deadlineEnd: e.target.value },
                       })
                     }
                   />
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <input
-                      type="date"
-                      value={d.deadlineStart}
-                      onChange={(e) =>
-                        setModuleDrafts({
-                          ...moduleDrafts,
-                          [stage.id]: { ...d, deadlineStart: e.target.value },
-                        })
-                      }
-                    />
-                    <input
-                      type="date"
-                      value={d.deadlineEnd}
-                      onChange={(e) =>
-                        setModuleDrafts({
-                          ...moduleDrafts,
-                          [stage.id]: { ...d, deadlineEnd: e.target.value },
-                        })
-                      }
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-ink"
-                    disabled={busy || !d.title.trim()}
-                    onClick={() => {
-                      post({
-                        action: "addModule",
-                        planId: plan.id,
-                        phaseId: stage.id,
-                        title: d.title.trim(),
-                        deadlineStart: d.deadlineStart || undefined,
-                        deadlineEnd: d.deadlineEnd || undefined,
-                      });
-                      setModuleDrafts({
-                        ...moduleDrafts,
-                        [stage.id]: {
-                          title: "",
-                          deadlineStart: "",
-                          deadlineEnd: "",
-                          taskDate: d.taskDate,
-                        },
-                      });
-                    }}
-                  >
-                    + Модуль
-                  </button>
-                </div>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-ink"
+                  disabled={busy || !d.title.trim()}
+                  onClick={() => {
+                    post({
+                      action: "addModule",
+                      planId: plan.id,
+                      phaseId: stage.id,
+                      title: d.title.trim(),
+                      deadlineEnd: d.deadlineEnd || undefined,
+                    });
+                    setModuleDrafts({
+                      ...moduleDrafts,
+                      [stage.id]: { title: "", deadlineEnd: "" },
+                    });
+                  }}
+                >
+                  + Тема
+                </button>
               </div>
-            </div>
+            </article>
           );
         })}
 
-        <div className="card space-y-3 p-4">
+        <div className="flex flex-wrap items-end gap-2 border-t border-[var(--line)] pt-6">
           <input
-            placeholder="Название этапа"
+            className="min-w-[160px] flex-1"
+            placeholder="Новый этап (например: Фундамент)"
             value={stageDraft.title}
+            disabled={busy}
             onChange={(e) => setStageDraft({ ...stageDraft, title: e.target.value })}
           />
-          <div className="grid gap-2 sm:grid-cols-2">
-            <input
-              type="date"
-              value={stageDraft.deadlineStart}
-              onChange={(e) => setStageDraft({ ...stageDraft, deadlineStart: e.target.value })}
-            />
+          <label className="flex flex-col gap-1 text-[11px] text-[var(--ink-faint)]">
+            Дедлайн этапа
             <input
               type="date"
               value={stageDraft.deadlineEnd}
+              disabled={busy}
               onChange={(e) => setStageDraft({ ...stageDraft, deadlineEnd: e.target.value })}
             />
-          </div>
+          </label>
           <button
             type="button"
             className="btn btn-ink"
@@ -479,35 +405,15 @@ export default function PlanDashboardPage() {
                 action: "addPhase",
                 planId: plan.id,
                 title: stageDraft.title.trim(),
-                deadlineStart: stageDraft.deadlineStart || undefined,
                 deadlineEnd: stageDraft.deadlineEnd || undefined,
               });
-              setStageDraft({ title: "", deadlineStart: "", deadlineEnd: "" });
+              setStageDraft({ title: "", deadlineEnd: "" });
             }}
           >
             + Этап
           </button>
         </div>
       </section>
-
-      {today.length > 0 ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-[12px] font-medium text-[var(--ink-faint)]">Сегодня</p>
-            <Link href="/today" className="text-[13px] font-medium text-[var(--ink-faint)]">
-              Сегодня →
-            </Link>
-          </div>
-          <ul className="space-y-2">
-            {today.map((t) => (
-              <li key={t.id} className="text-[15px]">
-                {t.done ? "✓ " : "○ "}
-                {t.title}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
     </div>
   );
 }
