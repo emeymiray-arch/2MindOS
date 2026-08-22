@@ -1,4 +1,5 @@
 import { buildEngineeringPhase1Plan, ENGINEERING_PHASE1_META } from "@/lib/curricula/engineering-phase1";
+import { buildHealthRecoveryPlan, HEALTH_RECOVERY_META } from "@/lib/curricula/health-recovery";
 import { NextResponse } from "next/server";
 import { id, now, todayKey } from "@/lib/id";
 import {
@@ -252,22 +253,87 @@ export async function POST(request: Request) {
       s.workPlans.push(plan);
       goal.workPlanId = plan.id;
       goal.title = "Engineering Programming — Фаза 1";
-      goal.deadline = ENGINEERING_PHASE1_META.end;      goal.bucket = "foundation";
+      goal.deadline = ENGINEERING_PHASE1_META.end;
+      goal.bucket = "foundation";
       goal.priority = "critical";
       if (career?.id) goal.lifeAreaId = career.id;
       syncWorkPlanProgress(s, plan);
     });
 
-    const goal = store.goals.find(
-      (g) => g.title === "Engineering Programming — Фаза 1" || g.workPlanId
-    );
-    const planId =
-      store.goals.find((g) => g.title === "Engineering Programming — Фаза 1")?.workPlanId ??
-      goal?.workPlanId;
+    const engGoal = store.goals.find((g) => g.title === "Engineering Programming — Фаза 1");
+    const engPlanId = engGoal?.workPlanId;
+    if (!engPlanId) return NextResponse.json({ error: "install failed" }, { status: 500 });
+    return NextResponse.json({
+      ...enrich(store, engPlanId, lite),
+      goalId: engGoal.id,
+    });
+  }
+
+  if (action === "installHealthRecovery") {
+    const store = await updateStore((s) => {
+      if (!s.workPlans) s.workPlans = [];
+      const health = s.spheres.find((x) => x.slug === "health");
+      let goal = s.goals.find(
+        (g) =>
+          g.title === "Общее восстановление здоровья" ||
+          /восстановлен.*здоров/i.test(g.title) ||
+          /health recovery/i.test(g.title)
+      );
+      const t = now();
+      if (!goal) {
+        const nodeId = id();
+        s.nodes.unshift({
+          id: nodeId,
+          kind: "goal",
+          title: "Общее восстановление здоровья",
+          metadata: {},
+          salience: 0.95,
+          createdAt: t,
+          updatedAt: t,
+          sphereId: health?.id,
+        });
+        goal = {
+          id: id(),
+          nodeId,
+          title: "Общее восстановление здоровья",
+          stages: [],
+          progress: 0,
+          active: true,
+          archived: false,
+          createdAt: t,
+          lifeAreaId: health?.id,
+          priority: "critical",
+          status: "active",
+          bucket: "foundation",
+          deadline: HEALTH_RECOVERY_META.end,
+        };
+        s.goals.unshift(goal);
+      }
+
+      if (goal.workPlanId) {
+        s.workPlans = s.workPlans.filter((p) => p.id !== goal!.workPlanId);
+      }
+      const plan = buildHealthRecoveryPlan({
+        ownerType: "goal",
+        ownerId: goal.id,
+      });
+      plan.deadline = HEALTH_RECOVERY_META.end;
+      s.workPlans.push(plan);
+      goal.workPlanId = plan.id;
+      goal.title = "Общее восстановление здоровья";
+      goal.deadline = HEALTH_RECOVERY_META.end;
+      goal.bucket = "foundation";
+      goal.priority = "critical";
+      if (health?.id) goal.lifeAreaId = health.id;
+      syncWorkPlanProgress(s, plan);
+    });
+
+    const healthGoal = store.goals.find((g) => g.title === "Общее восстановление здоровья");
+    const planId = healthGoal?.workPlanId;
     if (!planId) return NextResponse.json({ error: "install failed" }, { status: 500 });
     return NextResponse.json({
       ...enrich(store, planId, lite),
-      goalId: store.goals.find((g) => g.workPlanId === planId)?.id,
+      goalId: healthGoal.id,
     });
   }
 
