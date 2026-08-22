@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PlanScheme } from "@/components/plan/PlanScheme";
@@ -25,11 +24,11 @@ type GoalView = Goal & {
 };
 
 const STORAGE_COLORS = {
-  blue: "#0A84FF",
-  green: "#30D158",
-  orange: "#FF9F0A",
-  red: "#FF453A",
-  gray: "#8E8E93",
+  blue: "#6B8CAE",
+  green: "#6F8F78",
+  orange: "#B8956A",
+  red: "#A87272",
+  gray: "#A0A0A0",
 };
 
 const PHASES = [
@@ -38,45 +37,36 @@ const PHASES = [
   { value: "later", label: "Фаза 3 · 5-6 месяц" },
 ] as const;
 
+/** Muted sphere accents — no neon. Rank keeps same colors adjacent. */
 function colorForArea(areaName?: string) {
   const n = (areaName ?? "").toLowerCase();
-  if (
-    /здоров|сон|спорт|тело|питани|медиц|энерги|wellness|health/.test(n)
-  ) {
-    return {
-      border: "#00E676",
-      soft: "rgba(0, 230, 118, 0.2)",
-    };
+  if (/здоров|сон|спорт|тело|питани|медиц|энерги|wellness|health/.test(n)) {
+    return { key: 1, accent: "#5F8F72", soft: "rgba(95, 143, 114, 0.08)" };
   }
-  if (
-    /само|развит|обуч|англий|коран|чтен|книг|навык|education|skill/.test(n)
-  ) {
-    return {
-      border: "#2E8BFF",
-      soft: "rgba(46, 139, 255, 0.2)",
-    };
+  if (/само|развит|обуч|англий|коран|чтен|книг|навык|education|skill/.test(n)) {
+    return { key: 2, accent: "#6B8CAE", soft: "rgba(107, 140, 174, 0.08)" };
   }
   if (/стиль|эстет|дом|гардероб|beauty|style/.test(n)) {
-    return {
-      border: "#FFB020",
-      soft: "rgba(255, 176, 32, 0.22)",
-    };
+    return { key: 3, accent: "#B8956A", soft: "rgba(184, 149, 106, 0.08)" };
   }
   if (/работ|бизнес|проект|карьер|деньг|finance|work/.test(n)) {
-    return {
-      border: "#D96BFF",
-      soft: "rgba(217, 107, 255, 0.2)",
-    };
+    return { key: 4, accent: "#8F7A9E", soft: "rgba(143, 122, 158, 0.08)" };
   }
-  return {
-    border: "#FF5A5F",
-    soft: "rgba(255, 90, 95, 0.18)",
-  };
+  return { key: 5, accent: "#A87272", soft: "rgba(168, 114, 114, 0.08)" };
 }
 
 function phaseLabel(bucket?: string) {
   const found = PHASES.find((phase) => phase.value === (bucket ?? "development"));
   return found?.label ?? "Фаза 2 · 3-4 месяц";
+}
+
+function sortByColor(items: GoalView[]) {
+  return [...items].sort((a, b) => {
+    const ca = colorForArea(a.area?.name);
+    const cb = colorForArea(b.area?.name);
+    if (ca.key !== cb.key) return ca.key - cb.key;
+    return a.title.localeCompare(b.title, "ru");
+  });
 }
 
 function buildGoalSegments(goal: GoalView) {
@@ -90,12 +80,48 @@ function buildGoalSegments(goal: GoalView) {
       new Date(stage.deadlineEnd as string).getTime() < Date.now()
   ).length;
   const planned = Math.max(stages.length - done - active - overdue, 0);
+  const total = done + active + overdue + planned;
+  if (total === 0) {
+    const accent = colorForArea(goal.area?.name).accent;
+    const pct = Math.max(0, Math.min(100, goal.progress ?? 0));
+    return [
+      { label: "Прогресс", value: pct, color: accent },
+      { label: "Остаток", value: Math.max(0, 100 - pct), color: STORAGE_COLORS.gray },
+    ];
+  }
   return [
     { label: "Готово", value: done, color: STORAGE_COLORS.blue },
     { label: "Активно", value: active, color: STORAGE_COLORS.green },
     { label: "Просрочено", value: overdue, color: STORAGE_COLORS.red },
     { label: "План", value: planned, color: STORAGE_COLORS.gray },
   ];
+}
+
+function GoalAnalyticsBar({ goal }: { goal: GoalView }) {
+  const segments = buildGoalSegments(goal);
+  const total = Math.max(
+    1,
+    segments.reduce((sum, s) => sum + Math.max(0, s.value), 0)
+  );
+  return (
+    <div
+      className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full"
+      style={{ background: "var(--line)" }}
+      aria-hidden
+    >
+      {segments.map((s) => {
+        const w = (Math.max(0, s.value) / total) * 100;
+        if (w <= 0) return null;
+        return (
+          <span
+            key={s.label}
+            style={{ width: `${w}%`, background: s.color }}
+            className="h-full"
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 export default function GoalsClient() {
@@ -180,35 +206,36 @@ export default function GoalsClient() {
   }, [goals]);
 
   function Bucket({ label, items }: { label: string; items: GoalView[] }) {
-    if (items.length === 0) return null;
+    const sorted = sortByColor(items);
+    if (sorted.length === 0) return null;
     return (
       <section className="space-y-3">
         <p className="text-[12px] font-medium text-[var(--ink-faint)]">{label}</p>
         <div className="space-y-2">
-          {items.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              className="card block w-full space-y-1 p-2.5 text-left"
-              style={{
-                borderColor: colorForArea(g.area?.name).border,
-                background: `linear-gradient(180deg, ${colorForArea(g.area?.name).soft}, transparent)`,
-              }}
-              onClick={() => setSelected(g)}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[14px] font-semibold">{g.title}</span>
-                <span className="tabular-nums text-[12px] text-[var(--ink-soft)]">{g.progress}%</span>
-              </div>
-              <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--ink-faint)]">
-                <span>Lv.{Math.max(1, Math.round(g.progress / 10))}</span>
-                <span>{g.currentPhase ? `Этап: ${g.currentPhase.title}` : "Без этапа"}</span>
-              </div>
-              <div className="meter mt-1.5">
-                <span style={{ width: `${g.progress}%` }} />
-              </div>
-            </button>
-          ))}
+          {sorted.map((g) => {
+            const tone = colorForArea(g.area?.name);
+            return (
+              <button
+                key={g.id}
+                type="button"
+                className="card block w-full p-3 text-left"
+                style={{
+                  borderLeftWidth: 3,
+                  borderLeftColor: tone.accent,
+                  background: tone.soft,
+                }}
+                onClick={() => setSelected(g)}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-[14px] font-semibold">{g.title}</span>
+                  <span className="tabular-nums text-[12px] text-[var(--ink-soft)]">
+                    {g.progress}%
+                  </span>
+                </div>
+                <GoalAnalyticsBar goal={g} />
+              </button>
+            );
+          })}
         </div>
       </section>
     );
@@ -234,10 +261,6 @@ export default function GoalsClient() {
           {` · ${selected.progress}%`}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className="inline-block h-3 w-12 rounded-full"
-            style={{ background: colorForArea(selected.area?.name).border }}
-          />
           <select
             value={selected.bucket ?? "development"}
             onChange={(e) => post({ action: "update", id: selected.id, bucket: e.target.value })}
@@ -304,8 +327,7 @@ export default function GoalsClient() {
           </div>
         </header>
         <StorageAnalytics
-          title="Аналитика цели"
-          subtitle={`${(selected.stages ?? []).filter((s) => !s.archived).length} этапов`}
+          title="Аналитика"
           segments={buildGoalSegments(selected)}
           centerValue={`${selected.progress}%`}
           centerLabel="прогресс"
