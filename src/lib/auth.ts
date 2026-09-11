@@ -40,17 +40,17 @@ export function isLocalHost(request: NextRequest | Request): boolean {
   );
 }
 
-/** True when API is open on localhost without a configured secret (dev only). */
+/** True when API is open without a configured secret (local or Vercel). */
 export function isOpenLocalDev(request: NextRequest | Request): boolean {
   if (apiSecret()) return false;
-  if (process.env.VERCEL === "1") return false;
-  return process.env.NODE_ENV === "development" && isLocalHost(request);
+  // No secret → open access. Vercel Authentication (SSO) still gates the host.
+  void request;
+  return true;
 }
 
+/** App-level password only when MINDOS_API_SECRET is set. */
 export function authRequired(): boolean {
-  if (apiSecret()) return true;
-  if (process.env.VERCEL === "1") return true;
-  return false;
+  return Boolean(apiSecret());
 }
 
 export function verifySecret(candidate: string): boolean {
@@ -75,8 +75,8 @@ export function verifyBearer(request: Request): boolean {
 }
 
 export function isAuthenticated(request: Request): boolean {
+  if (!authRequired()) return true;
   if (isOpenLocalDev(request)) return true;
-  if (!authRequired()) return isLocalHost(request);
   return verifyBearer(request) || verifyCookieValue(getCookie(request, AUTH_COOKIE));
 }
 

@@ -23,10 +23,10 @@ function cookieOptions(secure: boolean) {
 
 export async function GET(request: Request) {
   return NextResponse.json({
-    configured: Boolean(apiSecret()) || process.env.VERCEL === "1",
+    configured: true,
     openLocal: isOpenLocalDev(request),
     authenticated: isAuthenticated(request),
-    needsSetup: process.env.VERCEL === "1" && !apiSecret(),
+    needsSetup: false,
     authRequired: authRequired(),
   });
 }
@@ -47,12 +47,6 @@ export async function POST(request: Request) {
 
   const secret = apiSecret();
   if (!secret) {
-    if (process.env.VERCEL === "1") {
-      return NextResponse.json(
-        { error: "MINDOS_API_SECRET не задан на сервере" },
-        { status: 503 }
-      );
-    }
     return NextResponse.json({ ok: true, mode: "no-secret" });
   }
 

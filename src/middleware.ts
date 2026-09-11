@@ -2,18 +2,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { AUTH_COOKIE, hashSecretEdge, apiSecret } from "@/lib/auth";
 
-function isLocal(host: string) {
-  return host.startsWith("localhost:") || host.startsWith("127.0.0.1:");
-}
-
 async function verifyRequest(request: NextRequest): Promise<boolean> {
   const secret = apiSecret();
   if (!secret) {
-    if (process.env.VERCEL === "1") return false;
-    if (process.env.NODE_ENV === "development" && isLocal(request.headers.get("host") ?? "")) {
-      return true;
-    }
-    return isLocal(request.headers.get("host") ?? "");
+    // Open API when no app secret — host may still be gated by Vercel SSO.
+    return true;
   }
 
   const expected = await hashSecretEdge(secret);
