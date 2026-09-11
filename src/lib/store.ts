@@ -22,6 +22,8 @@ const BACKUP_EVERY_MS = 15 * 60 * 1000;
 /** New dated folder in exports/ — once per day */
 const DATED_EXPORT_EVERY_MS = 24 * 60 * 60 * 1000;
 const SERVERLESS_WRITE_ATTEMPTS = 5;
+/** Reuse pulled snapshot inside a warm serverless isolate. */
+const SERVERLESS_CACHE_MS = 20_000;
 const VAULT_FOLDER_NAME = "2MindOS";
 
 /** On Vercel the filesystem is ephemeral — Supabase snapshot is source of truth. */
@@ -48,6 +50,10 @@ declare global {
   var __mindosCloudReadable: boolean | undefined;
   // eslint-disable-next-line no-var
   var __mindosRepoRoot: string | undefined;
+  // eslint-disable-next-line no-var
+  var __mindosStoreLoadedAt: number | undefined;
+  // eslint-disable-next-line no-var
+  var __mindosLoadPromise: Promise<LifeStore> | undefined;
 }
 
 export class StoreUnavailableError extends Error {
@@ -376,16 +382,30 @@ async function ensureLoaded(): Promise<LifeStore> {
     if (!isSupabaseConfigured()) {
       throw new StoreUnavailableError("cloud not configured");
     }
-    const pulled = await pullCloudResult();
-    global.__mindosCloudReadable = pulled.ok;
-    if (!pulled.ok) {
-      if (global.__mindosStore) return global.__mindosStore;
-      throw new StoreUnavailableError(pulled.error || "cloud unavailable");
+    const cached = global.__mindosStore;
+    const loadedAt = global.__mindosStoreLoadedAt ?? 0;
+    if (cached && Date.now() - loadedAt < SERVERLESS_CACHE_MS) {
+      return cached;
     }
-    global.__mindosCloudReady = true;
-    const store = pulled.store ? migrateStore(pulled.store) : emptyBrain();
-    global.__mindosStore = store;
-    return store;
+    if (global.__mindosLoadPromise) return global.__mindosLoadPromise;
+
+    global.__mindosLoadPromise = (async () => {
+      const pulled = await pullCloudResult();
+      global.__mindosCloudReadable = pulled.ok;
+      if (!pulled.ok) {
+        if (global.__mindosStore) return global.__mindosStore;
+        throw new StoreUnavailableError(pulled.error || "cloud unavailable");
+      }
+      global.__mindosCloudReady = true;
+      const store = pulled.store ? migrateStore(pulled.store) : emptyBrain();
+      global.__mindosStore = store;
+      global.__mindosStoreLoadedAt = Date.now();
+      return store;
+    })().finally(() => {
+      global.__mindosLoadPromise = undefined;
+    });
+
+    return global.__mindosLoadPromise;
   }
 
   if (global.__mindosStore) {
@@ -470,6 +490,7 @@ async function updateStoreServerless(
     const pushed = await pushCloudCas(draft, expectedRev);
     if (pushed.ok) {
       global.__mindosStore = draft;
+      global.__mindosStoreLoadedAt = Date.now();
       global.__mindosCloudReady = true;
       global.__mindosCloudReadable = true;
       return draft;

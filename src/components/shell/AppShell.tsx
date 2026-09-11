@@ -36,21 +36,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const wide = WIDE.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   useEffect(() => {
-    fetch("/api/state", { credentials: "include" })
-      .then((r) => r.json())
-      .then((s) => {
-        const t = s.settings?.theme === "dark" ? "dark" : "light";
-        persistTheme(t);
-        document.documentElement.setAttribute(
-          "data-compact",
-          s.settings?.compactMode ? "true" : "false"
-        );
-        document.documentElement.setAttribute(
-          "data-reduce-motion",
-          s.settings?.reduceMotion ? "true" : "false"
-        );
-      })
-      .catch(() => undefined);
+    try {
+      const saved = localStorage.getItem("mindos-theme");
+      if (saved === "dark" || saved === "light") persistTheme(saved);
+    } catch {
+      /* ignore */
+    }
+    // Theme/settings from server can wait — don't compete with page data.
+    const t = window.setTimeout(() => {
+      fetch("/api/state", { credentials: "include" })
+        .then((r) => r.json())
+        .then((s) => {
+          const theme = s.settings?.theme === "dark" ? "dark" : "light";
+          persistTheme(theme);
+          document.documentElement.setAttribute(
+            "data-compact",
+            s.settings?.compactMode ? "true" : "false"
+          );
+          document.documentElement.setAttribute(
+            "data-reduce-motion",
+            s.settings?.reduceMotion ? "true" : "false"
+          );
+        })
+        .catch(() => undefined);
+    }, 1200);
+    return () => window.clearTimeout(t);
   }, []);
 
   function active(href: string) {

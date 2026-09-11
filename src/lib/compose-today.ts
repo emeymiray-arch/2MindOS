@@ -363,6 +363,14 @@ export async function ensureTodayComposed(
   ) => Promise<LifeStore>,
   date: string
 ): Promise<{ store: LifeStore; composed: ComposeResult | null }> {
+  const current = await getStoreFn();
+  // Dry-run on a clone — avoid cloud write (pull+CAS) when compose is a no-op.
+  const probe = JSON.parse(JSON.stringify(current)) as LifeStore;
+  const preview = composeToday(probe, date);
+  if (preview.added === 0 && preview.updated === 0) {
+    return { store: current, composed: null };
+  }
+
   let applied: ComposeResult = { added: 0, updated: 0, sources: [] };
   const updated = await updateStoreFn((s) => {
     applied = composeToday(s, date);

@@ -55,7 +55,10 @@ async function recoverIfNeeded() {
 
 export function DataGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    void recoverIfNeeded();
+    // Defer recovery so page APIs (/api/os etc.) win the first cloud pull.
+    const boot = window.setTimeout(() => {
+      void recoverIfNeeded();
+    }, 2500);
 
     const onSaved = () => {
       void mirrorToBrowser();
@@ -72,6 +75,7 @@ export function DataGuard({ children }: { children: React.ReactNode }) {
     document.addEventListener("visibilitychange", onVis);
 
     return () => {
+      window.clearTimeout(boot);
       window.removeEventListener("mindos:saved", onSaved);
       document.removeEventListener("visibilitychange", onVis);
       window.clearInterval(tick);

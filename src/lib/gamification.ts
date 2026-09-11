@@ -226,7 +226,8 @@ export async function syncQuestStateIfChanged(
 ): Promise<LifeStore> {
   const store = await getStoreFn();
   const before = questStateFingerprint(store, date);
-  refreshQuestProgress(store, date);
-  if (questStateFingerprint(store, date) === before) return store;
+  const probe = JSON.parse(JSON.stringify(store)) as LifeStore;
+  refreshQuestProgress(probe, date);
+  if (questStateFingerprint(probe, date) === before) return store;
   return updateStoreFn((s) => refreshQuestProgress(s, date));
 }

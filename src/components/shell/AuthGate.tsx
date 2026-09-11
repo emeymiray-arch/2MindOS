@@ -10,15 +10,24 @@ type AuthStatus = {
 };
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const [status, setStatus] = useState<AuthStatus | null>(null);
+  // Optimistic open — avoid blocking the whole app on /api/auth.
+  // If the server actually requires login, we swap to the form below.
+  const [status, setStatus] = useState<AuthStatus | null>({
+    configured: true,
+    openLocal: true,
+    authenticated: true,
+    needsSetup: false,
+  });
   const [secret, setSecret] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [checked, setChecked] = useState(false);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/auth", { cache: "no-store", credentials: "include" });
     const data = (await res.json()) as AuthStatus;
     setStatus(data);
+    setChecked(true);
     return data;
   }, []);
 
@@ -58,6 +67,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (status.authenticated || status.openLocal) {
+    return children;
+  }
+
+  // Don't flash the login form until we've heard from the server.
+  if (!checked) {
     return children;
   }
 
