@@ -210,7 +210,7 @@ export default function HomePage() {
         ) : (
           <div className="surface mt-3 px-4">
             {data.tasks.habits.map((t) => (
-              <TaskRow key={t.id} task={t} onToggle={() => void load()} />
+              <TaskRow key={t.id} task={t} onChanged={() => void load()} />
             ))}
           </div>
         )}
@@ -297,7 +297,7 @@ export default function HomePage() {
                 <p className="mb-2 text-[12px] font-bold text-[var(--behind)]">Просрочено</p>
                 <div className="surface px-4">
                   {data.tasks.overdue.map((t) => (
-                    <TaskRow key={t.id} task={t} onToggle={() => void load()} />
+                    <TaskRow key={t.id} task={t} onChanged={() => void load()} />
                   ))}
                 </div>
               </div>
@@ -310,10 +310,10 @@ export default function HomePage() {
                 </p>
               ) : null}
               {stageTasks.map((t) => (
-                <TaskRow key={t.id} task={t} onToggle={() => void load()} />
+                <TaskRow key={t.id} task={t} onChanged={() => void load()} />
               ))}
               {data.tasks.personal.map((t) => (
-                <TaskRow key={t.id} task={t} onToggle={() => void load()} />
+                <TaskRow key={t.id} task={t} onChanged={() => void load()} />
               ))}
               <form onSubmit={addPersonal} className="flex gap-2 py-3">
                 <input

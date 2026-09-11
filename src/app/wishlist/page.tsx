@@ -91,6 +91,28 @@ export default function WishlistPage() {
     await load();
   }
 
+  async function removeItem(blockId: string, itemId: string, title: string) {
+    if (!window.confirm(`Удалить «${title}»?`)) return;
+    const res = await apiPost("/api/wishes", { action: "deleteItem", blockId, itemId });
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось удалить", "warn");
+      return;
+    }
+    toast("Удалила", "ok");
+    await load();
+  }
+
+  async function removeBlock(blockId: string, hashtag: string) {
+    if (!window.confirm(`Удалить категорию #${hashtag} и все её пункты?`)) return;
+    const res = await apiPost("/api/wishes", { action: "deleteBlock", id: blockId });
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось удалить", "warn");
+      return;
+    }
+    toast("Категория удалена", "ok");
+    await load();
+  }
+
   async function setPrice(blockId: string, itemId: string, raw: string) {
     const n = Number(String(raw).replace(",", "."));
     await apiPost("/api/wishes", {
@@ -207,13 +229,24 @@ export default function WishlistPage() {
                   <p className="font-bold" style={{ color: accent }}>
                     #{b.hashtag}
                   </p>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setAddFor(addFor === b.id ? null : b.id)}
-                  >
-                    +
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setAddFor(addFor === b.id ? null : b.id)}
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ color: "var(--behind)" }}
+                      onClick={() => void removeBlock(b.id, b.hashtag)}
+                      aria-label="Удалить категорию"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
                 <div className="divide-y divide-[var(--line)] border-t border-[var(--line)]">
                   {b.items
@@ -266,6 +299,14 @@ export default function WishlistPage() {
                               onBlur={(e) => void setPrice(b.id, it.id, e.target.value)}
                             />
                           ) : null}
+                          <button
+                            type="button"
+                            className="shrink-0 px-1 text-[16px] font-bold text-[var(--ink-soft)] hover:text-[var(--behind)]"
+                            onClick={() => void removeItem(b.id, it.id, it.title)}
+                            aria-label="Удалить"
+                          >
+                            ×
+                          </button>
                         </div>
                       );
                     })}

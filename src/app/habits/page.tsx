@@ -49,6 +49,17 @@ export default function HabitsPage() {
     await load();
   }
 
+  async function remove(h: HabitRow) {
+    if (!window.confirm(`Удалить привычку «${h.title}»?`)) return;
+    const res = await apiPost("/api/habits", { action: "delete", id: h.id });
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось удалить", "warn");
+      return;
+    }
+    toast("Удалила", "ok");
+    await load();
+  }
+
   return (
     <div className="space-y-8">
       <header>
@@ -72,29 +83,41 @@ export default function HabitsPage() {
           const colors = ["var(--c-green)", "var(--c-blue)", "var(--c-orange)", "var(--c-violet)"];
           const c = colors[i % colors.length];
           return (
-            <button
+            <div
               key={h.id}
-              type="button"
-              onClick={() => void toggle(h)}
-              className="surface flex w-full items-center gap-4 p-4 text-left transition hover:shadow-[var(--shadow)]"
+              className="surface flex w-full items-center gap-3 p-4"
               style={{
-                background: h.todayDone ? "var(--c-green-soft)" : "#fff",
-                borderLeft: `4px solid ${h.todayDone ? "var(--ahead)" : c}`,
+                borderLeft: `4px solid ${c}`,
+                background: h.todayDone ? `color-mix(in srgb, ${c} 12%, white)` : undefined,
               }}
             >
-              <span
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[14px] font-black text-white"
-                style={{ background: h.todayDone ? "var(--ahead)" : c }}
+              <button
+                type="button"
+                onClick={() => void toggle(h)}
+                className="flex min-w-0 flex-1 items-center gap-4 text-left"
               >
-                {h.todayDone ? "✓" : "◇"}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-bold">{h.title}</p>
-                <p className="mt-0.5 text-[12px] font-semibold" style={{ color: c }}>
-                  серия {h.streak} · {h.completionRate}%
-                </p>
-              </div>
-            </button>
+                <span
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-[15px] font-black text-white"
+                  style={{ background: c }}
+                >
+                  {h.todayDone ? "✓" : "◇"}
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-bold">{h.title}</span>
+                  <span className="text-[12px] font-semibold" style={{ color: c }}>
+                    серия {h.streak} · {Math.round(h.completionRate * 100)}%
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="shrink-0 px-2 text-[18px] font-bold text-[var(--ink-soft)] hover:text-[var(--behind)]"
+                onClick={() => void remove(h)}
+                aria-label="Удалить"
+              >
+                ×
+              </button>
+            </div>
           );
         })}
       </div>

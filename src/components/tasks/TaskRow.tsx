@@ -25,16 +25,20 @@ export type TaskRowData = {
 export function TaskRow({
   task,
   onToggle,
+  onChanged,
 }: {
   task: TaskRowData;
   onToggle?: (id: string, done: boolean) => void;
+  onChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(task.done);
+  const [title, setTitle] = useState(task.title);
+  const [editing, setEditing] = useState(false);
 
   async function toggle() {
-    if (busy) return;
+    if (busy || editing) return;
     setBusy(true);
     const next = !done;
     setDone(next);
@@ -51,7 +55,52 @@ export function TaskRow({
       return;
     }
     onToggle?.(task.id, next);
+    onChanged?.();
     if (next) toast("Готово", "ok");
+  }
+
+  async function saveTitle() {
+    const next = title.trim();
+    if (!next || next === task.title) {
+      setTitle(task.title);
+      setEditing(false);
+      return;
+    }
+    setBusy(true);
+    const res = await apiPost("/api/tasks", {
+      action: "update",
+      id: task.id,
+      title: next,
+      date: task.date,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setTitle(task.title);
+      toast(res.error ?? "Не удалось изменить", "warn");
+      setEditing(false);
+      return;
+    }
+    setEditing(false);
+    toast("Изменила", "ok");
+    onChanged?.();
+  }
+
+  async function remove() {
+    if (busy) return;
+    if (!window.confirm(`Удалить «${title}»?`)) return;
+    setBusy(true);
+    const res = await apiPost("/api/tasks", {
+      action: "delete",
+      id: task.id,
+      date: task.date,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось удалить", "warn");
+      return;
+    }
+    toast("Удалила", "ok");
+    onChanged?.();
   }
 
   const hasContext = Boolean(
@@ -60,7 +109,7 @@ export function TaskRow({
 
   return (
     <div className="border-b border-[var(--line)] last:border-0">
-      <div className="flex items-start gap-3 py-3.5">
+      <div className="flex items-start gap-2 py-3.5">
         <button
           type="button"
           aria-label={done ? "Снять выполнение" : "Выполнить"}
@@ -84,15 +133,57 @@ export function TaskRow({
             </svg>
           ) : null}
         </button>
-        <button
-          type="button"
-          className="min-w-0 flex-1 text-left"
-          onClick={() => hasContext && setOpen((v) => !v)}
-        >
-          <p className={`text-[15px] font-semibold ${done ? "opacity-40 line-through" : ""}`}>
-            {task.title}
-          </p>
-        </button>
+
+        {editing ? (
+          <form
+            className="min-w-0 flex-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveTitle();
+            }}
+          >
+            <input
+              className="field w-full py-1 text-[15px] font-semibold"
+              value={title}
+              autoFocus
+              disabled={busy}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => void saveTitle()}
+            />
+          </form>
+        ) : (
+          <button
+            type="button"
+            className="min-w-0 flex-1 text-left"
+            onClick={() => hasContext && setOpen((v) => !v)}
+            onDoubleClick={() => setEditing(true)}
+          >
+            <p className={`text-[15px] font-semibold ${done ? "opacity-40 line-through" : ""}`}>
+              {title}
+            </p>
+          </button>
+        )}
+
+        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+          <button
+            type="button"
+            className="rounded-lg px-2 py-1 text-[12px] font-bold text-[var(--ink-soft)] hover:bg-[var(--bg-muted)] hover:text-[var(--accent)]"
+            disabled={busy}
+            onClick={() => setEditing(true)}
+            aria-label="Изменить"
+          >
+            ✎
+          </button>
+          <button
+            type="button"
+            className="rounded-lg px-2 py-1 text-[12px] font-bold text-[var(--ink-soft)] hover:bg-[var(--c-pink-soft)] hover:text-[var(--behind)]"
+            disabled={busy}
+            onClick={() => void remove()}
+            aria-label="Удалить"
+          >
+            ×
+          </button>
+        </div>
       </div>
       {open && hasContext && task.provenance ? (
         <div className="mb-3 ml-9 rounded-[var(--radius-sm)] bg-[var(--c-blue-soft)] px-3.5 py-3 text-[13px] font-medium">

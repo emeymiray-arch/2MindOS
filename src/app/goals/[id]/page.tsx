@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { apiGet, apiPost } from "@/lib/client-api";
@@ -106,6 +106,7 @@ function monthLabel(key: string) {
 
 export default function GoalDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const goalId = String(params.id ?? "");
   const [data, setData] = useState<GoalDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +114,8 @@ export default function GoalDetailPage() {
   const [moduleTitle, setModuleTitle] = useState("");
   const [modulePhaseId, setModulePhaseId] = useState("");
   const [moduleEnd, setModuleEnd] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
 
   const load = useCallback(async () => {
     if (!goalId) return;
@@ -124,6 +127,41 @@ export default function GoalDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function saveTitle() {
+    const title = titleDraft.trim();
+    if (!title) return;
+    const res = await apiPost("/api/goals", { action: "update", id: goalId, title });
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось изменить", "warn");
+      return;
+    }
+    setRenaming(false);
+    toast("Название обновлено", "ok");
+    await load();
+  }
+
+  async function archiveGoal() {
+    if (!window.confirm("Убрать цель в архив?")) return;
+    const res = await apiPost("/api/goals", { action: "archive", id: goalId });
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось", "warn");
+      return;
+    }
+    toast("В архиве", "ok");
+    router.push("/goals");
+  }
+
+  async function deleteGoal() {
+    if (!window.confirm("Удалить цель полностью? Это нельзя отменить.")) return;
+    const res = await apiPost("/api/goals", { action: "delete", id: goalId });
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось удалить", "warn");
+      return;
+    }
+    toast("Удалила", "ok");
+    router.push("/goals");
+  }
 
   async function ensurePlan() {
     const res = await apiPost("/api/work-plans", {
@@ -228,7 +266,30 @@ export default function GoalDetailPage() {
         <div className="mt-4 flex flex-wrap items-start gap-5">
           <ProgressRing value={reality.actual} expected={reality.expected} size={88} stroke={7} />
           <div className="min-w-0 flex-1">
-            <h1 className="font-display text-[32px] md:text-[36px]">{goal.title}</h1>
+            {renaming ? (
+              <form
+                className="flex flex-wrap gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void saveTitle();
+                }}
+              >
+                <input
+                  className="field min-w-0 flex-1 font-display text-[24px]"
+                  value={titleDraft}
+                  autoFocus
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                />
+                <button type="submit" className="btn btn-primary">
+                  Сохранить
+                </button>
+                <button type="button" className="btn" onClick={() => setRenaming(false)}>
+                  Отмена
+                </button>
+              </form>
+            ) : (
+              <h1 className="font-display text-[32px] md:text-[36px]">{goal.title}</h1>
+            )}
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusChip status={reality.status} label={reality.label} />
               {goal.horizonStageLabel ? (
@@ -241,6 +302,29 @@ export default function GoalDetailPage() {
                   Риск
                 </span>
               ) : null}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setTitleDraft(goal.title);
+                  setRenaming(true);
+                }}
+              >
+                Изменить
+              </button>
+              <button type="button" className="btn" onClick={() => void archiveGoal()}>
+                В архив
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ color: "var(--behind)" }}
+                onClick={() => void deleteGoal()}
+              >
+                Удалить
+              </button>
             </div>
           </div>
         </div>
@@ -425,7 +509,7 @@ export default function GoalDetailPage() {
         {todayTasks.length === 0 ? null : (
           <div className="surface mt-3 px-4">
             {todayTasks.map((t) => (
-              <TaskRow key={t.id} task={t} onToggle={() => void load()} />
+              <TaskRow key={t.id} task={t} onChanged={() => void load()} />
             ))}
           </div>
         )}

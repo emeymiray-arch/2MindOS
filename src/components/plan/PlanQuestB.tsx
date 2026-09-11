@@ -72,6 +72,25 @@ function StageCard({
     onChanged();
   }
 
+  async function deleteModule(phaseId: string, mod: PlanModuleBlock) {
+    if (busyId) return;
+    if (!window.confirm(`Удалить шаг «${mod.title}»?`)) return;
+    setBusyId(mod.id);
+    const res = await apiPost("/api/work-plans", {
+      action: "deleteModule",
+      planId,
+      phaseId,
+      moduleId: mod.id,
+    });
+    setBusyId(null);
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось удалить", "warn");
+      return;
+    }
+    toast("Удалила", "ok");
+    onChanged();
+  }
+
   async function togglePhase() {
     if (busyId || ph.modules.length > 0) return;
     setBusyId(ph.id);
@@ -158,17 +177,13 @@ function StageCard({
             {ph.modules.map((m, mi) => {
               const done = m.done;
               return (
-                <motion.button
+                <motion.div
                   key={m.id}
-                  type="button"
                   layout
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: mi * 0.03 }}
-                  disabled={busyId === m.id}
-                  onClick={() => void toggleModule(ph.id, m)}
-                  whileTap={{ scale: 0.96 }}
-                  className="relative flex min-h-[64px] items-center gap-2.5 rounded-[16px] px-3 py-3 text-left"
+                  className="relative flex min-h-[64px] items-center gap-1 rounded-[16px] pr-1"
                   style={{
                     background: done ? skin.done : "#fff",
                     color: done ? "#fff" : "var(--ink)",
@@ -177,22 +192,43 @@ function StageCard({
                       : "0 1px 4px rgba(18,24,38,0.06)",
                   }}
                 >
-                  <motion.span
-                    key={`${m.id}-${done}`}
-                    initial={{ scale: 0.6 }}
-                    animate={burstId === m.id ? { scale: [0.6, 1.25, 1] } : { scale: 1 }}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-black"
-                    style={{
-                      background: done ? "rgba(255,255,255,0.28)" : skin.soft,
-                      color: done ? "#fff" : skin.done,
-                    }}
+                  <motion.button
+                    type="button"
+                    disabled={busyId === m.id}
+                    onClick={() => void toggleModule(ph.id, m)}
+                    whileTap={{ scale: 0.96 }}
+                    className="flex min-h-[64px] min-w-0 flex-1 items-center gap-2.5 px-3 py-3 text-left"
                   >
-                    {done ? "✓" : "◇"}
-                  </motion.span>
-                  <span className="min-w-0 flex-1 text-[13.5px] font-bold leading-snug">
-                    {m.title}
-                  </span>
-                </motion.button>
+                    <motion.span
+                      key={`${m.id}-${done}`}
+                      initial={{ scale: 0.6 }}
+                      animate={burstId === m.id ? { scale: [0.6, 1.25, 1] } : { scale: 1 }}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-black"
+                      style={{
+                        background: done ? "rgba(255,255,255,0.28)" : skin.soft,
+                        color: done ? "#fff" : skin.done,
+                      }}
+                    >
+                      {done ? "✓" : "◇"}
+                    </motion.span>
+                    <span className="min-w-0 flex-1 text-[13.5px] font-bold leading-snug">
+                      {m.title}
+                    </span>
+                  </motion.button>
+                  <button
+                    type="button"
+                    className="mr-2 shrink-0 rounded-lg px-2 py-1 text-[14px] font-bold opacity-70 hover:opacity-100"
+                    style={{ color: done ? "#fff" : "var(--behind)" }}
+                    disabled={busyId === m.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void deleteModule(ph.id, m);
+                    }}
+                    aria-label="Удалить шаг"
+                  >
+                    ×
+                  </button>
+                </motion.div>
               );
             })}
           </AnimatePresence>
