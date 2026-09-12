@@ -164,6 +164,13 @@ export default function HomePage() {
         <p className="mt-2 text-[15px] font-semibold" style={{ color: accent }}>
           {totalToday === 0 ? "Нет задач" : `${doneToday} из ${totalToday}`}
         </p>
+        <p className="mt-2 max-w-xl text-[13px] font-semibold text-[var(--ink-soft)]">
+          Здесь день: привычки и шаги из текущего этапа целей. Менять план цели — в разделе{" "}
+          <Link href="/goals" className="font-bold" style={{ color: accent }}>
+            Цели
+          </Link>
+          .
+        </p>
       </header>
 
       <section>

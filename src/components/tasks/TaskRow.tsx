@@ -164,24 +164,22 @@ export function TaskRow({
           </button>
         )}
 
-        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+        <div className="flex shrink-0 items-center gap-0.5 pt-0.5">
           <button
             type="button"
             className="rounded-lg px-2 py-1 text-[12px] font-bold text-[var(--ink-soft)] hover:bg-[var(--bg-muted)] hover:text-[var(--accent)]"
             disabled={busy}
             onClick={() => setEditing(true)}
-            aria-label="Изменить"
           >
-            ✎
+            Изменить
           </button>
           <button
             type="button"
             className="rounded-lg px-2 py-1 text-[12px] font-bold text-[var(--ink-soft)] hover:bg-[var(--c-pink-soft)] hover:text-[var(--behind)]"
             disabled={busy}
             onClick={() => void remove()}
-            aria-label="Удалить"
           >
-            ×
+            Удалить
           </button>
         </div>
       </div>

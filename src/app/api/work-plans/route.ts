@@ -434,6 +434,26 @@ export async function POST(request: Request) {
     return NextResponse.json(enrich(store, planId, lite));
   }
 
+  if (action === "deletePhase") {
+    const planId = String(body.planId ?? "");
+    const phaseId = String(body.phaseId ?? "");
+    const store = await updateStore((s) => {
+      const plan = findWorkPlan(s, planId);
+      if (!plan) return;
+      plan.phases = plan.phases.filter((p) => p.id !== phaseId);
+      const ordered = [...phasesOf(plan)].sort((a, b) => a.order - b.order);
+      ordered.forEach((ph, i) => {
+        ph.order = i + 1;
+      });
+      if (!ordered.some((ph) => ph.status === "active") && ordered[0]) {
+        ordered[0].status = "active";
+      }
+      syncWorkPlanProgress(s, plan);
+      unlockNextPlanStep(s, planId, todayKey());
+    });
+    return NextResponse.json(enrich(store, planId, lite));
+  }
+
   if (action === "addMilestone" || action === "addModule") {
     const planId = String(body.planId ?? "");
     const phaseId = String(body.phaseId ?? "");

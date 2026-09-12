@@ -134,6 +134,10 @@ export default function GoalsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-[34px]">Цели</h1>
+          <p className="mt-2 max-w-xl text-[14px] font-semibold text-[var(--ink-soft)]">
+            Открой цель → внутри план: <strong>фаза</strong> (6 мес) → <strong>этап</strong>{" "}
+            (2 мес) → <strong>шаг</strong>. Шаги выходят на Главную.
+          </p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
           {creating ? "Отмена" : "+ Цель"}
