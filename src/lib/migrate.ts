@@ -10,6 +10,7 @@ import {
 } from "./lifeos";
 import { splitHealthRecoveryGoals } from "./curricula/health-recovery";
 import { ensureDigitalSecurityGoal } from "./curricula/digital-security";
+import { ensureDigitalErasureGoal } from "./curricula/digital-erasure";
 import {
   bucketForHorizonStage,
   currentHorizonStage,
@@ -19,7 +20,7 @@ import {
 } from "./plan-calendar";
 import { randomBytes } from "crypto";
 
-const CURRENT_VERSION = 16;
+const CURRENT_VERSION = 17;
 
 function freshToken() {
   return `mos_${randomBytes(18).toString("hex")}`;
@@ -441,6 +442,11 @@ export function migrateStore(raw: LifeStore): LifeStore {
       }
       g.bucket = bucketForHorizonStage(effectiveHorizonStage(g), cur);
     }
+  }
+
+  // v17: checklist «Удаление себя из интернета» (10 этапов / 4 фазы)
+  if ((store.version ?? 0) < 17) {
+    ensureDigitalErasureGoal(store);
   }
 
   store.version = CURRENT_VERSION;

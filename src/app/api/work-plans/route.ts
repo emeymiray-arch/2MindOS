@@ -1,5 +1,9 @@
 import { buildEngineeringPhase1Plan, ENGINEERING_PHASE1_META } from "@/lib/curricula/engineering-phase1";
 import { buildHealthRecoveryPlan, HEALTH_RECOVERY_META } from "@/lib/curricula/health-recovery";
+import {
+  DIGITAL_ERASURE_META,
+  ensureDigitalErasureGoal,
+} from "@/lib/curricula/digital-erasure";
 import { NextResponse } from "next/server";
 import { id, now, todayKey } from "@/lib/id";
 import {
@@ -322,6 +326,21 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...enrich(store, planId, lite),
       goalId: healthGoal.id,
+    });
+  }
+
+  if (action === "installDigitalErasure") {
+    const store = await updateStore((s) => {
+      ensureDigitalErasureGoal(s);
+    });
+    const goal = store.goals.find((g) => g.title === DIGITAL_ERASURE_META.title);
+    const planId = goal?.workPlanId;
+    if (!goal || !planId) return NextResponse.json({ error: "install failed" }, { status: 500 });
+    return NextResponse.json({
+      ...enrich(store, planId, lite),
+      goalId: goal.id,
+      title: goal.title,
+      phases: store.workPlans?.find((p) => p.id === planId)?.phases.length ?? 0,
     });
   }
 
