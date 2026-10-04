@@ -672,6 +672,194 @@ select {
   transform: rotate(-90deg);
 }
 
+@keyframes chartDraw {
+  from {
+    stroke-dashoffset: 240;
+    opacity: 0.2;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@keyframes chartAreaIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes chartArcIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes chartBarUp {
+  from {
+    transform: scaleY(0.15);
+    opacity: 0.35;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes chartHBar {
+  from {
+    transform: scaleX(0.08);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes chartSpinIn {
+  from {
+    transform: rotate(-110deg);
+    opacity: 0.5;
+  }
+  to {
+    transform: rotate(-90deg);
+    opacity: 1;
+  }
+}
+
+.chart-draw {
+  stroke-dasharray: 420;
+  animation: chartDraw 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chart-area-in {
+  animation: chartAreaIn 0.55s ease both;
+}
+
+.chart-arc {
+  animation: chartArcIn 0.45s ease both;
+}
+
+.chart-spin-in {
+  animation: chartSpinIn 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chart-ring-fill {
+  animation: chartArcIn 0.55s ease both;
+}
+
+.chart-hbar-fill {
+  transform-origin: left center;
+  animation: chartHBar 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chart-vbar {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  animation: chartArcIn 0.4s ease both;
+}
+
+.chart-vbar-fill {
+  width: 100%;
+  max-width: 2.2rem;
+  border-radius: 999px 999px 8px 8px;
+  transform-origin: bottom center;
+  animation: chartBarUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.chart-vbar[data-active="true"] .chart-vbar-fill {
+  filter: brightness(1.12);
+}
+
+.chart-vbar-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.chart-vbar-tip {
+  min-height: 1rem;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  opacity: 0.85;
+}
+
+.chart-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.chart-legend[data-active="true"] {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-soft);
+}
+
+.chart-legend-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+}
+
+.chart-axis-label[data-hot="true"] {
+  color: var(--ink);
+}
+
+[data-reduce-motion="true"] .chart-draw,
+[data-reduce-motion="true"] .chart-area-in,
+[data-reduce-motion="true"] .chart-arc,
+[data-reduce-motion="true"] .chart-spin-in,
+[data-reduce-motion="true"] .chart-ring-fill,
+[data-reduce-motion="true"] .chart-hbar-fill,
+[data-reduce-motion="true"] .chart-vbar,
+[data-reduce-motion="true"] .chart-vbar-fill {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-draw,
+  .chart-area-in,
+  .chart-arc,
+  .chart-spin-in,
+  .chart-ring-fill,
+  .chart-hbar-fill,
+  .chart-vbar,
+  .chart-vbar-fill {
+    animation: none !important;
+  }
+}
+
 .shell {
   position: relative;
   z-index: 1;

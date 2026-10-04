@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EmptyState } from "@/components/ui/Progress";
-import { HBar, LineChart, Sparkline } from "@/components/ui/Charts";
+import { DonutChart, DualRing, HBar, LineChart, Sparkline, VBarChart } from "@/components/ui/Charts";
 import { toast } from "@/components/ui/Toast";
 
 type AnalyticsGoal = {
@@ -338,6 +338,68 @@ export default function AnalyticsPage() {
       </header>
 
       <div className="bento">
+        <div className="span-4">
+          <section className="panel h-full space-y-2">
+            <PanelTitle aside={<span className="text-[12px] text-[var(--ink-faint)]">наведи</span>}>
+              Статус целей
+            </PanelTitle>
+            <DonutChart
+              size={172}
+              thickness={18}
+              centerLabel={String(data.goals.length)}
+              centerSub="целей"
+              segments={[
+                { value: data.byStatus.ahead, color: "#34d399", label: "впереди" },
+                { value: data.byStatus.on_track, color: "#a855f7", label: "в графике" },
+                { value: data.byStatus.behind, color: "#f87171", label: "отстаёт" },
+                { value: data.byStatus.no_plan, color: "#fbbf24", label: "без плана" },
+              ]}
+            />
+          </section>
+        </div>
+        <div className="span-4">
+          <section className="panel h-full space-y-3">
+            <PanelTitle>Неделя и 14 дней</PanelTitle>
+            <DualRing
+              outer={{ percent: data.week.percent, color: "#c084fc", label: "неделя" }}
+              inner={{ percent: v.percent14, color: "#34d399", label: "14д" }}
+            />
+            <div className="grid grid-cols-2 gap-2 text-[12px]">
+              <p className="text-[var(--ink-soft)]">
+                Неделя{" "}
+                <b className="text-[var(--ink)]">
+                  {data.week.completed}/{data.week.planned}
+                </b>
+              </p>
+              <p className="text-[var(--ink-soft)]">
+                Серия <b className="text-[var(--ink)]">{v.activeStreak}д</b>
+              </p>
+            </div>
+          </section>
+        </div>
+        <div className="span-4">
+          <section className="panel h-full space-y-3">
+            <PanelTitle aside={<span className="text-[12px] text-[var(--ink-faint)]">%</span>}>
+              Дни недели
+            </PanelTitle>
+            {weekdayOrdered.length ? (
+              <VBarChart
+                height={150}
+                items={weekdayOrdered.map((w, i) => ({
+                  label: w.label.slice(0, 2),
+                  value: w.percent,
+                  max: 100,
+                  color: ["#34d399", "#a855f7", "#c084fc", "#fbbf24", "#38bdf8", "#f472b6", "#fb923c"][
+                    i % 7
+                  ],
+                }))}
+              />
+            ) : (
+              <p className="text-[13px] text-[var(--ink-faint)]">Мало данных по дням.</p>
+            )}
+          </section>
+        </div>
+
         <div className="span-3">
           <div className="kpi-card h-full">
             <p className="kpi-label">Цели</p>
@@ -357,7 +419,7 @@ export default function AnalyticsPage() {
               <p className="kpi-hint">
                 {data.week.completed}/{data.week.planned} задач
               </p>
-              <Sparkline values={lineValues} />
+              <Sparkline values={lineValues} color="#c084fc" />
             </div>
           </div>
         </div>
@@ -437,7 +499,7 @@ export default function AnalyticsPage() {
             <PanelTitle aside={<span className="text-[12px] text-[var(--ink-faint)]">% закрытия</span>}>
               Темп 6 недель
             </PanelTitle>
-            <LineChart values={lineValues} labels={lineLabels} />
+            <LineChart values={lineValues} labels={lineLabels} color="#c084fc" />
           </section>
         </div>
         <div className="span-8">
