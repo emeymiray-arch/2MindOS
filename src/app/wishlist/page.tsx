@@ -189,7 +189,9 @@ export default function WishlistPage() {
   return (
     <div className="page-stack">
       <PageHero
+        kicker="Wishlist"
         title="Желания"
+        lede="Вещи, навыки и свои списки — с копилками."
         meta={TABS.map((t) => (
           <button
             key={t.id}
@@ -221,6 +223,7 @@ export default function WishlistPage() {
           <KpiTile
             label="Пункты"
             value={stats.items}
+            hint={`${stats.done} готово`}
             color="#38bdf8"
             icon={<IconTarget size={16} />}
           />
@@ -237,6 +240,90 @@ export default function WishlistPage() {
           <KpiTile
             label="Накоплено"
             value={`${money(stats.saved)} ₽`}
+            color="#34d399"
+            icon={<IconHabits size={16} />}
+          />
+        </div>
+
+        <div className="span-12">
+          <form onSubmit={createCategory} className="panel flex flex-wrap items-end gap-3">
+            <div className="min-w-[12rem] flex-1">
+              <WidgetHead title={`Новая категория · ${tabMeta.label}`} tone={tabMeta.tone} />
+              <input
+                className="field"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder={
+                  tab === "skill"
+                    ? "Категория навыка, напр. excel"
+                    : tab === "material"
+                      ? "Категория вещей, напр. tech"
+                      : "Своя категория"
+                }
+              />
+            </div>
+            <button type="submit" className="btn btn-primary shrink-0">
+              + Категория
+            </button>
+          </form>
+        </div>
+
+        {saveFor ? (
+          <div className="span-12">
+            <form onSubmit={saveToward} className="panel flex flex-wrap items-end gap-3">
+              <div className="min-w-[12rem] flex-1">
+                <WidgetHead title={`Коплю · ${saveFor.title}`} tone="pink" />
+                <input
+                  className="field"
+                  inputMode="decimal"
+                  value={saveAmount}
+                  onChange={(e) => setSaveAmount(e.target.value)}
+                  placeholder="Сумма в подушку"
+                  autoFocus
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                Отложить
+              </button>
+              <button type="button" className="btn" onClick={() => setSaveFor(null)}>
+                Отмена
+              </button>
+            </form>
+          </div>
+        ) : null}
+
+        {visible.length === 0 ? (
+          <div className="span-12">
+            <section className="panel">
+              <p className="text-[14px] text-[var(--ink-soft)]">Пока пусто — добавь категорию.</p>
+            </section>
+          </div>
+        ) : (
+          visible.map((b, i) => {
+            const accents = ["#38bdf8", "#34d399", "#fb923c", "#a855f7", "#f472b6"];
+            const accent = accents[i % accents.length];
+            const items = b.items.filter((it) => !it.archived);
+            return (
+              <div key={b.id} className="span-6">
+                <section className="panel h-full">
+                  <WidgetHead
+                    title={`#${b.hashtag}`}
+                    tone={tabMeta.tone}
+                    action={
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ minHeight: "2rem", padding: "0.35rem 0.7rem" }}
+                          onClick={() => setAddFor(addFor === b.id ? null : b.id)}
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{
+                            minHeight: "2rem",
                             padding: "0.35rem 0.7rem",
                             color: "var(--behind)",
                           }}
