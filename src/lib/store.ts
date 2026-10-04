@@ -2,7 +2,15 @@ import { promises as fs } from "fs";
 import { existsSync, readFileSync } from "fs";
 import os from "os";
 import path from "path";
-import { pullCloudBest, pullCloudResult, pushCloudCas, pushCloudStore } from "./cloud-store";
+import { cookies } from "next/headers";
+import { isTenantMode, SESSION_COOKIE, verifySessionValue } from "./auth";
+import {
+  DEFAULT_SNAPSHOT_ID,
+  pullCloudBest,
+  pullCloudResult,
+  pushCloudCas,
+  pushCloudStore,
+} from "./cloud-store";
 import { migrateStore } from "./migrate";
 import { createEmptyStore } from "./seed";
 import { isSupabaseConfigured } from "./supabase";
@@ -26,14 +34,44 @@ const SERVERLESS_WRITE_ATTEMPTS = 5;
 const SERVERLESS_CACHE_MS = 20_000;
 const VAULT_FOLDER_NAME = "2MindOS";
 
+type TenantCache = {
+  store: LifeStore;
+  loadedAt: number;
+  loadPromise?: Promise<LifeStore>;
+};
+
 /** On Vercel the filesystem is ephemeral — Supabase snapshot is source of truth. */
 function isServerless(): boolean {
   return process.env.VERCEL === "1" || process.env.MINDOS_CLOUD_PRIMARY === "1";
 }
 
+/** Resolve which cloud snapshot this request owns. */
+export async function currentSnapshotId(): Promise<string> {
+  if (!isTenantMode()) return DEFAULT_SNAPSHOT_ID;
+  try {
+    const jar = await cookies();
+    const session = verifySessionValue(jar.get(SESSION_COOKIE)?.value);
+    if (session?.accountId) return session.accountId;
+  } catch {
+    /* cookies() unavailable outside request */
+  }
+  throw new StoreUnavailableError("unauthorized");
+}
+
+/** Local vault is SoT: never block boot on cloud (default on, off with MINDOS_SKIP_CLOUD_PULL=0). */
+function skipCloudPull(): boolean {
+  if (isServerless()) return false;
+  if (process.env.MINDOS_CLOUD_PRIMARY === "1") return false;
+  const v = process.env.MINDOS_SKIP_CLOUD_PULL?.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "no") return false;
+  return true; // default local-first
+}
+
 declare global {
   // eslint-disable-next-line no-var
   var __mindosStore: LifeStore | undefined;
+  // eslint-disable-next-line no-var
+  var __mindosTenantCache: Map<string, TenantCache> | undefined;
   // eslint-disable-next-line no-var
   var __mindosWriteQueue: Promise<void> | undefined;
   // eslint-disable-next-line no-var
@@ -54,6 +92,11 @@ declare global {
   var __mindosStoreLoadedAt: number | undefined;
   // eslint-disable-next-line no-var
   var __mindosLoadPromise: Promise<LifeStore> | undefined;
+}
+
+function tenantCache(): Map<string, TenantCache> {
+  if (!global.__mindosTenantCache) global.__mindosTenantCache = new Map();
+  return global.__mindosTenantCache;
 }
 
 export class StoreUnavailableError extends Error {
@@ -342,6 +385,11 @@ async function persist(store: LifeStore, syncCloud = false): Promise<void> {
     return;
   }
 
+  // Local-first: do not background-push to cloud unless explicitly requested.
+  if (!isServerless() && !syncCloud) {
+    return;
+  }
+
   // Local is source of truth on disk. Cloud is best-effort unless serverless.
   if (global.__mindosCloudReadable === false && !isServerless()) {
     console.error("[mindos] cloud unread — kept local only");
@@ -349,7 +397,8 @@ async function persist(store: LifeStore, syncCloud = false): Promise<void> {
   }
 
   const run = async () => {
-    const result = await pushCloudStore(store);
+    const snapshotId = isTenantMode() ? await currentSnapshotId() : DEFAULT_SNAPSHOT_ID;
+    const result = await pushCloudStore(store, snapshotId);
     global.__mindosCloudReady = result.ok;
     if (!result.ok) {
       console.error("[mindos] cloud push:", result.skipped ?? result.error);
@@ -376,89 +425,115 @@ function richest(stores: Array<LifeStore | null | undefined>): LifeStore | null 
 }
 
 async function ensureLoaded(): Promise<LifeStore> {
-  // Vercel: cloud is the only source of truth. Never invent an empty/demo brain
-  // when the cloud blips — that caused data to vanish and reappear.
+  // Vercel / cloud-primary: cloud is the only durable store (per tenant).
   if (isServerless()) {
     if (!isSupabaseConfigured()) {
       throw new StoreUnavailableError("cloud not configured");
     }
-    const cached = global.__mindosStore;
-    const loadedAt = global.__mindosStoreLoadedAt ?? 0;
-    if (cached && Date.now() - loadedAt < SERVERLESS_CACHE_MS) {
-      return cached;
+    const snapshotId = await currentSnapshotId();
+    const cache = tenantCache();
+    const entry = cache.get(snapshotId);
+    if (entry && Date.now() - entry.loadedAt < SERVERLESS_CACHE_MS) {
+      global.__mindosStore = entry.store;
+      return entry.store;
     }
-    if (global.__mindosLoadPromise) return global.__mindosLoadPromise;
+    if (entry?.loadPromise) return entry.loadPromise;
 
-    global.__mindosLoadPromise = (async () => {
-      const pulled = await pullCloudResult();
+    const loadPromise = (async () => {
+      const pulled = await pullCloudResult(snapshotId);
       global.__mindosCloudReadable = pulled.ok;
       if (!pulled.ok) {
-        if (global.__mindosStore) return global.__mindosStore;
+        const stale = cache.get(snapshotId)?.store;
+        if (stale) return stale;
         throw new StoreUnavailableError(pulled.error || "cloud unavailable");
       }
       global.__mindosCloudReady = true;
       const store = pulled.store ? migrateStore(pulled.store) : emptyBrain();
+      cache.set(snapshotId, { store, loadedAt: Date.now() });
       global.__mindosStore = store;
       global.__mindosStoreLoadedAt = Date.now();
       return store;
     })().finally(() => {
-      global.__mindosLoadPromise = undefined;
+      const cur = cache.get(snapshotId);
+      if (cur) cur.loadPromise = undefined;
     });
 
-    return global.__mindosLoadPromise;
+    cache.set(snapshotId, {
+      store: entry?.store ?? emptyBrain(),
+      loadedAt: entry?.loadedAt ?? 0,
+      loadPromise,
+    });
+    return loadPromise;
   }
 
+  // ——— Local vault is source of truth ———
   if (global.__mindosStore) {
-    if (!isServerless()) {
-      const vaultFile = await readStoreFile(storePath());
-      if (vaultFile && storeWeight(vaultFile) > storeWeight(global.__mindosStore)) {
-        console.info("[mindos] reloading richer vault into memory", {
-          vaultGoals: vaultFile.goals?.length ?? 0,
-          memGoals: global.__mindosStore.goals?.length ?? 0,
-        });
-        global.__mindosStore = migrateStore(vaultFile);
-      } else if (!vaultFile) {
-        await persistLocal(global.__mindosStore);
-      }
+    const vaultFile = await readStoreFile(storePath());
+    if (vaultFile && storeWeight(vaultFile) > storeWeight(global.__mindosStore)) {
+      console.info("[mindos] reloading richer vault into memory", {
+        vaultGoals: vaultFile.goals?.length ?? 0,
+        memGoals: global.__mindosStore.goals?.length ?? 0,
+      });
+      global.__mindosStore = migrateStore(vaultFile);
+    } else if (!vaultFile) {
+      await persistLocal(global.__mindosStore);
     }
     return global.__mindosStore;
   }
 
-  const locals = await loadLocalCandidates();
-  const local = richest(locals);
+  if (global.__mindosLoadPromise) return global.__mindosLoadPromise;
 
-  let cloud: LifeStore | null = null;
-  if (isSupabaseConfigured()) {
-    let pulled = await pullCloudResult();
-    if (!pulled.ok && /timeout/i.test(pulled.error)) {
-      pulled = await pullCloudBest();
-    }
-    global.__mindosCloudReadable = pulled.ok;
-    if (pulled.ok) {
-      cloud = pulled.store ? migrateStore(pulled.store) : null;
-      global.__mindosCloudReady = true;
+  global.__mindosLoadPromise = (async () => {
+    const locals = await loadLocalCandidates();
+    const local = richest(locals);
+
+    // Default: never wait on cloud at boot. Optional opt-in merge only.
+    let cloud: LifeStore | null = null;
+    if (!skipCloudPull() && isSupabaseConfigured()) {
+      let pulled = await pullCloudResult(DEFAULT_SNAPSHOT_ID);
+      if (!pulled.ok && /timeout/i.test(pulled.error)) {
+        pulled = await pullCloudBest(DEFAULT_SNAPSHOT_ID);
+      }
+      global.__mindosCloudReadable = pulled.ok;
+      if (pulled.ok) {
+        cloud = pulled.store ? migrateStore(pulled.store) : null;
+        global.__mindosCloudReady = true;
+      } else {
+        global.__mindosCloudReady = false;
+        console.error("[mindos] cloud pull failed:", pulled.error);
+      }
     } else {
-      global.__mindosCloudReady = false;
-      console.error("[mindos] cloud pull failed:", pulled.error);
+      global.__mindosCloudReadable = undefined;
     }
-  }
 
-  const picked = richest([cloud, local]) ?? emptyBrain();
-  global.__mindosStore = picked;
+    // Prefer local unless cloud is clearly richer by weight (never by revision alone).
+    let picked = local ?? emptyBrain();
+    if (cloud && !isDestructiveOverwrite(cloud, picked)) {
+      const merged = pickRicher(picked, cloud);
+      if (merged && storeWeight(merged) > storeWeight(picked)) {
+        picked = merged;
+      }
+    }
 
-  const vaultFile = await readStoreFile(storePath());
-  const cloudRicher = cloud && vaultFile && storeWeight(cloud) > storeWeight(vaultFile);
-  const shouldPersist =
-    !vaultFile ||
-    isSparseStore(vaultFile) ||
-    storeWeight(picked) > storeWeight(vaultFile) ||
-    cloudRicher;
+    global.__mindosStore = picked;
+    global.__mindosStoreLoadedAt = Date.now();
 
-  if (shouldPersist && !isSparseStore(picked)) {
-    await persistLocal(picked);
-  }
+    const vaultFile = await readStoreFile(storePath());
+    const shouldPersist =
+      !vaultFile ||
+      isSparseStore(vaultFile) ||
+      storeWeight(picked) > storeWeight(vaultFile);
 
-  return global.__mindosStore;
+    if (shouldPersist && !isSparseStore(picked)) {
+      await persistLocal(picked);
+    }
+
+    return global.__mindosStore;
+  })().finally(() => {
+    global.__mindosLoadPromise = undefined;
+  });
+
+  return global.__mindosLoadPromise;
 }
 
 export async function getStore(): Promise<LifeStore> {
@@ -472,9 +547,10 @@ async function updateStoreServerless(
     throw new StoreUnavailableError("cloud not configured");
   }
 
+  const snapshotId = await currentSnapshotId();
   let lastError = "conflict";
   for (let attempt = 0; attempt < SERVERLESS_WRITE_ATTEMPTS; attempt++) {
-    const pulled = await pullCloudResult();
+    const pulled = await pullCloudResult(snapshotId);
     if (!pulled.ok) {
       throw new StoreUnavailableError(pulled.error || "cloud unavailable");
     }
@@ -487,8 +563,9 @@ async function updateStoreServerless(
     await mutator(draft);
     draft.revision = expectedRev + 1;
 
-    const pushed = await pushCloudCas(draft, expectedRev);
+    const pushed = await pushCloudCas(draft, expectedRev, snapshotId);
     if (pushed.ok) {
+      tenantCache().set(snapshotId, { store: draft, loadedAt: Date.now() });
       global.__mindosStore = draft;
       global.__mindosStoreLoadedAt = Date.now();
       global.__mindosCloudReady = true;
@@ -677,7 +754,8 @@ export async function restoreFromCloud(): Promise<{
     return { ok: false, restored: false, localWeight: 0, cloudWeight: 0, error: "cloud not configured" };
   }
   const current = await ensureLoaded();
-  const pulled = await pullCloudBest();
+  const snapshotId = await currentSnapshotId().catch(() => DEFAULT_SNAPSHOT_ID);
+  const pulled = await pullCloudBest(snapshotId);
   if (!pulled.ok) {
     return {
       ok: false,
@@ -704,6 +782,7 @@ export async function restoreFromCloud(): Promise<{
   }
   bumpEpoch();
   global.__mindosStore = cloud;
+  tenantCache().set(snapshotId, { store: cloud, loadedAt: Date.now() });
   await persistLocal(cloud);
   global.__mindosCloudReady = true;
   return { ok: true, restored: true, localWeight: lw, cloudWeight: cw };
@@ -718,7 +797,8 @@ export async function restoreSafest(candidate?: LifeStore): Promise<{
   const locals = await loadLocalCandidates();
   let cloud: LifeStore | null = null;
   if (isSupabaseConfigured()) {
-    const pulled = await pullCloudBest();
+    const snapshotId = await currentSnapshotId().catch(() => DEFAULT_SNAPSHOT_ID);
+    const pulled = await pullCloudBest(snapshotId);
     if (pulled.ok && pulled.store) cloud = migrateStore(pulled.store);
   }
   const incoming = candidate ? migrateStore(JSON.parse(JSON.stringify(candidate)) as LifeStore) : null;

@@ -17,50 +17,9 @@ import type {
   WorkPlanOwner,
 } from "./types";
 
-export const DEFAULT_LIFE_AREAS: Omit<Sphere, "id">[] = [
-  {
-    slug: "health",
-    name: "Здоровье",
-    description: "Анализы, питание, позвоночник, осанка, зубы, зрение, волосы",
-    priority: "critical",
-    order: 1,
-  },
-  {
-    slug: "career",
-    name: "Карьера / Бизнес",
-    description: "Engineering / AI + Fast Food Business",
-    priority: "critical",
-    order: 2,
-  },
-  {
-    slug: "religion",
-    name: "Религия",
-    description: "Таджвид и религиозное развитие",
-    priority: "high",
-    order: 3,
-  },
-  {
-    slug: "personal",
-    name: "Личное развитие",
-    description: "Поведение, речь, английский, чтение",
-    priority: "high",
-    order: 4,
-  },
-  {
-    slug: "culture",
-    name: "Культура и творчество",
-    description: "История, литература, искусство, шитьё",
-    priority: "medium",
-    order: 5,
-  },
-  {
-    slug: "body",
-    name: "Тело и стиль",
-    description: "Зал, гардероб, уход",
-    priority: "medium",
-    order: 6,
-  },
-];
+import { DIRECTION_CATALOG, ensureDirectionCatalog } from "./directions";
+
+export const DEFAULT_LIFE_AREAS: Omit<Sphere, "id">[] = DIRECTION_CATALOG;
 
 export function seedLifeAreas(): Sphere[] {
   return DEFAULT_LIFE_AREAS.map((a) => ({ ...a, id: id() }));
@@ -68,8 +27,11 @@ export function seedLifeAreas(): Sphere[] {
 
 export function ensureLifeAreas(store: LifeStore): void {
   if (!store.spheres) store.spheres = [];
-  if (store.spheres.length > 0) return;
-  store.spheres = seedLifeAreas();
+  if (store.spheres.length === 0) {
+    store.spheres = seedLifeAreas();
+    return;
+  }
+  ensureDirectionCatalog(store);
 }
 
 export function addMonths(isoDate: string, months: number): string {

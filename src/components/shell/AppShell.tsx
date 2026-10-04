@@ -4,23 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
+/** Mental model: Today → Map → Path → Calendar → Analytics → More */
 const NAV = [
-  { href: "/", label: "Главная" },
-  { href: "/goals", label: "Цели" },
-  { href: "/analytics", label: "Аналитика" },
-  { href: "/finance", label: "Финансы" },
-  { href: "/life", label: "Ещё" },
-] as const;
-
-const MOBILE = [
   { href: "/", label: "Сегодня" },
-  { href: "/goals", label: "Цели" },
+  { href: "/map", label: "Карта" },
+  { href: "/goals", label: "Путь" },
+  { href: "/calendar", label: "Календарь" },
   { href: "/analytics", label: "Аналитика" },
-  { href: "/finance", label: "Финансы" },
   { href: "/life", label: "Ещё" },
 ] as const;
 
-const WIDE = ["/archive"];
+const WIDE = ["/calendar", "/analytics"];
 
 function persistTheme(theme: "light" | "dark") {
   try {
@@ -33,21 +27,23 @@ function persistTheme(theme: "light" | "dark") {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isAdmin = pathname?.startsWith("/admin");
   const wide = WIDE.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem("mindos-theme");
       if (saved === "dark" || saved === "light") persistTheme(saved);
+      else persistTheme("dark");
     } catch {
-      /* ignore */
+      persistTheme("dark");
     }
-    // Theme/settings from server can wait — don't compete with page data.
+    if (isAdmin) return;
     const t = window.setTimeout(() => {
       fetch("/api/state", { credentials: "include" })
         .then((r) => r.json())
         .then((s) => {
-          const theme = s.settings?.theme === "dark" ? "dark" : "light";
+          const theme = s.settings?.theme === "light" ? "light" : "dark";
           persistTheme(theme);
           document.documentElement.setAttribute(
             "data-compact",
@@ -59,72 +55,70 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           );
         })
         .catch(() => undefined);
-    }, 1200);
+    }, 4000);
     return () => window.clearTimeout(t);
-  }, []);
+  }, [isAdmin]);
+
+  if (isAdmin) {
+    return <>{children}</>;
+  }
 
   function active(href: string) {
     if (href === "/") return pathname === "/";
+    if (href === "/map") {
+      return pathname === "/map" || pathname.startsWith("/directions");
+    }
     if (href === "/life") {
       return (
         pathname === "/life" ||
         pathname.startsWith("/wishlist") ||
         pathname.startsWith("/habits") ||
         pathname.startsWith("/settings") ||
-        pathname.startsWith("/archive")
+        pathname.startsWith("/inbox") ||
+        pathname.startsWith("/principles") ||
+        pathname.startsWith("/finance")
       );
     }
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
   return (
-    <div className="flex min-h-full pb-[4.5rem] md:pb-0">
-      <aside className="sticky top-0 hidden h-screen w-[var(--sidebar-w)] shrink-0 flex-col border-r border-[var(--line)] bg-[var(--bg-panel)]/80 px-5 py-8 backdrop-blur-md md:flex">
-        <Link href="/" className="mb-10 px-2">
-          <p className="font-display text-[28px] text-[var(--ink)]">2Mind</p>
+    <div className="shell">
+      <div className="aurora" aria-hidden>
+        <img className="aurora-scene" src="/bg/scene-3d.jpg" alt="" draggable={false} />
+        <div className="aurora-veil" />
+      </div>
+      <aside className="shell-rail">
+        <Link href="/" className="shell-brand">
+          <p className="shell-brand-mark">2Mind</p>
+          <p className="shell-brand-sub">life quest</p>
         </Link>
-        <nav className="flex flex-col gap-0.5">
+        <nav className="shell-nav">
           {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               data-active={active(item.href)}
-              className={`nav-link ${
-                active(item.href) ? "" : "text-[var(--ink-soft)] hover:bg-[var(--bg-muted)]"
-              }`}
+              className="nav-link"
             >
-              <span className="nav-dot" />
               {item.label}
             </Link>
           ))}
         </nav>
-        <div className="mt-auto" />
       </aside>
 
-      <main className="min-w-0 flex-1">
+      <main className="shell-main">
         <div
           key={pathname}
-          className={
-            wide
-              ? "page-enter w-full"
-              : "page-enter mx-auto w-full max-w-[42rem] px-5 py-8 md:px-12 md:py-12"
-          }
+          className={`page-enter ${wide ? "shell-main-inner is-wide" : "shell-main-inner"}`}
         >
           {children}
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex gap-1 border-t border-[var(--line)] bg-[var(--bg-panel)]/95 px-2 py-2 backdrop-blur-md md:hidden">
-        {MOBILE.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex flex-1 flex-col items-center rounded-xl px-1 py-2 text-[11px] font-semibold ${
-              active(item.href)
-                ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                : "text-[var(--ink-faint)]"
-            }`}
-          >
+      <nav className="shell-mobile" aria-label="Основное меню">
+        {NAV.map((item) => (
+          <Link key={item.href} href={item.href} data-active={active(item.href)}>
             {item.label}
           </Link>
         ))}

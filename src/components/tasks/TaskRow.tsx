@@ -1,9 +1,87 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { apiPost } from "@/lib/client-api";
 import { toast } from "@/components/ui/Toast";
+
+type BlockMode = "none" | "edit" | "delete";
+
+const BlockModeContext = createContext<BlockMode>("none");
+
+function PencilIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M10.8 2.7l2.5 2.5-7.6 7.6-3.2.7.7-3.2 7.6-7.6z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M2.8 4.3h10.4M6.3 4.3V2.8h3.4v1.5M4.2 4.3l.6 8.9h6.4l.6-8.9"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Wraps a list of TaskRows; one edit/delete toggle pair sits in the block's bottom corner. */
+export function TaskBlock({ children }: { children: React.ReactNode }) {
+  const [mode, setMode] = useState<BlockMode>("none");
+  const toggle = (next: BlockMode) => setMode((m) => (m === next ? "none" : next));
+
+  return (
+    <BlockModeContext.Provider value={mode}>
+      <div className="flex flex-1 flex-col">
+        {children}
+        <div className="mt-auto flex items-center justify-end gap-1 pt-2">
+          {mode !== "none" ? (
+            <span className="mr-1 text-[11px] font-medium text-[var(--ink-faint)]">
+              {mode === "edit" ? "нажми на задачу, чтобы изменить" : "нажми на задачу, чтобы удалить"}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            aria-label="Режим изменения"
+            aria-pressed={mode === "edit"}
+            onClick={() => toggle("edit")}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+              mode === "edit"
+                ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                : "border-[var(--line)] text-[var(--ink-soft)] hover:text-[var(--accent)]"
+            }`}
+          >
+            <PencilIcon />
+          </button>
+          <button
+            type="button"
+            aria-label="Режим удаления"
+            aria-pressed={mode === "delete"}
+            onClick={() => toggle("delete")}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border transition ${
+              mode === "delete"
+                ? "border-[var(--behind)] bg-[var(--c-pink-soft)] text-[var(--behind)]"
+                : "border-[var(--line)] text-[var(--ink-soft)] hover:text-[var(--behind)]"
+            }`}
+          >
+            <TrashIcon />
+          </button>
+        </div>
+      </div>
+    </BlockModeContext.Provider>
+  );
+}
 
 export type TaskRowData = {
   id: string;
@@ -36,6 +114,7 @@ export function TaskRow({
   const [done, setDone] = useState(task.done);
   const [title, setTitle] = useState(task.title);
   const [editing, setEditing] = useState(false);
+  const mode = useContext(BlockModeContext);
 
   async function toggle() {
     if (busy || editing) return;
@@ -115,10 +194,10 @@ export function TaskRow({
           aria-label={done ? "Снять выполнение" : "Выполнить"}
           disabled={busy}
           onClick={() => void toggle()}
-          className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition ${
+          className={`mt-0.5 flex h-[1.15rem] w-[1.15rem] shrink-0 items-center justify-center rounded-full border transition ${
             done
-              ? "check-pop border-[var(--accent)] bg-[var(--accent)] text-white"
-              : "border-[var(--line-strong)] bg-white hover:border-[var(--accent)]"
+              ? "check-pop border-[var(--accent)] bg-[var(--accent)] text-white shadow-[0_0_14px_rgba(168,85,247,0.6)]"
+              : "border-[var(--line-strong)] bg-[var(--bg-card)] hover:border-[var(--accent)] hover:shadow-[0_0_12px_rgba(168,85,247,0.3)]"
           }`}
         >
           {done ? (
@@ -154,8 +233,19 @@ export function TaskRow({
         ) : (
           <button
             type="button"
-            className="min-w-0 flex-1 text-left"
-            onClick={() => hasContext && setOpen((v) => !v)}
+            disabled={busy}
+            className={`min-w-0 flex-1 rounded-md text-left transition ${
+              mode === "edit"
+                ? "underline decoration-dashed decoration-[var(--accent)] underline-offset-4"
+                : mode === "delete"
+                  ? "hover:text-[var(--behind)]"
+                  : ""
+            }`}
+            onClick={() => {
+              if (mode === "edit") setEditing(true);
+              else if (mode === "delete") void remove();
+              else if (hasContext) setOpen((v) => !v);
+            }}
             onDoubleClick={() => setEditing(true)}
           >
             <p className={`text-[15px] font-semibold ${done ? "opacity-40 line-through" : ""}`}>
@@ -163,25 +253,6 @@ export function TaskRow({
             </p>
           </button>
         )}
-
-        <div className="flex shrink-0 items-center gap-0.5 pt-0.5">
-          <button
-            type="button"
-            className="rounded-lg px-2 py-1 text-[12px] font-bold text-[var(--ink-soft)] hover:bg-[var(--bg-muted)] hover:text-[var(--accent)]"
-            disabled={busy}
-            onClick={() => setEditing(true)}
-          >
-            Изменить
-          </button>
-          <button
-            type="button"
-            className="rounded-lg px-2 py-1 text-[12px] font-bold text-[var(--ink-soft)] hover:bg-[var(--c-pink-soft)] hover:text-[var(--behind)]"
-            disabled={busy}
-            onClick={() => void remove()}
-          >
-            Удалить
-          </button>
-        </div>
       </div>
       {open && hasContext && task.provenance ? (
         <div className="mb-3 ml-9 rounded-[var(--radius-sm)] bg-[var(--c-blue-soft)] px-3.5 py-3 text-[13px] font-medium">

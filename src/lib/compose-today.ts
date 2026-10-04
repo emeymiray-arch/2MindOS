@@ -1,5 +1,11 @@
 import { findWorkPlan, weekStartMonday } from "./lifeos";
 import {
+  composeQuotaForLevel,
+  focusLevelForDirection,
+  focusLevelForGoal,
+  monthKeyFromDate,
+} from "./directions";
+import {
   defaultTaskMinutes,
   formatTaskTitle,
   goalFocusScore,
@@ -25,8 +31,8 @@ export type ComposeResult = {
 
 /**
  * Today =
- *  - habits
- *  - exactly ONE current step from EACH active goal in the *current* 2-month этап
+ *  - habits (daily always; weekly respects direction focus)
+ *  - one current step per active goal in main/support focus (current этап preferred)
  *  - capacity-capped by settings.dailyCapacity (habits first, then goals by score)
  *  - personal tasks stay user-created
  *  - next purchase is a card (wishlist), not a task flood
@@ -53,8 +59,13 @@ function hasSimilarTask(
 function priorityForGoal(store: LifeStore, goalId: string): TaskPriority {
   const g = store.goals.find((x) => x.id === goalId);
   if (!g) return "should";
-  if (g.priority === "critical") return "must";
-  if (g.priority === "high" || effectiveHorizonStage(g) === currentHorizonStage(store)) {
+  const focus = focusLevelForGoal(store, goalId);
+  if (focus === "main" || g.priority === "critical") return "must";
+  if (
+    focus === "support" ||
+    g.priority === "high" ||
+    effectiveHorizonStage(g) === currentHorizonStage(store)
+  ) {
     return "should";
   }
   return "optional";
@@ -99,14 +110,31 @@ function upsertDraft(
 }
 
 function goalInComposeScope(g: Goal, store: LifeStore, date: string) {
-  return effectiveHorizonStage(g) === currentHorizonStage(store, date);
+  const month = monthKeyFromDate(date);
+  const focus = focusLevelForGoal(store, g.id, month);
+  if (focus === "background") return false;
+  // Prefer current этап, but allow main/support goals from nearby stages.
+  const cur = currentHorizonStage(store, date);
+  const stage = effectiveHorizonStage(g);
+  if (stage === cur) return true;
+  if (focus === "main" && Math.abs(stage - cur) <= 1) return true;
+  return false;
 }
 
-/** One concrete step per active goal. */
+/** One concrete step per active goal in compose scope. */
 function collectGoalDrafts(store: LifeStore, date: string): Draft[] {
   const drafts: Draft[] = [];
+  const month = monthKeyFromDate(date);
+  const perDirection = new Map<string, number>();
+
   for (const g of store.goals.filter((x) => x.active && !x.archived)) {
     if (!goalInComposeScope(g, store, date)) continue;
+
+    const focus = focusLevelForGoal(store, g.id, month);
+    const quota = composeQuotaForLevel(focus);
+    const dirKey = g.lifeAreaId ?? "_none";
+    const used = perDirection.get(dirKey) ?? 0;
+    if (used >= quota) continue;
 
     const pick = pickGoalTopic(store, g, date);
     if (pick) {
@@ -124,8 +152,12 @@ function collectGoalDrafts(store: LifeStore, date: string): Draft[] {
         deadlineStart: pick.module.deadlineStart,
         deadlineEnd: pick.module.deadlineEnd,
         estimatedMinutes: pick.estimatedMinutes,
-        score: goalFocusScore(g, store),
+        score:
+          goalFocusScore(g, store) +
+          (focus === "main" ? 20 : focus === "support" ? 8 : 0) +
+          (effectiveHorizonStage(g) === currentHorizonStage(store, date) ? 10 : 0),
       });
+      perDirection.set(dirKey, used + 1);
       continue;
     }
 
@@ -150,8 +182,11 @@ function collectGoalDrafts(store: LifeStore, date: string): Draft[] {
         deadlineStart: stage.deadlineStart,
         deadlineEnd: stage.deadlineEnd,
         estimatedMinutes: defaultTaskMinutes(store),
-        score: goalFocusScore(g, store),
+        score:
+          goalFocusScore(g, store) +
+          (focus === "main" ? 20 : focus === "support" ? 8 : 0),
       });
+      perDirection.set(dirKey, used + 1);
       break;
     }
   }
@@ -161,13 +196,17 @@ function collectGoalDrafts(store: LifeStore, date: string): Draft[] {
 function collectHabitDrafts(store: LifeStore, date: string): Draft[] {
   const weekStart = weekStartMonday(date);
   const day = new Date(date + "T12:00:00").getDay();
+  const month = monthKeyFromDate(date);
   const drafts: Draft[] = [];
 
   for (const h of store.habits.filter((x) => x.active && !x.archived)) {
     const log = store.habitLogs.find((l) => l.habitId === h.id && l.date === date);
     if (log && log.value >= h.targetPerDay) continue;
 
+    const focus = focusLevelForDirection(store, h.lifeAreaId, month);
+
     if (h.frequency === "weekly") {
+      if (focus === "background") continue;
       const weekLogs = store.habitLogs.filter(
         (l) => l.habitId === h.id && l.date >= weekStart && l.date <= date && l.value > 0
       );
@@ -182,9 +221,9 @@ function collectHabitDrafts(store: LifeStore, date: string): Draft[] {
       habitId: h.id,
       goalId: h.goalId,
       lifeAreaId: h.lifeAreaId,
-      priority: "should",
+      priority: focus === "main" ? "must" : "should",
       estimatedMinutes: 15,
-      score: 5,
+      score: focus === "main" ? 12 : focus === "support" ? 7 : 4,
     });
   }
   return drafts;
@@ -218,7 +257,6 @@ function applyDrafts(store: LifeStore, date: string, drafts: Draft[], result: Co
 
 /** Keep only the current step per goal; archive older auto topics + out-of-scope stages. */
 function resyncGoalTopics(store: LifeStore, date: string) {
-  const curStage = currentHorizonStage(store, date);
   for (const t of store.dayTasks ?? []) {
     if (t.date !== date || t.archived || t.done) continue;
     if (t.autoSource?.startsWith("project:")) {
@@ -235,7 +273,9 @@ function resyncGoalTopics(store: LifeStore, date: string) {
       t.archived = true;
       continue;
     }
-    if (effectiveHorizonStage(goal) !== curStage) {
+    // Manual personal tasks are never auto-archived here.
+    // Out-of-focus auto steps get cleared; don't archive the goal itself.
+    if (!goalInComposeScope(goal, store, date)) {
       t.archived = true;
       continue;
     }

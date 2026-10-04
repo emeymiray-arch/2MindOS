@@ -44,6 +44,9 @@ export type GoalStatus = "active" | "paused" | "done" | "archived";
 export type PhaseStatus = "planned" | "active" | "done" | "archived";
 export type PlanBucket = "foundation" | "development" | "later";
 export type HabitFrequency = "daily" | "weekly";
+/** Outer = how others read you; inner = principles/values/discipline. */
+export type LifeLayer = "outer" | "inner";
+export type PeriodFocusLevel = "main" | "support" | "background";
 
 export interface Sphere {
   id: string;
@@ -55,6 +58,61 @@ export interface Sphere {
   kpiLabel?: string;
   kpiValue?: string;
   order: number;
+  archived?: boolean;
+  /** Preferred personality layer for this direction. */
+  layerBias?: LifeLayer | "both";
+}
+
+/** Month-scoped focus weights for directions (main / support / background). */
+export interface PeriodFocus {
+  id: string;
+  /** YYYY-MM */
+  monthKey: string;
+  /** directionId → level */
+  levels: Record<string, PeriodFocusLevel>;
+  updatedAt: string;
+}
+
+export interface Principle {
+  id: string;
+  title: string;
+  body?: string;
+  layer: LifeLayer;
+  lifeAreaId?: string;
+  supportsGoalIds: string[];
+  supportsHabitIds: string[];
+  archived?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** What changed because of actions — not just task counts. */
+export interface Outcome {
+  id: string;
+  text: string;
+  metric?: string;
+  goalId?: string;
+  phaseId?: string;
+  lifeAreaId?: string;
+  /** YYYY-MM */
+  monthKey?: string;
+  createdAt: string;
+  archived?: boolean;
+}
+
+export interface Review {
+  id: string;
+  cadence: "day" | "week" | "month";
+  /** day: YYYY-MM-DD, week: Monday YYYY-MM-DD, month: YYYY-MM */
+  periodKey: string;
+  happened?: string;
+  worked?: string;
+  failed?: string;
+  why?: string;
+  learned?: string;
+  nextChange?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LifeNode {
@@ -87,6 +145,11 @@ export interface Capture {
   nodeIds: string[];
   edgeIds: string[];
   createdAt: string;
+  /** Manual inbox links (life-system, not auto graph). */
+  directionId?: string;
+  goalId?: string;
+  principleId?: string;
+  note?: string;
 }
 
 /** Phase inside a Goal (was GoalStage). */
@@ -128,6 +191,8 @@ export interface Goal {
    * 1 = months 1–2, 2 = months 3–4, 3 = months 5–6, …
    */
   horizonStage?: number;
+  /** outer / inner personality layer */
+  layer?: LifeLayer;
   /** @deprecated */
   module?: string;
   horizon?: "day" | "week" | "month" | "year";
@@ -236,6 +301,7 @@ export interface Habit {
   frequency?: HabitFrequency;
   goalId?: string;
   lifeAreaId?: string;
+  layer?: LifeLayer;
   archived?: boolean;
 }
 
@@ -466,6 +532,8 @@ export interface OracleMessage {
 export interface AppSettings {
   shortcutsToken: string;
   yearProgressNote: string;
+  /** Long-term vision line shown on Life home. */
+  visionNote?: string;
   mit: string;
   theme: ThemeMode;
   language: string;
@@ -618,6 +686,10 @@ export interface LifeStore {
   /** Monotonic write counter — stale serverless instances must not overwrite newer cloud. */
   revision?: number;
   spheres: Sphere[];
+  periodFocus: PeriodFocus[];
+  principles: Principle[];
+  outcomes: Outcome[];
+  reviews: Review[];
   nodes: LifeNode[];
   edges: LifeEdge[];
   captures: Capture[];

@@ -14,6 +14,7 @@ import {
   weekStartMonday,
 } from "@/lib/lifeos";
 import { apiError, apiJson } from "@/lib/api-response";
+import { planRealityForGoal } from "@/lib/plan-reality";
 import { getStore, updateStore } from "@/lib/store";
 import { calcGoalProgress, goalAnalytics, tasksForDate } from "@/lib/tasks";
 import { formatMinutes, sumMinutesForGoal } from "@/lib/time";
@@ -32,6 +33,7 @@ import {
   unlockNextPlanStep,
   STAGES_PER_PHASE,
 } from "@/lib/plan-calendar";
+import { resolveGoalSide } from "@/lib/layers";
 
 function weekAgo(iso: string) {
   const d = new Date(iso + "T12:00:00");
@@ -90,6 +92,9 @@ function enrichGoal(store: Awaited<ReturnType<typeof getStore>>, g: Goal) {
     todayActions: todayTasks,
     timeMinutesWeek: minutesWeek,
     timeFormattedWeek: formatMinutes(minutesWeek),
+    reality: planRealityForGoal(store, g, today),
+    hasPlan: Boolean(workPlan),
+    side: resolveGoalSide(g, store.spheres ?? []),
   };
 }
 
@@ -110,7 +115,7 @@ function goalsPayload(store: Awaited<ReturnType<typeof getStore>>, showArchived 
     goals: enriched,
     stageGroups,
     currentStage: curStage,
-    areas: store.spheres,
+    areas: (store.spheres ?? []).filter((s) => !s.archived),
     plan: activePlan(store),
     foundation: goals
       .filter((g) => bucketForHorizonStage(effectiveHorizonStage(g), curStage) === "foundation")
@@ -132,7 +137,11 @@ export async function GET(request: Request) {
     if (goalId) {
       const g = store.goals.find((x) => x.id === goalId);
       if (!g) return apiJson({ error: "not found" }, { status: 404 });
-      return apiJson({ goal: enrichGoal(store, g), areas: store.spheres, plan: activePlan(store) });
+      return apiJson({
+        goal: enrichGoal(store, g),
+        areas: (store.spheres ?? []).filter((s) => !s.archived),
+        plan: activePlan(store),
+      });
     }
     return apiJson(goalsPayload(store, showArchived));
   } catch (e) {
@@ -183,6 +192,8 @@ export async function POST(request: Request) {
           status: "active",
           horizonStage,
           bucket: bucketForHorizonStage(horizonStage, currentHorizonStage(s)),
+          layer:
+            body.layer === "outer" || body.layer === "inner" ? body.layer : undefined,
         };
         s.goals.unshift(goal);
         if (!s.workPlans) s.workPlans = [];
@@ -212,6 +223,8 @@ export async function POST(request: Request) {
         if (body.notes !== undefined) g.notes = body.notes || undefined;
         if (body.lifeAreaId !== undefined) g.lifeAreaId = body.lifeAreaId || undefined;
         if (body.priority != null) g.priority = body.priority as PriorityLevel;
+        if (body.layer === "outer" || body.layer === "inner") g.layer = body.layer;
+        if (body.layer === "" || body.layer === null) g.layer = undefined;
         if (body.horizonStage != null) {
           const n = Math.floor(Number(body.horizonStage));
           if (Number.isFinite(n) && n >= 1) {

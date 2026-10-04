@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { loadBrowserBackup, saveBrowserBackup } from "@/lib/browser-backup";
 import { publicStore } from "@/lib/sanitize";
@@ -54,11 +55,15 @@ async function recoverIfNeeded() {
 }
 
 export function DataGuard({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const skip = pathname?.startsWith("/admin");
+
   useEffect(() => {
-    // Defer recovery so page APIs (/api/os etc.) win the first cloud pull.
+    if (skip) return;
+    // Defer recovery so Today/Goals APIs own the first paint.
     const boot = window.setTimeout(() => {
       void recoverIfNeeded();
-    }, 2500);
+    }, 8000);
 
     const onSaved = () => {
       void mirrorToBrowser();
@@ -80,7 +85,7 @@ export function DataGuard({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVis);
       window.clearInterval(tick);
     };
-  }, []);
+  }, [skip]);
 
   return children;
 }

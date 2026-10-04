@@ -186,7 +186,9 @@ export default function FinancePage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="font-display text-[34px]">Деньги</h1>
+        <p className="page-kicker">Деньги</p>
+        <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Деньги</h1>
+        <p className="page-lede">Доход, обязательное, подушка.</p>
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

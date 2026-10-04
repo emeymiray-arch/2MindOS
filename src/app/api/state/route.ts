@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { pushCloudStore } from "@/lib/cloud-store";
+import { DEFAULT_SNAPSHOT_ID, pushCloudStore } from "@/lib/cloud-store";
 import { defaultSettings, migrateStore } from "@/lib/migrate";
 import { publicStore } from "@/lib/sanitize";
 import {
+  currentSnapshotId,
   getStore,
   resetStore,
   restoreFromCloud,
@@ -43,7 +44,8 @@ export async function POST(request: Request) {
   }
   if (body.action === "syncCloud") {
     const store = await getStore();
-    const result = await pushCloudStore(store);
+    const snapshotId = await currentSnapshotId().catch(() => DEFAULT_SNAPSHOT_ID);
+    const result = await pushCloudStore(store, snapshotId);
     return NextResponse.json({
       ...result,
       weight: storeWeight(store),

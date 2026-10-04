@@ -3,22 +3,17 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { apiGet, apiPost } from "@/lib/client-api";
-import { EmptyState, ProgressRing, StatusChip } from "@/components/ui/Progress";
-import { TaskRow, type TaskRowData } from "@/components/tasks/TaskRow";
+import { EmptyState, StatusChip } from "@/components/ui/Progress";
 import { toast } from "@/components/ui/Toast";
 import { PlanQuestB } from "@/components/plan/PlanQuestB";
 
 type Reality = {
   actual: number;
   expected: number | null;
-  delta: number | null;
   status: "ahead" | "on_track" | "behind" | "no_plan";
   label: string;
   detail: string;
-  deadlineRisk: boolean;
-  daysLeft: number | null;
 };
 
 type GoalDetail = {
@@ -26,16 +21,11 @@ type GoalDetail = {
     id: string;
     title: string;
     description?: string;
-    deadline?: string;
-    progress: number;
     area?: { name?: string } | null;
-    horizonStage?: number;
+    layer?: "inner" | "outer";
     horizonStageLabel?: string;
-    horizonStageShort?: string;
-    horizonWindow?: { start: string; end: string };
   };
   reality: Reality;
-  week: { planned: number; completed: number; remaining: number; percent: number };
   plan: {
     id: string;
     title: string;
@@ -69,7 +59,6 @@ type GoalDetail = {
       }[];
     }[];
   } | null;
-  todayTasks: TaskRowData[];
 };
 
 export default function GoalDetailPage() {
@@ -78,8 +67,7 @@ export default function GoalDetailPage() {
   const goalId = String(params.id ?? "");
   const [data, setData] = useState<GoalDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [renaming, setRenaming] = useState(false);
-  const [titleDraft, setTitleDraft] = useState("");
+  const [outcomeText, setOutcomeText] = useState("");
 
   const load = useCallback(async () => {
     if (!goalId) return;
@@ -92,39 +80,23 @@ export default function GoalDetailPage() {
     void load();
   }, [load]);
 
-  async function saveTitle() {
-    const title = titleDraft.trim();
-    if (!title) return;
-    const res = await apiPost("/api/goals", { action: "update", id: goalId, title });
-    if (!res.ok) {
-      toast(res.error ?? "Не удалось изменить", "warn");
-      return;
-    }
-    setRenaming(false);
-    toast("Название обновлено", "ok");
-    await load();
-  }
-
-  async function archiveGoal() {
-    if (!window.confirm("Убрать цель в архив?")) return;
+  async function closeGoal() {
+    if (!window.confirm("Закрыть эту цель?")) return;
     const res = await apiPost("/api/goals", { action: "archive", id: goalId });
-    if (!res.ok) {
-      toast(res.error ?? "Не удалось", "warn");
-      return;
+    if (!res.ok) toast(res.error ?? "Не удалось", "warn");
+    else {
+      toast("Закрыто", "ok");
+      router.push("/goals");
     }
-    toast("В архиве", "ok");
-    router.push("/goals");
   }
 
-  async function deleteGoal() {
-    if (!window.confirm("Удалить цель полностью? Это нельзя отменить.")) return;
-    const res = await apiPost("/api/goals", { action: "delete", id: goalId });
-    if (!res.ok) {
-      toast(res.error ?? "Не удалось удалить", "warn");
-      return;
+  async function setSide(layer: "inner" | "outer") {
+    const res = await apiPost("/api/goals", { action: "update", id: goalId, layer });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else {
+      toast(layer === "inner" ? "Внутреннее" : "Внешнее", "ok");
+      await load();
     }
-    toast("Удалила", "ok");
-    router.push("/goals");
   }
 
   async function ensurePlan() {
@@ -133,171 +105,114 @@ export default function GoalDetailPage() {
       ownerType: "goal",
       ownerId: goalId,
     });
-    if (!res.ok) {
-      toast(res.error ?? "Не удалось создать план", "warn");
-      return;
-    }
-    toast("План открыт", "ok");
-    await load();
+    if (!res.ok) toast(res.error ?? "Не удалось", "warn");
+    else await load();
   }
 
-  if (loading) return <p className="text-[var(--ink-faint)]">Открываю…</p>;
+  async function addOutcome(e: React.FormEvent) {
+    e.preventDefault();
+    if (!outcomeText.trim()) return;
+    const res = await apiPost("/api/life", {
+      action: "createOutcome",
+      text: outcomeText.trim(),
+      goalId,
+    });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else {
+      setOutcomeText("");
+      toast("Результат записан", "ok");
+    }
+  }
+
+  if (loading) return <p className="text-[var(--ink-faint)]">…</p>;
   if (!data) {
     return (
       <EmptyState
-        title="Цель не найдена"
+        title="Не найдено"
         action={
           <Link href="/goals" className="btn">
-            К списку
+            Назад
           </Link>
         }
       />
     );
   }
 
-  const { goal, reality, plan, week, todayTasks } = data;
+  const { goal, reality, plan } = data;
 
   return (
-    <div className="space-y-8">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <Link href="/goals" className="text-[13px] font-semibold text-[var(--accent)]">
-          ← Цели
+    <div className="space-y-10">
+      <div>
+        <Link href="/goals" className="text-[13px] font-bold text-[var(--accent)]">
+          ← Намерения
         </Link>
-        <div className="mt-4 flex flex-wrap items-start gap-5">
-          <ProgressRing value={reality.actual} expected={reality.expected} size={88} stroke={7} />
-          <div className="min-w-0 flex-1">
-            {renaming ? (
-              <form
-                className="flex flex-wrap gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void saveTitle();
-                }}
-              >
-                <input
-                  className="field min-w-0 flex-1 font-display text-[24px]"
-                  value={titleDraft}
-                  autoFocus
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                />
-                <button type="submit" className="btn btn-primary">
-                  Сохранить
-                </button>
-                <button type="button" className="btn" onClick={() => setRenaming(false)}>
-                  Отмена
-                </button>
-              </form>
-            ) : (
-              <h1 className="font-display text-[32px] md:text-[36px]">{goal.title}</h1>
-            )}
-            <p className="mt-2 text-[14px] font-semibold text-[var(--ink-soft)]">
-              Цель → план из фаз → этапы → шаги. Шаги появляются на Главной.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <StatusChip status={reality.status} label={reality.label} />
-              {goal.horizonStageLabel ? (
-                <span className="rounded-full bg-[var(--bg-muted)] px-2.5 py-1 text-[12px] font-bold text-[var(--accent)]">
-                  {goal.horizonStageLabel}
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setTitleDraft(goal.title);
-                  setRenaming(true);
-                }}
-              >
-                Изменить название
-              </button>
-              <button type="button" className="btn" onClick={() => void archiveGoal()}>
-                В архив
-              </button>
-              <button
-                type="button"
-                className="btn"
-                style={{ color: "var(--behind)" }}
-                onClick={() => void deleteGoal()}
-              >
-                Удалить цель
-              </button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      <section className="surface grid grid-cols-3 gap-2 p-4 text-center">
-        <div>
-          <p className="text-[11px] font-bold text-[var(--ink-faint)]">Факт</p>
-          <p className="font-display text-[1.4rem] text-[var(--accent)]">{reality.actual}%</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-bold text-[var(--ink-faint)]">План</p>
-          <p className="font-display text-[1.4rem]">
-            {reality.expected == null ? "—" : `${reality.expected}%`}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-bold text-[var(--ink-faint)]">Неделя</p>
-          <p className="font-display text-[1.4rem]">
-            {week.completed}/{week.planned}
-          </p>
-        </div>
-      </section>
-
-      <section>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-display text-[1.5rem]">План</h2>
-            <p className="mt-1 text-[13px] font-semibold text-[var(--ink-soft)]">
-              Сверху вниз: фаза → этап → шаг. У каждого есть «Изменить» и «Удалить».
-            </p>
-          </div>
-          {!plan ? (
-            <button type="button" className="btn btn-primary" onClick={() => void ensurePlan()}>
-              Создать план
-            </button>
+        <h1 className="page-title mt-4 text-[2.1rem] md:text-[2.5rem]">{goal.title}</h1>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <StatusChip status={reality.status} label={reality.label} />
+          {goal.area?.name ? (
+            <span className="text-[13px] font-medium text-[var(--ink-faint)]">{goal.area.name}</span>
           ) : null}
+          <span className="text-[13px] font-medium text-[var(--c-violet)]">
+            {goal.layer === "inner"
+              ? "Внутреннее"
+              : goal.layer === "outer"
+                ? "Внешнее"
+                : "Сторона не задана"}
+          </span>
         </div>
+        {reality.detail ? (
+          <p className="mt-3 text-[14px] font-medium text-[var(--ink-soft)]">{reality.detail}</p>
+        ) : null}
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn"
+            data-active={goal.layer === "inner"}
+            onClick={() => void setSide("inner")}
+          >
+            Внутреннее
+          </button>
+          <button
+            type="button"
+            className="btn"
+            data-active={goal.layer === "outer"}
+            onClick={() => void setSide("outer")}
+          >
+            Внешнее
+          </button>
+          <button type="button" className="btn" onClick={() => void closeGoal()}>
+            Закрыть цель
+          </button>
+        </div>
+      </div>
 
-        {!plan ? (
-          <div className="surface space-y-3 p-5">
-            <p className="text-[14px] font-semibold text-[var(--ink-soft)]">
-              Пока плана нет. Создай его — внутри появятся фазы, этапы и шаги.
-            </p>
-            <button type="button" className="btn btn-primary" onClick={() => void ensurePlan()}>
-              Создать план
-            </button>
-          </div>
-        ) : (
-          <PlanQuestB
-            planId={plan.id}
-            phases={plan.phases}
-            phaseGroups={plan.phaseGroups}
-            onChanged={() => void load()}
-          />
-        )}
-      </section>
+      <form onSubmit={addOutcome} className="flex gap-2 border-t border-[var(--line)] pt-6">
+        <input
+          className="field min-w-0 flex-1"
+          value={outcomeText}
+          onChange={(e) => setOutcomeText(e.target.value)}
+          placeholder="Что изменилось?"
+        />
+        <button type="submit" className="btn shrink-0">
+          Результат
+        </button>
+      </form>
 
-      <section>
-        <h2 className="font-display text-[1.5rem]">Сегодня по этой цели</h2>
-        <p className="mt-1 text-[13px] font-semibold text-[var(--ink-soft)]">
-          Сюда попадают открытые шаги текущего этапа.
-        </p>
-        {todayTasks.length === 0 ? (
-          <p className="mt-3 text-[14px] font-semibold text-[var(--ink-faint)]">
-            Пока пусто — отметь или добавь шаг в плане выше.
-          </p>
-        ) : (
-          <div className="surface mt-3 px-4">
-            {todayTasks.map((t) => (
-              <TaskRow key={t.id} task={t} onChanged={() => void load()} />
-            ))}
-          </div>
-        )}
-      </section>
+      {!plan ? (
+        <div className="space-y-3">
+          <p className="text-[15px] font-medium text-[var(--ink-soft)]">Плана ещё нет.</p>
+          <button type="button" className="btn btn-primary" onClick={() => void ensurePlan()}>
+            Открыть план
+          </button>
+        </div>
+      ) : (
+        <PlanQuestB
+          planId={plan.id}
+          phases={plan.phases}
+          phaseGroups={plan.phaseGroups}
+          onChanged={() => void load()}
+        />
+      )}
     </div>
   );
 }

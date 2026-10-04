@@ -1,9 +1,15 @@
 import { apiError, apiJson } from "@/lib/api-response";
 import { displayCurrency } from "@/lib/format";
 import { ensureTodayComposed, pickNextPurchase, shouldAutoCompose } from "@/lib/compose-today";
-import { syncQuestStateIfChanged } from "@/lib/gamification";
+import {
+  activeDirections,
+  buildAttentionSignals,
+  ensurePeriodFocus,
+  monthKeyFromDate,
+} from "@/lib/directions";
 import { todayKey } from "@/lib/id";
 import {
+  activePlan,
   calcWorkPlanProgress,
   currentWorkPhase,
   findWorkPlan,
@@ -23,8 +29,6 @@ import { getStore, updateStore } from "@/lib/store";
 import { calcGoalProgress, tasksForDate } from "@/lib/tasks";
 import {
   groupStagesIntoPhases,
-  normalizePlanCalendar,
-  unlockNextPlanStep,
   effectiveHorizonStage,
   horizonStageLabel,
   horizonStageShort,
@@ -41,23 +45,16 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const today = todayKey();
-    await syncQuestStateIfChanged(getStore, updateStore, today);
     const goalId = url.searchParams.get("goalId");
+    const wantCompose = url.searchParams.get("compose") !== "0";
 
-    if (shouldAutoCompose(today)) {
+    // Home only: compose today when needed (dry-run skips cloud/local write).
+    // Goal detail is read-only — no normalize/unlock write on every open.
+    if (!goalId && wantCompose && shouldAutoCompose(today)) {
       await ensureTodayComposed(getStore, updateStore, today);
     }
 
-    // Goal detail only: normalize that plan + unlock its next step
     if (goalId) {
-      await updateStore((s) => {
-        const g = s.goals.find((x) => x.id === goalId);
-        if (!g?.workPlanId) return;
-        const plan = findWorkPlan(s, g.workPlanId);
-        if (!plan) return;
-        normalizePlanCalendar(plan, s);
-        unlockNextPlanStep(s, plan.id, today);
-      });
       const fresh = await getStore();
       const g = fresh.goals.find((x) => x.id === goalId);
       if (!g) return apiJson({ error: "not found" }, { status: 404 });
@@ -131,7 +128,13 @@ export async function GET(request: Request) {
       });
     }
 
-    const store = await getStore();
+    let store = await getStore();
+    const monthKeyNeeded = monthKeyFromDate(today);
+    if (!store.periodFocus?.some((p) => p.monthKey === monthKeyNeeded)) {
+      store = await updateStore((s) => {
+        ensurePeriodFocus(s, monthKeyNeeded);
+      });
+    }
 
     // Home Today: habits + personal tasks + next purchase — not goal stages
     const dayTasks = tasksForDate(store, today).map((t) => {
@@ -189,12 +192,77 @@ export async function GET(request: Request) {
     );
 
     const activeGoals = store.goals.filter((g) => g.active && !g.archived);
+    const monthKey = monthKeyFromDate(today);
+    const focusRow = store.periodFocus.find((p) => p.monthKey === monthKey);
+    const plan = activePlan(store);
+    const curStage = currentHorizonStage(store, today);
+
+    const goalRealities = activeGoals.map((g) => ({
+      g,
+      reality: planRealityForGoal(store, g, today),
+    }));
+    const behindTitles = goalRealities
+      .filter((x) => x.reality.status === "behind")
+      .map((x) => x.g.title);
+
+    const mainDirIds = Object.entries(focusRow?.levels ?? {})
+      .filter(([, lv]) => lv === "main")
+      .map(([id]) => id);
+    const todayDirIds = new Set(
+      [...fromGoals, ...habits]
+        .filter((t) => !t.done)
+        .map((t) => t.lifeAreaId)
+        .filter(Boolean) as string[]
+    );
+    const neglectedMain = activeDirections(store)
+      .filter((d) => mainDirIds.includes(d.id) && !todayDirIds.has(d.id))
+      .map((d) => d.name);
+
+    const todayOpen =
+      fromGoals.filter((t) => !t.done).length +
+      personal.filter((t) => !t.done).length +
+      habits.filter((t) => !t.done).length;
+
+    const attention = buildAttentionSignals(store, {
+      behindGoalTitles: behindTitles,
+      todayTaskCount: todayOpen,
+      capacity: store.settings.dailyCapacity ?? 6,
+      neglectedMainNames: neglectedMain,
+    });
+
+    const directions = activeDirections(store).map((d) => ({
+      id: d.id,
+      name: d.name,
+      focus: focusRow?.levels[d.id] ?? "background",
+      layerBias: d.layerBias ?? "both",
+      goals: activeGoals.filter((g) => g.lifeAreaId === d.id).length,
+    }));
 
     return apiJson({
       today,
       week: weekPulse(store, today),
       analytics: buildAnalytics(store, today),
       nextPurchase: pickNextPurchase(store),
+      life: {
+        vision:
+          store.settings.visionNote?.trim() ||
+          store.settings.yearProgressNote?.trim() ||
+          "",
+        planTitle: plan?.title ?? null,
+        planStart: plan?.startDate ?? null,
+        planEnd: plan?.endDate ?? null,
+        horizonStage: curStage,
+        horizonStageLabel: horizonStageLabel(curStage),
+        monthKey,
+        directions,
+        attention,
+        pendingInbox: (store.captures ?? []).filter((c) => c.status === "pending").length,
+        principlesCount: (store.principles ?? []).filter((p) => !p.archived).length,
+        recentOutcomes: (store.outcomes ?? [])
+          .filter((o) => !o.archived)
+          .slice(-3)
+          .reverse(),
+      },
       diary: {
         phaseNum,
         label: `Фаза ${phaseNum}`,
@@ -211,7 +279,7 @@ export async function GET(request: Request) {
         })),
       },
       goals: activeGoals.map((g) => {
-        const plan = g.workPlanId ? findWorkPlan(store, g.workPlanId) : undefined;
+        const wp = g.workPlanId ? findWorkPlan(store, g.workPlanId) : undefined;
         const reality = planRealityForGoal(store, g, today);
         const stage = effectiveHorizonStage(g);
         return {
@@ -222,8 +290,10 @@ export async function GET(request: Request) {
           bucket: bucketForHorizonStage(stage, currentHorizonStage(store, today)),
           horizonStage: stage,
           area: store.spheres.find((s) => s.id === g.lifeAreaId)?.name,
-          hasPlan: Boolean(plan),
-          phase: plan ? currentWorkPhase(plan)?.title : null,
+          lifeAreaId: g.lifeAreaId,
+          layer: g.layer,
+          hasPlan: Boolean(wp),
+          phase: wp ? currentWorkPhase(wp)?.title : null,
           reality,
         };
       }),

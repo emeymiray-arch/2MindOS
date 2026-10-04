@@ -8,6 +8,7 @@ import {
   ensureLifeAreas,
   mapLegacyWishBucket,
 } from "./lifeos";
+import { ensureDirectionCatalog, ensurePeriodFocus } from "./directions";
 import { splitHealthRecoveryGoals } from "./curricula/health-recovery";
 import { ensureDigitalSecurityGoal } from "./curricula/digital-security";
 import { ensureDigitalErasureGoal } from "./curricula/digital-erasure";
@@ -20,7 +21,7 @@ import {
 } from "./plan-calendar";
 import { randomBytes } from "crypto";
 
-const CURRENT_VERSION = 17;
+const CURRENT_VERSION = 20;
 
 function freshToken() {
   return `mos_${randomBytes(18).toString("hex")}`;
@@ -33,7 +34,7 @@ function defaultSettings(partial?: Partial<AppSettings>): AppSettings {
   return {
     yearProgressNote: "Год строительства системы",
     mit: "Фокус дня",
-    theme: "light",
+    theme: "dark",
     language: "ru",
     startOfWeek: 1,
     notifications: true,
@@ -66,9 +67,15 @@ export function migrateStore(raw: LifeStore): LifeStore {
   if (!store.spheres) store.spheres = [];
   if (!store.habits) store.habits = [];
   if (!store.habitLogs) store.habitLogs = [];
+  if (!store.periodFocus) store.periodFocus = [];
+  if (!store.principles) store.principles = [];
+  if (!store.outcomes) store.outcomes = [];
+  if (!store.reviews) store.reviews = [];
+  if (!store.captures) store.captures = [];
 
   store.settings = defaultSettings(store.settings as Partial<AppSettings>);
   if (store.settings.dailyCapacity == null) store.settings.dailyCapacity = 6;
+  if (store.settings.visionNote == null) store.settings.visionNote = "";
 
   if (
     store.version < 4 &&
@@ -447,6 +454,49 @@ export function migrateStore(raw: LifeStore): LifeStore {
   // v17: checklist «Удаление себя из интернета» (10 этапов / 4 фазы)
   if ((store.version ?? 0) < 17) {
     ensureDigitalErasureGoal(store);
+  }
+
+  // v18: local-first — dedupe erasure goals; keep the richer plan
+  if ((store.version ?? 0) < 18) {
+    const erasure = (store.goals ?? []).filter(
+      (g) => !g.archived && /удал.*интернет/i.test(g.title)
+    );
+    if (erasure.length > 1) {
+      const scored = erasure.map((g) => {
+        const wp = store.workPlans?.find((p) => p.id === g.workPlanId);
+        const modules =
+          wp?.phases?.reduce((n, ph) => n + (ph.modules?.length ?? 0), 0) ?? 0;
+        return { g, modules, stages: wp?.phases?.length ?? 0 };
+      });
+      scored.sort((a, b) => b.modules - a.modules || b.stages - a.stages);
+      const keep = scored[0]?.g;
+      for (const row of scored.slice(1)) {
+        row.g.archived = true;
+        row.g.active = false;
+        row.g.status = "archived";
+        if (row.g.workPlanId) {
+          const wp = store.workPlans?.find((p) => p.id === row.g.workPlanId);
+          if (wp) wp.status = "archived";
+        }
+      }
+      if (keep) {
+        keep.title = "Удаление себя из интернета";
+        keep.active = true;
+        keep.archived = false;
+        keep.status = "active";
+      }
+    }
+  }
+
+  // v19: life-system — directions catalog + period focus
+  if ((store.version ?? 0) < 19) {
+    ensureDirectionCatalog(store);
+    ensurePeriodFocus(store);
+  }
+
+  // v20: Dark Glass HUD default theme
+  if ((store.version ?? 0) < 20) {
+    store.settings.theme = "dark";
   }
 
   store.version = CURRENT_VERSION;

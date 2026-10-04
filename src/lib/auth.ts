@@ -1,22 +1,33 @@
-import { createHash, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 import type { NextRequest } from "next/server";
+import {
+  ADMIN_COOKIE,
+  AUTH_COOKIE,
+  SESSION_COOKIE,
+  adminSecret,
+  apiSecret,
+  hashSecretEdge,
+  isTenantMode,
+  sessionSecret,
+  verifySessionValueEdge,
+  type SessionPayload,
+} from "./auth-edge";
 
-export const AUTH_COOKIE = "mindos_auth";
-
-export function apiSecret(): string | null {
-  const s = process.env.MINDOS_API_SECRET?.trim();
-  return s || null;
-}
+export {
+  ADMIN_COOKIE,
+  AUTH_COOKIE,
+  SESSION_COOKIE,
+  adminSecret,
+  apiSecret,
+  hashSecretEdge,
+  isTenantMode,
+  sessionSecret,
+  verifySessionValueEdge,
+  type SessionPayload,
+};
 
 export function hashSecret(secret: string): string {
   return createHash("sha256").update(secret).digest("hex");
-}
-
-export async function hashSecretEdge(secret: string): Promise<string> {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
 }
 
 function safeEqual(a: string, b: string): boolean {
@@ -30,6 +41,66 @@ function safeEqual(a: string, b: string): boolean {
   }
 }
 
+function b64url(buf: Buffer | string): string {
+  const b = typeof buf === "string" ? Buffer.from(buf, "utf8") : buf;
+  return b.toString("base64url");
+}
+
+function fromB64url(s: string): Buffer {
+  return Buffer.from(s, "base64url");
+}
+
+export function signSession(
+  payload: Omit<SessionPayload, "exp">,
+  maxAgeSec = 60 * 60 * 24 * 30
+): string | null {
+  const secret = sessionSecret();
+  if (!secret) return null;
+  const body: SessionPayload = {
+    ...payload,
+    exp: Math.floor(Date.now() / 1000) + maxAgeSec,
+  };
+  const data = b64url(JSON.stringify(body));
+  const sig = createHmac("sha256", secret).update(data).digest("base64url");
+  return `${data}.${sig}`;
+}
+
+export function verifySessionValue(cookie: string | undefined): SessionPayload | null {
+  if (!cookie) return null;
+  const secret = sessionSecret();
+  if (!secret) return null;
+  const [data, sig] = cookie.split(".");
+  if (!data || !sig) return null;
+  const expected = createHmac("sha256", secret).update(data).digest("base64url");
+  if (!safeEqual(sig, expected)) return null;
+  try {
+    const payload = JSON.parse(fromB64url(data).toString("utf8")) as SessionPayload;
+    if (!payload.accountId || !payload.login || !payload.exp) return null;
+    if (payload.exp < Math.floor(Date.now() / 1000)) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+export function signAdminCookie(): string | null {
+  const secret = adminSecret();
+  if (!secret) return null;
+  return hashSecret(`admin:${secret}`);
+}
+
+export function verifyAdminCookie(cookie: string | undefined): boolean {
+  const expected = signAdminCookie();
+  if (!expected || !cookie) return false;
+  return safeEqual(cookie, expected);
+}
+
+export function verifyAdminSecret(candidate: string): boolean {
+  const secret = adminSecret();
+  if (!secret) return false;
+  return safeEqual(candidate, secret);
+}
+
 export function isLocalHost(request: NextRequest | Request): boolean {
   const host = request.headers.get("host") ?? "";
   return (
@@ -40,16 +111,15 @@ export function isLocalHost(request: NextRequest | Request): boolean {
   );
 }
 
-/** True when API is open without a configured secret (local or Vercel). */
 export function isOpenLocalDev(request: NextRequest | Request): boolean {
+  if (isTenantMode()) return false;
   if (apiSecret()) return false;
-  // No secret → open access. Vercel Authentication (SSO) still gates the host.
   void request;
   return true;
 }
 
-/** App-level password only when MINDOS_API_SECRET is set. */
 export function authRequired(): boolean {
+  if (isTenantMode()) return true;
   return Boolean(apiSecret());
 }
 
@@ -74,13 +144,7 @@ export function verifyBearer(request: Request): boolean {
   return safeEqual(m[1], secret);
 }
 
-export function isAuthenticated(request: Request): boolean {
-  if (!authRequired()) return true;
-  if (isOpenLocalDev(request)) return true;
-  return verifyBearer(request) || verifyCookieValue(getCookie(request, AUTH_COOKIE));
-}
-
-function getCookie(request: Request, name: string): string | undefined {
+export function getCookie(request: Request, name: string): string | undefined {
   const raw = request.headers.get("cookie");
   if (!raw) return undefined;
   for (const part of raw.split(";")) {
@@ -88,4 +152,27 @@ function getCookie(request: Request, name: string): string | undefined {
     if (k === name) return decodeURIComponent(rest.join("="));
   }
   return undefined;
+}
+
+export function getSession(request: Request): SessionPayload | null {
+  return verifySessionValue(getCookie(request, SESSION_COOKIE));
+}
+
+export function isAuthenticated(request: Request): boolean {
+  if (isTenantMode()) {
+    return Boolean(getSession(request));
+  }
+  if (!authRequired()) return true;
+  if (isOpenLocalDev(request)) return true;
+  return verifyBearer(request) || verifyCookieValue(getCookie(request, AUTH_COOKIE));
+}
+
+export function isAdminRequest(request: Request): boolean {
+  if (verifyAdminCookie(getCookie(request, ADMIN_COOKIE))) return true;
+  const header = request.headers.get("x-mindos-admin") ?? "";
+  if (header && verifyAdminSecret(header)) return true;
+  const auth = request.headers.get("authorization") ?? "";
+  const m = auth.match(/^Admin\s+(.+)$/i);
+  if (m && verifyAdminSecret(m[1])) return true;
+  return false;
 }

@@ -1,49 +1,34 @@
 import Link from "next/link";
 
 const LINKS = [
-  {
-    href: "/wishlist",
-    label: "Wishlist",
-    color: "var(--c-pink)",
-    soft: "var(--c-pink-soft)",
-  },
-  {
-    href: "/habits",
-    label: "Привычки",
-    color: "var(--c-green)",
-    soft: "var(--c-green-soft)",
-  },
-  {
-    href: "/archive",
-    label: "Архив",
-    color: "var(--c-violet)",
-    soft: "var(--c-violet-soft)",
-  },
-  {
-    href: "/settings",
-    label: "Настройки",
-    color: "var(--c-orange)",
-    soft: "var(--c-orange-soft)",
-  },
+  { href: "/finance", label: "Деньги", hint: "Доход, обязательное, подушка" },
+  { href: "/inbox", label: "Inbox", hint: "Черновики до привязки" },
+  { href: "/principles", label: "Принципы", hint: "Правила" },
+  { href: "/habits", label: "Привычки", hint: "Ежедневные" },
+  { href: "/wishlist", label: "Wishlist", hint: "Покупки" },
+  { href: "/settings", label: "Настройки", hint: "Vault, ёмкость" },
 ] as const;
 
 export default function LifePage() {
   return (
     <div className="space-y-8">
       <header>
-        <h1 className="font-display text-[34px]">Ещё</h1>
+        <p className="page-kicker">Ещё</p>
+        <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Ещё</h1>
+        <p className="page-lede">Деньги, inbox, привычки, настройки.</p>
       </header>
-      <div className="space-y-2.5">
+      <div className="bento">
         {LINKS.map((l) => (
           <Link
             key={l.href}
             href={l.href}
-            className="surface flex items-center gap-4 p-4 transition hover:shadow-[var(--shadow)]"
-            style={{ background: l.soft, borderLeft: `4px solid ${l.color}` }}
+            className="span-6 panel flex items-center justify-between gap-4 transition"
           >
-            <p className="text-[16px] font-bold" style={{ color: l.color }}>
-              {l.label}
-            </p>
+            <div>
+              <p className="font-display text-[1.25rem]">{l.label}</p>
+              <p className="mt-1 text-[14px] text-[var(--ink-soft)]">{l.hint}</p>
+            </div>
+            <span className="text-[var(--ink-faint)]">→</span>
           </Link>
         ))}
       </div>

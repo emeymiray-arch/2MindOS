@@ -44,14 +44,27 @@ export function isDestructiveOverwrite(
   return false;
 }
 
+/**
+ * Prefer real content over bare revision bumps.
+ * A cloud row with higher revision but far less weight must not wipe the vault.
+ */
 export function pickRicher(
   a: LifeStore | null | undefined,
   b: LifeStore | null | undefined
 ): LifeStore | null {
   if (!a) return b ?? null;
   if (!b) return a;
+  const wa = storeWeight(a);
+  const wb = storeWeight(b);
+  // Clear weight winner when one side is much richer.
+  if (wa >= 8 || wb >= 8) {
+    if (wb > wa * 1.15) return b;
+    if (wa > wb * 1.15) return a;
+  }
+  if (isDestructiveOverwrite(b, a)) return a;
+  if (isDestructiveOverwrite(a, b)) return b;
   const ra = Number(a.revision) || 0;
   const rb = Number(b.revision) || 0;
   if (rb !== ra) return rb > ra ? b : a;
-  return storeWeight(b) > storeWeight(a) ? b : a;
+  return wb >= wa ? b : a;
 }

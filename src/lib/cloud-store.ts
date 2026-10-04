@@ -6,7 +6,7 @@ import {
 import { getSupabaseAdmin } from "./supabase";
 import type { LifeStore } from "./types";
 
-const SNAPSHOT_ID = "default";
+export const DEFAULT_SNAPSHOT_ID = "default";
 const HIST_PREFIX = "h-";
 const MAX_HISTORY = 12;
 const PULL_MS = 20000;
@@ -27,8 +27,13 @@ async function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
   ]);
 }
 
-function histId(at = new Date()): string {
-  return `${HIST_PREFIX}${at.toISOString().replace(/[:.]/g, "-").slice(0, 19)}`;
+function histId(snapshotId: string, at = new Date()): string {
+  const stamp = at.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  return `${HIST_PREFIX}${snapshotId}-${stamp}`;
+}
+
+function histLike(snapshotId: string): string {
+  return `${HIST_PREFIX}${snapshotId}-%`;
 }
 
 function asStore(payload: unknown): LifeStore | null {
@@ -40,12 +45,12 @@ function revOf(store: LifeStore | null | undefined, rowRevision = 0): number {
   return Math.max(Number(store?.revision) || 0, Number(rowRevision) || 0);
 }
 
-export async function pullCloudStore(): Promise<LifeStore | null> {
-  const result = await pullCloudResult();
+export async function pullCloudStore(snapshotId = DEFAULT_SNAPSHOT_ID): Promise<LifeStore | null> {
+  const result = await pullCloudResult(snapshotId);
   return result.ok ? result.store : null;
 }
 
-async function pullOnce(): Promise<CloudPull> {
+async function pullOnce(snapshotId: string): Promise<CloudPull> {
   const sb = getSupabaseAdmin();
   if (!sb) return { ok: false, store: null, rowRevision: 0, error: "not configured" };
   try {
@@ -53,15 +58,14 @@ async function pullOnce(): Promise<CloudPull> {
       sb
         .from("lifeos_snapshots")
         .select("payload, revision")
-        .eq("id", SNAPSHOT_ID)
+        .eq("id", snapshotId)
         .maybeSingle(),
       PULL_MS
     );
     if (error) {
-      // Older schema without revision column.
       if (/revision/i.test(error.message)) {
         const legacy = await withTimeout(
-          sb.from("lifeos_snapshots").select("payload").eq("id", SNAPSHOT_ID).maybeSingle(),
+          sb.from("lifeos_snapshots").select("payload").eq("id", snapshotId).maybeSingle(),
           PULL_MS
         );
         if (legacy.error) return { ok: false, store: null, rowRevision: 0, error: legacy.error.message };
@@ -85,16 +89,16 @@ async function pullOnce(): Promise<CloudPull> {
   }
 }
 
-/** Live `default` snapshot. Retries once on timeout/network blip. */
-export async function pullCloudResult(): Promise<CloudPull> {
-  const first = await pullOnce();
+/** Live snapshot for tenant. Retries once on timeout/network blip. */
+export async function pullCloudResult(snapshotId = DEFAULT_SNAPSHOT_ID): Promise<CloudPull> {
+  const first = await pullOnce(snapshotId);
   if (first.ok || first.error === "not configured") return first;
   if (!/timeout|network|fetch|terminated/i.test(first.error)) return first;
-  return pullOnce();
+  return pullOnce(snapshotId);
 }
 
-/** Richest among default + recent history — for restore only. */
-export async function pullCloudBest(): Promise<CloudPull> {
+/** Richest among snapshot + that tenant's history — for restore only. */
+export async function pullCloudBest(snapshotId = DEFAULT_SNAPSHOT_ID): Promise<CloudPull> {
   const sb = getSupabaseAdmin();
   if (!sb) return { ok: false, store: null, rowRevision: 0, error: "not configured" };
   try {
@@ -102,11 +106,15 @@ export async function pullCloudBest(): Promise<CloudPull> {
       sb
         .from("lifeos_snapshots")
         .select("id, payload, updated_at")
+        .or(`id.eq.${snapshotId},id.like.${HIST_PREFIX}${snapshotId}-%`)
         .order("updated_at", { ascending: false })
         .limit(MAX_HISTORY + 1),
       PULL_MS
     );
-    if (error) return { ok: false, store: null, rowRevision: 0, error: error.message };
+    if (error) {
+      // Fallback: just live row
+      return pullCloudResult(snapshotId);
+    }
     const rows = (data ?? []) as { id: string; payload: LifeStore | null }[];
     if (rows.length === 0) return { ok: true, store: null, rowRevision: 0 };
 
@@ -116,8 +124,8 @@ export async function pullCloudBest(): Promise<CloudPull> {
       const payload = row.payload;
       if (!payload || typeof payload !== "object") continue;
       const w = storeWeight(payload);
-      const preferDefault = row.id === SNAPSHOT_ID && w === bestW;
-      if (w > bestW || preferDefault) {
+      const preferLive = row.id === snapshotId && w === bestW;
+      if (w > bestW || preferLive) {
         best = payload;
         bestW = w;
       }
@@ -139,7 +147,8 @@ export async function pullCloudBest(): Promise<CloudPull> {
  */
 export async function pushCloudCas(
   store: LifeStore,
-  expectedRev: number
+  expectedRev: number,
+  snapshotId = DEFAULT_SNAPSHOT_ID
 ): Promise<CloudPush> {
   const sb = getSupabaseAdmin();
   if (!sb) return { ok: false, error: "not configured" };
@@ -152,7 +161,7 @@ export async function pushCloudCas(
     if (expectedRev <= 0) {
       const { error } = await withTimeout(
         sb.from("lifeos_snapshots").upsert({
-          id: SNAPSHOT_ID,
+          id: snapshotId,
           payload: store,
           revision: nextRev,
           updated_at: updatedAt,
@@ -163,7 +172,7 @@ export async function pushCloudCas(
         if (/revision/i.test(error.message)) {
           const legacy = await withTimeout(
             sb.from("lifeos_snapshots").upsert({
-              id: SNAPSHOT_ID,
+              id: snapshotId,
               payload: store,
               updated_at: updatedAt,
             }),
@@ -174,7 +183,7 @@ export async function pushCloudCas(
         }
         return { ok: false, error: error.message };
       }
-      void pruneHistory(sb);
+      void pruneHistory(sb, snapshotId);
       return { ok: true };
     }
 
@@ -186,7 +195,7 @@ export async function pushCloudCas(
           revision: nextRev,
           updated_at: updatedAt,
         })
-        .eq("id", SNAPSHOT_ID)
+        .eq("id", snapshotId)
         .eq("revision", expectedRev)
         .select("id"),
       PUSH_MS
@@ -194,16 +203,16 @@ export async function pushCloudCas(
 
     if (error) {
       if (/revision/i.test(error.message)) {
-        return pushCloudStoreLegacyCas(store, expectedRev);
+        return pushCloudStoreLegacyCas(store, expectedRev, snapshotId);
       }
       return { ok: false, error: error.message };
     }
     if (!data || data.length === 0) return { ok: false, conflict: true };
-    void pruneHistory(sb);
+    void pruneHistory(sb, snapshotId);
     return { ok: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "push failed";
-    const check = await pullCloudResult();
+    const check = await pullCloudResult(snapshotId);
     if (check.ok && revOf(check.store, check.rowRevision) >= nextRev) {
       return { ok: true };
     }
@@ -212,12 +221,12 @@ export async function pushCloudCas(
   }
 }
 
-/** Fallback when DB has no revision column: re-read then upsert if still matching. */
 async function pushCloudStoreLegacyCas(
   store: LifeStore,
-  expectedRev: number
+  expectedRev: number,
+  snapshotId: string
 ): Promise<CloudPush> {
-  const existing = await pullCloudResult();
+  const existing = await pullCloudResult(snapshotId);
   if (!existing.ok) return { ok: false, error: existing.error };
   const prev = revOf(existing.store, existing.rowRevision);
   if (prev !== expectedRev) return { ok: false, conflict: true };
@@ -228,7 +237,7 @@ async function pushCloudStoreLegacyCas(
   if (!sb) return { ok: false, error: "not configured" };
   const { error } = await withTimeout(
     sb.from("lifeos_snapshots").upsert({
-      id: SNAPSHOT_ID,
+      id: snapshotId,
       payload: store,
       updated_at: new Date().toISOString(),
     }),
@@ -239,8 +248,11 @@ async function pushCloudStoreLegacyCas(
 }
 
 /** Best-effort push used by local background sync. */
-export async function pushCloudStore(store: LifeStore): Promise<CloudPush> {
-  const existing = await pullCloudResult();
+export async function pushCloudStore(
+  store: LifeStore,
+  snapshotId = DEFAULT_SNAPSHOT_ID
+): Promise<CloudPush> {
+  const existing = await pullCloudResult(snapshotId);
   if (!existing.ok) {
     return { ok: false, error: `cloud unread, refuse push (${existing.error})` };
   }
@@ -265,7 +277,7 @@ export async function pushCloudStore(store: LifeStore): Promise<CloudPush> {
   if (existing.store && !isSparseStore(existing.store)) {
     void withTimeout(
       sb.from("lifeos_snapshots").upsert({
-        id: histId(),
+        id: histId(snapshotId),
         payload: existing.store,
         updated_at: new Date().toISOString(),
       }),
@@ -273,15 +285,29 @@ export async function pushCloudStore(store: LifeStore): Promise<CloudPush> {
     ).catch(() => undefined);
   }
 
-  return pushCloudCas(store, prevRev);
+  return pushCloudCas(store, prevRev, snapshotId);
 }
 
-async function pruneHistory(sb: NonNullable<ReturnType<typeof getSupabaseAdmin>>) {
+/** Seed an empty (or given) store for a new account. */
+export async function ensureSnapshot(
+  snapshotId: string,
+  store: LifeStore
+): Promise<CloudPush> {
+  const existing = await pullCloudResult(snapshotId);
+  if (existing.ok && existing.store) return { ok: true };
+  store.revision = 1;
+  return pushCloudCas(store, 0, snapshotId);
+}
+
+async function pruneHistory(
+  sb: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
+  snapshotId: string
+) {
   try {
     const { data } = await sb
       .from("lifeos_snapshots")
       .select("id, updated_at")
-      .like("id", `${HIST_PREFIX}%`)
+      .like("id", histLike(snapshotId))
       .order("updated_at", { ascending: false });
     const extra = (data ?? []).slice(MAX_HISTORY);
     if (extra.length === 0) return;

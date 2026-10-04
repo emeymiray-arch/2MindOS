@@ -11,6 +11,7 @@ import {
   phasesOf,
   weekStartMonday,
 } from "./lifeos";
+import { resolveGoalSide } from "./layers";
 import { calcGoalProgress } from "./tasks";
 import type { DailyTaskItem, Goal, LifeStore, PlanModule, PlanPhase, WorkPlan } from "./types";
 
@@ -438,10 +439,25 @@ export function buildAnalytics(store: LifeStore, asOf: string) {
           .flatMap((st) => phaseModules(st).map((m) => ({ st, m })))
           .find((x) => !x.m.done)
       : undefined;
+    const startDay = (g.createdAt ?? asOf).slice(0, 10);
+    const elapsed = daysBetween(startDay, asOf);
+    const deadline = (g.deadline ?? plan?.deadline)?.slice(0, 10) ?? null;
+    let eta: string | null = null;
+    if (reality.actual >= 100) eta = asOf;
+    else if (reality.actual > 0 && elapsed >= 7) {
+      const perDay = reality.actual / elapsed;
+      eta = addDays(asOf, Math.ceil((100 - reality.actual) / perDay));
+    }
     return {
       id: g.id,
       title: g.title,
+      lifeAreaId: g.lifeAreaId,
       area: store.spheres.find((s) => s.id === g.lifeAreaId)?.name,
+      forecast: {
+        eta,
+        deadline,
+        lateDays: eta && deadline ? daysBetween(deadline, eta) : null,
+      },
       reality,
       week: weekPulse(store, asOf, g.id),
       hasPlan: Boolean(plan),
@@ -478,29 +494,314 @@ export function buildAnalytics(store: LifeStore, asOf: string) {
     no_plan: goals.filter((g) => g.reality.status === "no_plan").length,
   };
 
-  const habitIds = new Set((store.habits ?? []).filter((h) => h.active).map((h) => h.id));
+  const activeHabits = (store.habits ?? []).filter((h) => h.active);
+  const habitIds = new Set(activeHabits.map((h) => h.id));
   const habitLogs = (store.habitLogs ?? []).filter(
     (l) => habitIds.has(l.habitId) && l.date >= last30 && l.value > 0
   );
+
+  const days14: {
+    date: string;
+    planned: number;
+    completed: number;
+    percent: number;
+    goalsPercent: number;
+    habitsPercent: number;
+  }[] = [];
+  const pctOf = (items: DailyTaskItem[]) =>
+    items.length ? Math.round((items.filter((t) => t.done).length / items.length) * 100) : 0;
+  for (let i = 13; i >= 0; i--) {
+    const date = addDays(asOf, -i);
+    const day = dayTasks.filter((t) => !t.archived && t.date === date);
+    const planned = day.length;
+    const completed = day.filter((t) => t.done).length;
+    days14.push({
+      date,
+      planned,
+      completed,
+      percent: planned ? Math.round((completed / planned) * 100) : 0,
+      goalsPercent: pctOf(day.filter((t) => t.goalId && !t.habitId)),
+      habitsPercent: pctOf(day.filter((t) => t.habitId)),
+    });
+  }
+
+  const fromGoals = dayTasks.filter(
+    (t) => !t.archived && t.date >= last30 && t.date <= asOf && Boolean(t.goalId)
+  );
+  const personal = dayTasks.filter(
+    (t) =>
+      !t.archived &&
+      t.date >= last30 &&
+      t.date <= asOf &&
+      !t.goalId &&
+      !t.habitId
+  );
+  const habitTasks = dayTasks.filter(
+    (t) => !t.archived && t.date >= last30 && t.date <= asOf && Boolean(t.habitId)
+  );
+
+  const overdueItems = dayTasks
+    .filter((t) => !t.archived && !t.done && t.date < asOf)
+    .map((t) => {
+      const age = Math.max(
+        0,
+        Math.round(
+          (new Date(asOf + "T12:00:00").getTime() - new Date(t.date + "T12:00:00").getTime()) /
+            86400000
+        )
+      );
+      return { id: t.id, title: t.title, date: t.date, ageDays: age, goalId: t.goalId };
+    })
+    .sort((a, b) => b.ageDays - a.ageDays)
+    .slice(0, 12);
+
+  const habitStats = activeHabits.map((h) => {
+    const logs = habitLogs.filter((l) => l.habitId === h.id);
+    const daysHit = new Set(logs.map((l) => l.date)).size;
+    return {
+      id: h.id,
+      title: h.title,
+      logs30: logs.length,
+      daysHit,
+      rate: Math.round((daysHit / 30) * 100),
+    };
+  }).sort((a, b) => b.rate - a.rate);
+
+  const topGoals = [...goals]
+    .map((g) => ({
+      id: g.id,
+      title: g.title,
+      area: g.area,
+      status: g.reality.status,
+      progress: g.reality.actual,
+      weekPercent: g.week?.percent ?? 0,
+      hasPlan: g.hasPlan,
+      nextStep: g.nextStep?.title ?? null,
+      side: resolveGoalSide(
+        { layer: activeGoals.find((x) => x.id === g.id)?.layer, lifeAreaId: g.lifeAreaId },
+        store.spheres ?? []
+      ),
+    }))
+    .sort((a, b) => b.progress - a.progress);
+
+  const needPlan = goals.filter((g) => !g.hasPlan || g.reality.status === "no_plan");
+  const deadlineRisk = goals.filter((g) => g.reality.deadlineRisk);
+
+  const fin = store.finance;
+  const pendingInbox = (store.captures ?? []).filter((c) => c.status === "pending").length;
+  const principles = (store.principles ?? []).filter((p) => !p.archived).length;
+  const outcomes30 = (store.outcomes ?? []).filter(
+    (o) => !o.archived && (o.createdAt ?? "").slice(0, 10) >= last30
+  ).length;
+  const reviews = (store.reviews ?? []).length;
+
+  const weekdayLabels = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+  const byWeekdayRaw = Array.from({ length: 7 }, (_, day) => ({
+    day,
+    label: weekdayLabels[day],
+    planned: 0,
+    completed: 0,
+  }));
+  const last30Tasks = dayTasks.filter(
+    (t) => !t.archived && t.date >= last30 && t.date <= asOf
+  );
+  for (const t of last30Tasks) {
+    const day = new Date(t.date + "T12:00:00").getDay();
+    byWeekdayRaw[day].planned += 1;
+    if (t.done) byWeekdayRaw[day].completed += 1;
+  }
+  const byWeekday = byWeekdayRaw.map((w) => ({
+    ...w,
+    percent: w.planned ? Math.round((w.completed / w.planned) * 100) : 0,
+  }));
+
+  const goalById = new Map(activeGoals.map((g) => [g.id, g]));
+  const areaBuckets = new Map<
+    string,
+    { id: string; name: string; goals: number; tasks: number; done: number }
+  >();
+  for (const s of store.spheres ?? []) {
+    areaBuckets.set(s.id, { id: s.id, name: s.name, goals: 0, tasks: 0, done: 0 });
+  }
+  areaBuckets.set("_none", { id: "_none", name: "Без сферы", goals: 0, tasks: 0, done: 0 });
+  for (const g of activeGoals) {
+    const key = g.lifeAreaId && areaBuckets.has(g.lifeAreaId) ? g.lifeAreaId : "_none";
+    areaBuckets.get(key)!.goals += 1;
+  }
+  for (const t of fromGoals) {
+    const g = t.goalId ? goalById.get(t.goalId) : undefined;
+    const key = g?.lifeAreaId && areaBuckets.has(g.lifeAreaId) ? g.lifeAreaId : "_none";
+    const bucket = areaBuckets.get(key)!;
+    bucket.tasks += 1;
+    if (t.done) bucket.done += 1;
+  }
+  const byArea = [...areaBuckets.values()]
+    .filter((a) => a.goals > 0 || a.tasks > 0)
+    .map((a) => ({
+      ...a,
+      percent: a.tasks ? Math.round((a.done / a.tasks) * 100) : 0,
+    }))
+    .sort((a, b) => b.tasks - a.tasks || b.goals - a.goals);
+
+  const focusLevels =
+    (store.periodFocus ?? []).find((p) => p.monthKey === asOf.slice(0, 7))?.levels ?? {};
+  const doneByArea = new Map<string, number>();
+  let doneWithArea = 0;
+  for (const t of last30Tasks) {
+    if (!t.done) continue;
+    const areaId = t.lifeAreaId ?? (t.goalId ? goalById.get(t.goalId)?.lifeAreaId : undefined);
+    if (!areaId) continue;
+    doneByArea.set(areaId, (doneByArea.get(areaId) ?? 0) + 1);
+    doneWithArea += 1;
+  }
+  const focusRank = { main: 0, support: 1, background: 2 } as const;
+  const focusVsReality = (store.spheres ?? [])
+    .filter((s) => !s.archived)
+    .map((s) => {
+      const done = doneByArea.get(s.id) ?? 0;
+      return {
+        id: s.id,
+        name: s.name,
+        focus: focusLevels[s.id] ?? "background",
+        done,
+        share: doneWithArea ? Math.round((done / doneWithArea) * 100) : 0,
+      };
+    })
+    .filter((x) => x.focus !== "background" || x.done > 0)
+    .sort((a, b) => focusRank[a.focus] - focusRank[b.focus] || b.done - a.done);
+
+  let activeStreak = 0;
+  for (let i = 0; i < 60; i++) {
+    const date = addDays(asOf, -i);
+    const day = dayTasks.filter((t) => !t.archived && t.date === date);
+    const hit = day.some((t) => t.done);
+    if (!hit) {
+      if (i === 0) continue;
+      break;
+    }
+    activeStreak += 1;
+  }
+
+  let bestStreak = 0;
+  let run = 0;
+  for (let i = 59; i >= 0; i--) {
+    const date = addDays(asOf, -i);
+    const hit = dayTasks.some((t) => !t.archived && t.date === date && t.done);
+    if (hit) {
+      run += 1;
+      if (run > bestStreak) bestStreak = run;
+    } else run = 0;
+  }
+
+  const daysWithPlan = days14.filter((d) => d.planned > 0).length;
+  const daysFullyDone = days14.filter((d) => d.planned > 0 && d.percent >= 100).length;
+  const totalPlanned14 = days14.reduce((s, d) => s + d.planned, 0);
+  const totalDone14 = days14.reduce((s, d) => s + d.completed, 0);
+  const avgTasksDay = daysWithPlan ? Math.round((totalPlanned14 / daysWithPlan) * 10) / 10 : 0;
+
+  const wishItems = (store.wishBlocks ?? []).flatMap((b) =>
+    (b.archived ? [] : b.items ?? []).map((it) => ({ ...it, blockArchived: b.archived }))
+  );
+  const wishlistOpen = wishItems.filter((w) => !w.archived && !w.done).length;
+  const wishlistDone = wishItems.filter((w) => !w.archived && w.done).length;
+  const directions = (store.spheres ?? []).filter((s) => !s.archived).length;
+  const archivedGoals = store.goals.filter((g) => g.archived).length;
+
+  const stageDetail = goals
+    .flatMap((g) =>
+      (g.stages ?? []).map((st) => ({
+        goalId: g.id,
+        goalTitle: g.title,
+        stageId: st.id,
+        title: st.title,
+        progress: st.progress,
+        status: st.status,
+        modulesDone: st.modulesDone,
+        modulesTotal: st.modulesTotal,
+        deadlineEnd: st.deadlineEnd,
+      }))
+    )
+    .filter((s) => s.status !== "done" && (s.modulesTotal > 0 || s.progress < 100))
+    .sort((a, b) => a.progress - b.progress)
+    .slice(0, 10);
 
   return {
     asOf,
     week: weeks[0],
     weeks,
+    days14,
     goals,
+    topGoals,
     byStatus,
+    byWeekday,
+    byArea,
+    focusVsReality,
+    forecast: goals
+      .filter((g) => g.reality.actual < 100)
+      .map((g) => ({
+        id: g.id,
+        title: g.title,
+        progress: g.reality.actual,
+        ...g.forecast,
+      }))
+      .sort((a, b) => (b.lateDays ?? -9999) - (a.lateDays ?? -9999)),
     modules: { done: modulesDone, total: modulesTotal },
     stages: { done: stagesDone, total: stagesTotal },
+    stageDetail,
+    velocity: {
+      activeStreak,
+      bestStreak60: bestStreak,
+      daysWithPlan14: daysWithPlan,
+      daysFullyDone14: daysFullyDone,
+      avgTasksDay14: avgTasksDay,
+      planned14: totalPlanned14,
+      done14: totalDone14,
+      percent14: totalPlanned14 ? Math.round((totalDone14 / totalPlanned14) * 100) : 0,
+    },
     tasks: {
       done30,
       created30,
       completionRate: created30 ? Math.round((done30 / created30) * 100) : 0,
       overdue,
+      bySource: {
+        goals: { total: fromGoals.length, done: fromGoals.filter((t) => t.done).length },
+        personal: { total: personal.length, done: personal.filter((t) => t.done).length },
+        habits: { total: habitTasks.length, done: habitTasks.filter((t) => t.done).length },
+      },
+      overdueItems,
     },
     habits: {
       active: habitIds.size,
       logs30: habitLogs.length,
+      list: habitStats,
     },
+    alerts: {
+      needPlan: needPlan.map((g) => ({ id: g.id, title: g.title })),
+      deadlineRisk: deadlineRisk.map((g) => ({
+        id: g.id,
+        title: g.title,
+        daysLeft: g.reality.daysLeft,
+      })),
+    },
+    system: {
+      pendingInbox,
+      principles,
+      outcomes30,
+      reviews,
+      wishlistOpen,
+      wishlistDone,
+      directions,
+      archivedGoals,
+    },
+    finance: fin
+      ? {
+          income: fin.incomeMonth ?? 0,
+          expenses: fin.expensesMonth ?? 0,
+          salary: fin.salary ?? 0,
+          cushion: fin.cushion ?? 0,
+          currency: fin.currency ?? "RUB",
+        }
+      : null,
   };
 }
 

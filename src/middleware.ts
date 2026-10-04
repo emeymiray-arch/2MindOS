@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_COOKIE, hashSecretEdge, apiSecret } from "@/lib/auth";
+import {
+  AUTH_COOKIE,
+  SESSION_COOKIE,
+  apiSecret,
+  hashSecretEdge,
+  isTenantMode,
+  verifySessionValueEdge,
+} from "@/lib/auth-edge";
 
 async function verifyRequest(request: NextRequest): Promise<boolean> {
+  if (isTenantMode()) {
+    const session = await verifySessionValueEdge(request.cookies.get(SESSION_COOKIE)?.value);
+    return Boolean(session);
+  }
+
   const secret = apiSecret();
   if (!secret) {
-    // Open API when no app secret — host may still be gated by Vercel SSO.
     return true;
   }
 
@@ -32,7 +43,7 @@ export async function middleware(request: NextRequest) {
   response.headers.set("Pragma", "no-cache");
 
   if (pathname.startsWith("/api/auth")) return response;
-
+  if (pathname.startsWith("/api/admin")) return response;
   if (pathname.startsWith("/api/shortcuts")) return response;
 
   if (pathname.startsWith("/api/health") && searchParams.get("ping") === "0") {

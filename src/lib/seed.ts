@@ -7,7 +7,7 @@ export function createEmptyStore(): LifeStore {
   const t = now();
   const spheres = seedLifeAreas();
   const plan = createDefaultPlan(t);
-  const career = spheres.find((s) => s.slug === "career");
+  const work = spheres.find((s) => s.slug === "work");
 
   const engNode = id();
   const foodNode = id();
@@ -15,12 +15,16 @@ export function createEmptyStore(): LifeStore {
   return {
     version: 10,
     spheres,
+    periodFocus: [],
+    principles: [],
+    outcomes: [],
+    reviews: [],
     nodes: [
       {
         id: engNode,
         kind: "project",
         title: "Engineering → AI → Business",
-        sphereId: career?.id,
+        sphereId: work?.id,
         metadata: {},
         salience: 0.9,
         createdAt: t,
@@ -30,7 +34,7 @@ export function createEmptyStore(): LifeStore {
         id: foodNode,
         kind: "project",
         title: "European Fast Food — Chechnya",
-        sphereId: career?.id,
+        sphereId: work?.id,
         metadata: {},
         salience: 0.85,
         createdAt: t,
@@ -56,7 +60,7 @@ export function createEmptyStore(): LifeStore {
         name: "Engineering → AI → Business",
         tagline: "Learning → Skill → Project → Product → Business",
         status: "active",
-        lifeAreaId: career?.id,
+        lifeAreaId: work?.id,
         kpi: [],
         modules: {
           docs: [
@@ -89,7 +93,7 @@ export function createEmptyStore(): LifeStore {
         name: "European Fast Food — Chechnya",
         tagline: "Research → Concept → Launch",
         status: "active",
-        lifeAreaId: career?.id,
+        lifeAreaId: work?.id,
         kpi: [],
         modules: {
           docs: [
@@ -160,8 +164,9 @@ export function createEmptyStore(): LifeStore {
     settings: {
       shortcutsToken: "mindos-local-token",
       yearProgressNote: "",
+      visionNote: "",
       mit: "",
-      theme: "light",
+      theme: "dark",
       language: "ru",
       startOfWeek: 1,
       notifications: true,
