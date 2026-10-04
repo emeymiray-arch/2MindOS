@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EmptyState, StatusChip } from "@/components/ui/Progress";
+import { IconInner, IconOuter, IconPath, IconAlert, IconTarget } from "@/components/ui/Icons";
+import { KpiTile, PageHero, ViewAllLink, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type GoalCard = {
@@ -25,17 +27,16 @@ type Area = { id: string; name: string; layerBias?: "inner" | "outer" | "both" }
 type FocusMap = Record<string, "main" | "support" | "background">;
 type Side = "inner" | "outer";
 
-const SIDE_META: Record<
-  Side,
-  { label: string; hint: string }
-> = {
+const SIDE_META: Record<Side, { label: string; hint: string; tone: "pink" | "blue" }> = {
   inner: {
     label: "Внутреннее",
     hint: "Принципы, понятия, дисциплина — то, что формируешь в себе",
+    tone: "pink",
   },
   outer: {
     label: "Внешнее",
     hint: "Стиль, навыки, подача — то, как тебя читают снаружи",
+    tone: "blue",
   },
 };
 
@@ -102,6 +103,15 @@ export default function GoalsPage() {
     return { inner, outer, unset };
   }, [goals]);
 
+  const stats = useMemo(() => {
+    const behind = goals.filter((g) => g.reality?.status === "behind").length;
+    const onTrack = goals.filter(
+      (g) => g.reality?.status === "on_track" || g.reality?.status === "ahead"
+    ).length;
+    const noPlan = goals.filter((g) => !g.hasPlan || g.reality?.status === "no_plan").length;
+    return { total: goals.length, behind, onTrack, noPlan };
+  }, [goals]);
+
   async function createGoal(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || busy) return;
@@ -131,18 +141,19 @@ export default function GoalsPage() {
     const areaId = g.lifeAreaId || g.area?.id;
     const lv = areaId ? focus[areaId] : undefined;
     return (
-      <Link href={`/goals/${g.id}`} className="block rounded-[var(--radius-sm)] border border-[var(--line)] bg-[rgba(0,0,0,0.12)] px-3 py-3 transition">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-semibold">{g.title}</p>
-            <p className="mt-1 text-[12px] text-[var(--ink-faint)]">
-              {g.area?.name || "Без направления"}
-              {lv === "main" ? " · главное" : ""}
-              {g.hasPlan ? "" : " · план ещё не открыт"}
-            </p>
-          </div>
-          {g.reality ? <StatusChip status={g.reality.status} label={g.reality.label} /> : null}
-        </div>
+      <Link href={`/goals/${g.id}`} className="next-card">
+        <span className="next-ico" style={{ color: "#c084fc", background: "rgba(192,132,252,0.14)" }}>
+          <IconTarget size={16} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] font-semibold">{g.title}</span>
+          <span className="mt-0.5 block truncate text-[11px] text-[var(--ink-faint)]">
+            {g.area?.name || "Без направления"}
+            {lv === "main" ? " · главное" : ""}
+            {g.hasPlan ? "" : " · план ещё не открыт"}
+          </span>
+        </span>
+        {g.reality ? <StatusChip status={g.reality.status} label={g.reality.label} /> : null}
       </Link>
     );
   }
@@ -151,11 +162,12 @@ export default function GoalsPage() {
     const meta = SIDE_META[side];
     return (
       <section className="panel flex h-full flex-col">
-        <div className="mb-4">
-          <h2 className="text-[1.35rem] font-semibold tracking-tight">{meta.label}</h2>
-          <p className="mt-1 text-[13px] text-[var(--ink-soft)]">{meta.hint}</p>
-          <p className="mt-2 text-[12px] text-[var(--ink-faint)]">{items.length} целей</p>
-        </div>
+        <WidgetHead
+          title={meta.label}
+          tone={meta.tone}
+          action={<span className="text-[12px] text-[var(--ink-faint)]">{items.length}</span>}
+        />
+        <p className="mb-3 text-[13px] text-[var(--ink-soft)]">{meta.hint}</p>
         {items.length === 0 ? (
           <p className="text-[14px] text-[var(--ink-faint)]">Пока пусто.</p>
         ) : (
@@ -170,98 +182,150 @@ export default function GoalsPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="page-kicker">Путь</p>
-          <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Цели</h1>
-          <p className="page-lede">
-            Две стороны: внутреннее (в себе) и внешнее (стиль, навыки, подача).
+    <div className="space-y-4">
+      <PageHero
+        kicker="Путь"
+        title="Цели"
+        lede="Две стороны: внутреннее (в себе) и внешнее (стиль, навыки, подача)."
+        action={
+          <button type="button" className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
+            {creating ? "Закрыть" : "Новое намерение"}
+          </button>
+        }
+      />
+
+      <div className="bento">
+        <div className="span-3">
+          <KpiTile
+            label="Всего"
+            value={stats.total}
+            hint="активных целей"
+            color="#a855f7"
+            icon={<IconPath size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="В графике"
+            value={stats.onTrack}
+            hint="ahead + on track"
+            color="#34d399"
+            icon={<IconTarget size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Отстаёт"
+            value={stats.behind}
+            hint="нужно внимание"
+            color="#f87171"
+            icon={<IconAlert size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Без плана"
+            value={stats.noPlan}
+            hint="открой план"
+            color="#fbbf24"
+            icon={<IconOuter size={18} />}
+          />
+        </div>
+
+        {creating ? (
+          <div className="span-12">
+            <form onSubmit={createGoal} className="panel space-y-3">
+              <WidgetHead title="Новое намерение" tone="violet" />
+              <input
+                required
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Например: восстановить силу тела"
+                className="field font-display text-[1.15rem]"
+                autoFocus
+              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <select
+                  className="field"
+                  value={lifeAreaId}
+                  onChange={(e) => setLifeAreaId(e.target.value)}
+                >
+                  <option value="">Направление с карты…</option>
+                  {areas.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                      {focus[a.id] === "main" ? " · главное" : ""}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="field"
+                  value={layer}
+                  onChange={(e) => setLayer(e.target.value as Side | "")}
+                >
+                  <option value="">Сторона…</option>
+                  <option value="inner">Внутреннее</option>
+                  <option value="outer">Внешнее</option>
+                </select>
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                Создать и открыть план
+              </button>
+            </form>
+          </div>
+        ) : null}
+
+        {goals.length === 0 ? (
+          <div className="span-12">
+            <EmptyState
+              title="Целей нет"
+              body="Создай цель и выбери сторону: внутреннее или внешнее."
+              action={
+                <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                  Создать
+                </button>
+              }
+            />
+          </div>
+        ) : (
+          <>
+            <div className="span-6">
+              <SideColumn side="inner" items={bySide.inner} />
+            </div>
+            <div className="span-6">
+              <SideColumn side="outer" items={bySide.outer} />
+            </div>
+          </>
+        )}
+
+        {bySide.unset.length ? (
+          <div className="span-12">
+            <section className="panel space-y-3">
+              <WidgetHead
+                title="Без стороны"
+                tone="orange"
+                action={<span className="text-[12px] text-[var(--ink-faint)]">{bySide.unset.length}</span>}
+              />
+              <p className="text-[13px] text-[var(--ink-soft)]">
+                Открой цель и назначь внутреннее или внешнее — или выбери направление с явной
+                стороной.
+              </p>
+              <div className="grid gap-2 md:grid-cols-2">
+                {bySide.unset.map((g) => (
+                  <GoalTile key={g.id} g={g} />
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        <div className="span-12">
+          <p className="flex items-center gap-2 text-[14px] text-[var(--ink-faint)]">
+            <IconInner size={14} />
+            <ViewAllLink href="/map" label="← К карте жизни" />
           </p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
-          {creating ? "Закрыть" : "Новое намерение"}
-        </button>
-      </header>
-
-      {creating ? (
-        <form onSubmit={createGoal} className="panel space-y-3">
-          <input
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Например: восстановить силу тела"
-            className="field font-display text-[1.15rem]"
-            autoFocus
-          />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <select
-              className="field"
-              value={lifeAreaId}
-              onChange={(e) => setLifeAreaId(e.target.value)}
-            >
-              <option value="">Направление с карты…</option>
-              {areas.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                  {focus[a.id] === "main" ? " · главное" : ""}
-                </option>
-              ))}
-            </select>
-            <select
-              className="field"
-              value={layer}
-              onChange={(e) => setLayer(e.target.value as Side | "")}
-            >
-              <option value="">Сторона…</option>
-              <option value="inner">Внутреннее</option>
-              <option value="outer">Внешнее</option>
-            </select>
-          </div>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            Создать и открыть план
-          </button>
-        </form>
-      ) : null}
-
-      {goals.length === 0 ? (
-        <EmptyState
-          title="Целей нет"
-          body="Создай цель и выбери сторону: внутреннее или внешнее."
-          action={
-            <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-              Создать
-            </button>
-          }
-        />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <SideColumn side="inner" items={bySide.inner} />
-          <SideColumn side="outer" items={bySide.outer} />
-        </div>
-      )}
-
-      {bySide.unset.length ? (
-        <section className="panel space-y-3">
-          <div>
-            <h2 className="text-[15px] font-semibold tracking-tight">Без стороны</h2>
-            <p className="mt-1 text-[13px] text-[var(--ink-soft)]">
-              Открой цель и назначь внутреннее или внешнее — или выбери направление с явной стороной.
-            </p>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2">
-            {bySide.unset.map((g) => (
-              <GoalTile key={g.id} g={g} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <p className="text-[14px] text-[var(--ink-faint)]">
-        <Link href="/map" className="font-semibold text-[var(--accent)]">
-          ← К карте жизни
-        </Link>
-      </p>
+      </div>
     </div>
   );
 }

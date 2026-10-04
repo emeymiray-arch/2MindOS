@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
+import { PageHero } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 export default function SettingsPage() {
@@ -140,15 +141,15 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="page-kicker">Настройки</p>
-        <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Профиль</h1>
-        <p className="page-lede">
-          {tenantMode
+      <PageHero
+        kicker="Настройки"
+        title="Профиль"
+        lede={
+          tenantMode
             ? "Тема, фокус, экспорт и личный кабинет."
-            : "Тема, фокус, ёмкость и экспорт."}
-        </p>
-      </header>
+            : "Тема, фокус, ёмкость и экспорт."
+        }
+      />
 
       {tenantMode ? (
         <section className="panel panel-tint-blue space-y-3 rise-in">

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EmptyState } from "@/components/ui/Progress";
-import { DonutChart, DualRing, HBar, LineChart, Sparkline, VBarChart } from "@/components/ui/Charts";
+import { DonutChart, DualRing, HBar, LineChart, VBarChart } from "@/components/ui/Charts";
+import { IconChart, IconFlame, IconHabits, IconPath } from "@/components/ui/Icons";
+import { KpiTile, PageHero, WidgetHead, type WidgetTone } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type AnalyticsGoal = {
@@ -169,13 +171,16 @@ function money(n: number, currency: string) {
   }
 }
 
-function PanelTitle({ children, aside }: { children: React.ReactNode; aside?: React.ReactNode }) {
-  return (
-    <div className="mb-3 flex items-baseline justify-between gap-2">
-      <h2 className="text-[15px] font-semibold tracking-tight">{children}</h2>
-      {aside}
-    </div>
-  );
+function PanelTitle({
+  children,
+  aside,
+  tone = "violet",
+}: {
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+  tone?: WidgetTone;
+}) {
+  return <WidgetHead title={String(children)} action={aside} tone={tone} />;
 }
 
 function forecastBadge(f: ForecastRow) {
@@ -316,31 +321,77 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-4 analytics-wide">
-      <header className="dash-header">
-        <div>
-          <p className="page-kicker">Аналитика</p>
-          <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Аналитика</h1>
-          <p className="page-lede">
-            {data.asOf} · неделя {data.week.percent}% · 14д {v.percent14}% · серия {v.activeStreak}д
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/settings" className="btn btn-primary">
-            Экспорт в настройках
-          </Link>
-          <Link href="/goals" className="btn">
-            Цели
-          </Link>
-          <Link href="/map" className="btn">
-            Карта
-          </Link>
-        </div>
-      </header>
+      <PageHero
+        kicker="Аналитика"
+        title="Аналитика"
+        lede={`${data.asOf} · неделя ${data.week.percent}% · 14д ${v.percent14}% · серия ${v.activeStreak}д`}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/settings" className="btn btn-primary">
+              Экспорт
+            </Link>
+            <Link href="/goals" className="btn">
+              Цели
+            </Link>
+            <Link href="/map" className="btn">
+              Карта
+            </Link>
+          </div>
+        }
+      />
 
       <div className="bento">
+        <div className="span-3">
+          <KpiTile
+            label="Цели"
+            value={data.goals.length}
+            hint={`${onTrack} в графике · ${data.byStatus.behind} отстаёт`}
+            color="#a855f7"
+            icon={<IconPath size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Неделя"
+            value={<>{data.week.percent}%</>}
+            hint={`${data.week.completed}/${data.week.planned} задач`}
+            color="#c084fc"
+            icon={<IconChart size={18} />}
+            series={lineValues}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Серия"
+            value={
+              <>
+                {v.activeStreak}
+                <span className="kpi-den"> дн</span>
+              </>
+            }
+            hint={`рекорд 60д: ${v.bestStreak60}`}
+            color="#fb923c"
+            icon={<IconFlame size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Закрытые дни"
+            value={
+              <>
+                {v.daysFullyDone14}
+                <span className="kpi-den">/{v.daysWithPlan14}</span>
+              </>
+            }
+            hint={`${v.percent14}% · ~${v.avgTasksDay14}/день`}
+            color="#34d399"
+            icon={<IconHabits size={18} />}
+          />
+        </div>
+
         <div className="span-4">
           <section className="panel h-full space-y-2">
-            <PanelTitle aside={<span className="text-[12px] text-[var(--ink-faint)]">наведи</span>}>
+            <PanelTitle tone="green" aside={<span className="text-[12px] text-[var(--ink-faint)]">наведи</span>}>
               Статус целей
             </PanelTitle>
             <DonutChart
@@ -359,7 +410,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="span-4">
           <section className="panel h-full space-y-3">
-            <PanelTitle>Неделя и 14 дней</PanelTitle>
+            <PanelTitle tone="pink">Неделя и 14 дней</PanelTitle>
             <DualRing
               outer={{ percent: data.week.percent, color: "#c084fc", label: "неделя" }}
               inner={{ percent: v.percent14, color: "#34d399", label: "14д" }}
@@ -379,7 +430,7 @@ export default function AnalyticsPage() {
         </div>
         <div className="span-4">
           <section className="panel h-full space-y-3">
-            <PanelTitle aside={<span className="text-[12px] text-[var(--ink-faint)]">%</span>}>
+            <PanelTitle tone="blue" aside={<span className="text-[12px] text-[var(--ink-faint)]">%</span>}>
               Дни недели
             </PanelTitle>
             {weekdayOrdered.length ? (
@@ -400,55 +451,9 @@ export default function AnalyticsPage() {
           </section>
         </div>
 
-        <div className="span-3">
-          <div className="kpi-card h-full">
-            <p className="kpi-label">Цели</p>
-            <p className="kpi-value">{data.goals.length}</p>
-            <div className="mt-2 flex items-end justify-between">
-              <p className="kpi-hint">
-                {onTrack} в графике · {data.byStatus.behind} отстаёт
-              </p>
-            </div>
-          </div>
-        </div>
-        <div className="span-3">
-          <div className="kpi-card h-full">
-            <p className="kpi-label">Неделя</p>
-            <p className="kpi-value">{data.week.percent}%</p>
-            <div className="mt-2 flex items-end justify-between">
-              <p className="kpi-hint">
-                {data.week.completed}/{data.week.planned} задач
-              </p>
-              <Sparkline values={lineValues} color="#c084fc" />
-            </div>
-          </div>
-        </div>
-        <div className="span-3">
-          <div className="kpi-card h-full">
-            <p className="kpi-label">Серия</p>
-            <p className="kpi-value">
-              {v.activeStreak}
-              <span className="text-[1rem] text-[var(--ink-faint)]"> дн</span>
-            </p>
-            <p className="kpi-hint mt-2">рекорд 60д: {v.bestStreak60}</p>
-          </div>
-        </div>
-        <div className="span-3">
-          <div className="kpi-card h-full">
-            <p className="kpi-label">Закрытые дни · 14д</p>
-            <p className="kpi-value">
-              {v.daysFullyDone14}
-              <span className="text-[1rem] text-[var(--ink-faint)]">/{v.daysWithPlan14}</span>
-            </p>
-            <p className="kpi-hint mt-2">
-              {v.percent14}% задач · ~{v.avgTasksDay14} в день
-            </p>
-          </div>
-        </div>
-
         <div className="span-6">
           <section className="panel h-full space-y-3">
-            <PanelTitle>Сводка · две стороны</PanelTitle>
+            <PanelTitle tone="pink">Сводка · две стороны</PanelTitle>
             <div className="grid gap-3 sm:grid-cols-2">
               {(
                 [

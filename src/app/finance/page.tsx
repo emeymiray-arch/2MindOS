@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { displayCurrency } from "@/lib/format";
+import {
+  IconCoin,
+  IconTarget,
+  IconTrendDown,
+  IconTrendUp,
+  IconWallet,
+} from "@/components/ui/Icons";
+import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type Tx = {
@@ -182,180 +190,229 @@ export default function FinancePage() {
 
   const cur = displayCurrency(data?.currency);
   const txs = data?.transactions ?? [];
+  const income = data?.incomeMonth ?? 0;
+  const expenses = data?.expensesMonth ?? 0;
+  const net = income - expenses;
+  const cushion = data?.cushion ?? 0;
 
   return (
-    <div className="space-y-8">
-      <header>
-        <p className="page-kicker">Финансы</p>
-        <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Финансы</h1>
-        <p className="page-lede">Доход, обязательное, подушка.</p>
-      </header>
+    <div className="space-y-4">
+      <PageHero
+        kicker="Финансы"
+        title="Финансы"
+        lede="Доход, обязательное, подушка."
+        action={
+          <div className="text-right">
+            <p className="home-clock-time" style={{ fontSize: "1.6rem" }}>
+              {money(net, cur)}
+            </p>
+            <p className="home-clock-meta">баланс месяца</p>
+          </div>
+        }
+      />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="surface p-4 text-center" style={{ background: "var(--c-green-soft)" }}>
-          <p className="text-[12px] font-bold text-[var(--c-green)]">ЗП</p>
-          <p className="mt-2 font-bold tabular-nums">{money(data?.salary ?? 0, cur)}</p>
+      <div className="bento">
+        <div className="span-3">
+          <KpiTile
+            label="Зарплата"
+            value={money(data?.salary ?? 0, cur)}
+            hint="месячная ставка"
+            color="#34d399"
+            icon={<IconCoin size={18} />}
+          />
         </div>
-        <div className="surface p-4 text-center" style={{ background: "var(--c-green-soft)" }}>
-          <p className="text-[12px] font-bold text-[var(--c-green)]">Доход</p>
-          <p className="mt-2 font-bold tabular-nums">{money(data?.incomeMonth ?? 0, cur)}</p>
+        <div className="span-3">
+          <KpiTile
+            label="Доход"
+            value={money(income, cur)}
+            hint="за этот месяц"
+            color="#38bdf8"
+            icon={<IconTrendUp size={18} />}
+          />
         </div>
-        <div className="surface p-4 text-center" style={{ background: "var(--c-orange-soft)" }}>
-          <p className="text-[12px] font-bold text-[var(--c-orange)]">Расход</p>
-          <p className="mt-2 font-bold tabular-nums">{money(data?.expensesMonth ?? 0, cur)}</p>
+        <div className="span-3">
+          <KpiTile
+            label="Расход"
+            value={money(expenses, cur)}
+            hint="за этот месяц"
+            color="#fb923c"
+            icon={<IconTrendDown size={18} />}
+          />
         </div>
-        <div className="surface p-4 text-center" style={{ background: "var(--c-blue-soft)" }}>
-          <p className="text-[12px] font-bold text-[var(--c-blue)]">Подушка</p>
-          <p className="mt-2 font-bold tabular-nums">{money(data?.cushion ?? 0, cur)}</p>
+        <div className="span-3">
+          <KpiTile
+            label="Подушка"
+            value={money(cushion, cur)}
+            hint={data?.cushionManual ? "ручной режим" : "из истории"}
+            color="#a855f7"
+            icon={<IconWallet size={18} />}
+          />
+        </div>
+
+        <div className="span-6">
+          <form onSubmit={saveSalary} className="panel h-full space-y-3">
+            <WidgetHead title="Зарплата" tone="green" />
+            <input
+              className="field"
+              inputMode="decimal"
+              value={salaryEdit}
+              onChange={(e) => setSalaryEdit(e.target.value)}
+              placeholder="Сумма ЗП"
+            />
+            <div className="flex flex-wrap gap-2">
+              <button type="submit" className="btn" disabled={busy}>
+                Сохранить
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => void paySalary()}
+              >
+                Начислить ЗП
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div className="span-6">
+          <form onSubmit={saveCushion} className="panel h-full space-y-3">
+            <WidgetHead title="Подушка" tone="blue" />
+            <input
+              className="field"
+              inputMode="decimal"
+              value={cushionEdit}
+              onChange={(e) => setCushionEdit(e.target.value)}
+            />
+            <p className="text-[12px] font-medium text-[var(--ink-faint)]">
+              {data?.cushionManual
+                ? "Ручной режим: история «В подушку» не меняет цифру"
+                : "Считается из записей «В подушку»"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button type="submit" className="btn" disabled={busy}>
+                Зафиксировать
+              </button>
+              {data?.cushionManual ? (
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={busy}
+                  onClick={() => void clearCushionManual()}
+                >
+                  Считать из истории
+                </button>
+              ) : null}
+            </div>
+          </form>
+        </div>
+
+        <div className="span-5">
+          <form onSubmit={addTx} className="panel h-full space-y-3">
+            <WidgetHead title="Новая запись" tone="orange" />
+            <div className="flex flex-wrap gap-2">
+              {TYPES.map((t) => {
+                const on = type === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setType(t.id)}
+                    className="rounded-full px-3 py-1.5 text-[12px] font-bold transition"
+                    style={{
+                      background: on ? t.color : t.soft,
+                      color: on ? "#fff" : t.color,
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+            <input
+              className="field"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Например: продукты / такси"
+              required
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="field"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="Сумма"
+                required
+              />
+              <input
+                type="date"
+                className="field"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              Добавить
+            </button>
+          </form>
+        </div>
+
+        <div className="span-7">
+          <section className="panel h-full">
+            <WidgetHead
+              title="История"
+              tone="violet"
+              action={
+                <span className="text-[12px] text-[var(--ink-faint)]">{txs.length} записей</span>
+              }
+            />
+            {txs.length === 0 ? (
+              <p className="py-6 text-center text-[14px] text-[var(--ink-soft)]">
+                Пока пусто — добавь первую запись.
+              </p>
+            ) : (
+              <ul className="max-h-[22rem] space-y-2 overflow-y-auto">
+                {txs.map((tx) => {
+                  const meta = typeMeta(tx.type);
+                  const sign = tx.type === "income" || tx.type === "savings" ? "+" : "−";
+                  return (
+                    <li key={tx.id} className="signal-row">
+                      <span
+                        className="signal-ico flex h-8 w-8 items-center justify-center rounded-xl"
+                        style={{ background: meta.soft, color: meta.color }}
+                      >
+                        <IconTarget size={14} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-semibold">{tx.title}</p>
+                        <p className="text-[11px] font-medium" style={{ color: meta.color }}>
+                          {meta.label} · {tx.date}
+                        </p>
+                      </div>
+                      <p
+                        className="shrink-0 text-[13px] font-bold tabular-nums"
+                        style={{ color: meta.color }}
+                      >
+                        {sign}
+                        {money(tx.amount, cur)}
+                      </p>
+                      <button
+                        type="button"
+                        className="text-[12px] font-bold text-[var(--behind)]"
+                        disabled={busy}
+                        onClick={() => void removeTx(tx.id)}
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
         </div>
       </div>
-
-      <form onSubmit={saveSalary} className="surface flex flex-wrap items-end gap-3 p-5">
-        <div className="min-w-[10rem] flex-1">
-          <label className="text-[13px] font-bold text-[var(--c-green)]">Зарплата в месяц</label>
-          <input
-            className="field mt-2"
-            inputMode="decimal"
-            value={salaryEdit}
-            onChange={(e) => setSalaryEdit(e.target.value)}
-            placeholder="Сумма ЗП"
-          />
-        </div>
-        <button type="submit" className="btn" disabled={busy}>
-          Сохранить ЗП
-        </button>
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void paySalary()}>
-          Начислить ЗП
-        </button>
-      </form>
-
-      <form onSubmit={addTx} className="surface space-y-4 p-5">
-        <p className="text-[13px] font-bold text-[var(--accent)]">Новая запись</p>
-        <div className="flex flex-wrap gap-2">
-          {TYPES.map((t) => {
-            const on = type === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setType(t.id)}
-                className="rounded-full px-3 py-1.5 text-[12px] font-bold transition"
-                style={{
-                  background: on ? t.color : t.soft,
-                  color: on ? "#fff" : t.color,
-                }}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <input
-            className="field"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Например: продукты / такси"
-            required
-          />
-          <input
-            className="field"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="Сумма"
-            required
-          />
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <input
-            type="date"
-            className="field"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-          <button type="submit" className="btn btn-primary sm:ml-auto" disabled={busy}>
-            Добавить
-          </button>
-        </div>
-      </form>
-
-      <form onSubmit={saveCushion} className="surface flex flex-wrap items-end gap-3 p-5">
-        <div className="min-w-[10rem] flex-1">
-          <label className="text-[13px] font-bold text-[var(--c-blue)]">Подушка</label>
-          <input
-            className="field mt-2"
-            inputMode="decimal"
-            value={cushionEdit}
-            onChange={(e) => setCushionEdit(e.target.value)}
-          />
-          <p className="mt-2 text-[12px] font-semibold text-[var(--ink-faint)]">
-            {data?.cushionManual
-              ? "Ручной режим: история «В подушку» не меняет эту цифру (wishlist-копилки всё равно копят к вещи)"
-              : "Считается из записей «В подушку»"}
-          </p>
-        </div>
-        <button type="submit" className="btn" disabled={busy}>
-          Зафиксировать
-        </button>
-        {data?.cushionManual ? (
-          <button
-            type="button"
-            className="btn"
-            disabled={busy}
-            onClick={() => void clearCushionManual()}
-          >
-            Считать из истории
-          </button>
-        ) : null}
-      </form>
-
-      <section>
-        <h2 className="font-display text-[1.45rem]">История</h2>
-        <div className="surface mt-3 px-4">
-          {txs.length === 0 ? (
-            <p className="py-8 text-center text-[14px] font-semibold text-[var(--c-blue)]">
-              Пока пусто — добавь первую запись сверху
-            </p>
-          ) : (
-            txs.map((tx) => {
-              const meta = typeMeta(tx.type);
-              const sign = tx.type === "income" || tx.type === "savings" ? "+" : "−";
-              return (
-                <div
-                  key={tx.id}
-                  className="flex items-center gap-3 border-b border-[var(--line)] py-3.5 last:border-0"
-                >
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-bold"
-                    style={{ background: meta.soft, color: meta.color }}
-                  >
-                    {meta.label}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-bold">{tx.title}</p>
-                    <p className="text-[12px] font-semibold" style={{ color: meta.color }}>
-                      {tx.date}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-[14px] font-bold tabular-nums" style={{ color: meta.color }}>
-                    {sign}
-                    {money(tx.amount, cur)}
-                  </p>
-                  <button
-                    type="button"
-                    className="text-[12px] font-bold text-[var(--behind)]"
-                    disabled={busy}
-                    onClick={() => void removeTx(tx.id)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </section>
     </div>
   );
 }

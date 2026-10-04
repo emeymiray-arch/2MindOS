@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EditableText } from "@/components/ui/EditableText";
+import { IconMap, IconPath, IconTarget, IconWish } from "@/components/ui/Icons";
+import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type FocusLevel = "main" | "support" | "background";
@@ -135,27 +137,70 @@ export default function MapPage() {
     await load();
   }
 
+  const stats = useMemo(() => {
+    const main = dirs.filter((d) => d.focus === "main").length;
+    const support = dirs.filter((d) => d.focus === "support").length;
+    const bg = dirs.filter((d) => d.focus === "background").length;
+    const linked = dirs.reduce((s, d) => s + d.goals, 0);
+    return { main, support, bg, linked, total: dirs.length };
+  }, [dirs]);
+
   if (loading) return <p className="text-[var(--ink-faint)]">Загрузка…</p>;
 
   return (
     <div className="space-y-4">
-      <header className="dash-header">
-        <div>
-          <p className="page-kicker">Карта · {monthKey}</p>
-          <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Карта</h1>
-          <p className="page-lede">Направления можно добавлять, менять и удалять.</p>
-        </div>
-        <Link href="/" className="btn btn-primary">
-          Сегодня
-        </Link>
-      </header>
+      <PageHero
+        kicker={`Карта · ${monthKey}`}
+        title="Карта"
+        lede="Направления можно добавлять, менять и удалять."
+        action={
+          <Link href="/" className="btn btn-primary">
+            Сегодня
+          </Link>
+        }
+      />
 
       <div className="bento">
+        <div className="span-3">
+          <KpiTile
+            label="Направления"
+            value={stats.total}
+            hint={`${stats.main} главных`}
+            color="#a855f7"
+            icon={<IconMap size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Главное"
+            value={stats.main}
+            hint="фокус месяца"
+            color="#f472b6"
+            icon={<IconTarget size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Поддержка"
+            value={stats.support}
+            hint={`${stats.bg} на фоне`}
+            color="#38bdf8"
+            icon={<IconWish size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Цели"
+            value={stats.linked}
+            hint="привязано"
+            color="#34d399"
+            icon={<IconPath size={18} />}
+          />
+        </div>
+
         <div className="span-12">
           <section className="panel space-y-3">
-            <p className="section-label" style={{ color: "var(--accent)" }}>
-              Фокус периода
-            </p>
+            <WidgetHead title="Фокус периода" tone="violet" />
             {editingVision ? (
               <div className="space-y-3">
                 <textarea
@@ -195,9 +240,7 @@ export default function MapPage() {
         <div className="span-12">
           <form onSubmit={createDir} className="panel flex flex-wrap items-end gap-3">
             <div className="min-w-[12rem] flex-1">
-              <p className="section-label mb-2" style={{ color: "var(--accent)" }}>
-                Новое направление
-              </p>
+              <WidgetHead title="Новое направление" tone="blue" />
               <input
                 className="field"
                 value={newName}
@@ -222,17 +265,17 @@ export default function MapPage() {
         {FOCUS_ORDER.map((level) => {
           const items = dirs.filter((d) => d.focus === level);
           if (!items.length) return null;
-          const labelColor =
-            level === "main"
-              ? "var(--accent)"
-              : level === "support"
-                ? "var(--c-violet)"
-                : "var(--ink-faint)";
+          const tone =
+            level === "main" ? "pink" : level === "support" ? "violet" : "blue";
           return (
             <div key={level} className="span-12 space-y-3">
-              <p className="section-label mb-0" style={{ color: labelColor }}>
-                {FOCUS_LABEL[level]}
-              </p>
+              <WidgetHead
+                title={FOCUS_LABEL[level]}
+                tone={tone}
+                action={
+                  <span className="text-[12px] text-[var(--ink-faint)]">{items.length}</span>
+                }
+              />
               <div className="bento">
                 {items.map((d) => {
                   const linked = goals.filter((g) => g.lifeAreaId === d.id);

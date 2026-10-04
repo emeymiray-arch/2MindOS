@@ -3,15 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EditableText } from "@/components/ui/EditableText";
+import { IconCoin, IconHabits, IconTarget, IconWish } from "@/components/ui/Icons";
+import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 import type { WishBlock, WishBucket } from "@/lib/types";
 
 type Tab = "material" | "skill" | "custom";
 
-const TABS: { id: Tab; label: string; color: string }[] = [
-  { id: "material", label: "Вещи", color: "var(--c-orange)" },
-  { id: "skill", label: "Навыки", color: "var(--c-violet)" },
-  { id: "custom", label: "Свои", color: "var(--c-pink)" },
+const TABS: { id: Tab; label: string; color: string; tone: "orange" | "violet" | "pink" }[] = [
+  { id: "material", label: "Вещи", color: "#fb923c", tone: "orange" },
+  { id: "skill", label: "Навыки", color: "#a855f7", tone: "violet" },
+  { id: "custom", label: "Свои", color: "#f472b6", tone: "pink" },
 ];
 
 function normalizeBucket(b: WishBucket): Tab {
@@ -50,6 +52,17 @@ export default function WishlistPage() {
     () => blocks.filter((b) => !b.archived && normalizeBucket(b.bucket) === tab),
     [blocks, tab]
   );
+
+  const stats = useMemo(() => {
+    const active = blocks.filter((b) => !b.archived);
+    const items = active.flatMap((b) => b.items.filter((it) => !it.archived));
+    const done = items.filter((it) => it.done).length;
+    const target = items.reduce((s, it) => s + (it.targetAmount ?? 0), 0);
+    const saved = items.reduce((s, it) => s + (it.savedToward ?? 0), 0);
+    return { categories: active.length, items: items.length, done, target, saved };
+  }, [blocks]);
+
+  const tabMeta = TABS.find((t) => t.id === tab) ?? TABS[0];
 
   async function createCategory(e: React.FormEvent) {
     e.preventDefault();
@@ -174,80 +187,162 @@ export default function WishlistPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <header>
-        <h1 className="font-display text-[34px]">Wishlist</h1>
-      </header>
-
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
+    <div className="space-y-4">
+      <PageHero
+        kicker="Wishlist"
+        title="Желания"
+        lede="Вещи, навыки и свои списки — с копилками."
+        meta={TABS.map((t) => (
           <button
             key={t.id}
             type="button"
-            className={`btn ${tab === t.id ? "btn-primary" : ""}`}
-            style={tab === t.id ? { background: t.color, boxShadow: `0 8px 20px ${t.color}44` } : undefined}
+            className="chip-soft"
+            data-active={tab === t.id}
+            style={
+              tab === t.id
+                ? { background: `${t.color}33`, color: t.color, borderColor: `${t.color}66` }
+                : undefined
+            }
             onClick={() => setTab(t.id)}
           >
             {t.label}
           </button>
         ))}
-      </div>
+      />
 
-      <form onSubmit={createCategory} className="surface flex gap-2 p-4">
-        <input
-          className="field min-w-0 flex-1"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder={
-            tab === "skill"
-              ? "Категория навыка, напр. excel"
-              : tab === "material"
-                ? "Категория вещей, напр. tech"
-                : "Своя категория"
-          }
-        />
-        <button type="submit" className="btn btn-primary shrink-0">
-          + Категория
-        </button>
-      </form>
+      <div className="bento">
+        <div className="span-3">
+          <KpiTile
+            label="Категории"
+            value={stats.categories}
+            hint="всего"
+            color="#a855f7"
+            icon={<IconWish size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Пункты"
+            value={stats.items}
+            hint={`${stats.done} готово`}
+            color="#38bdf8"
+            icon={<IconTarget size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Цель"
+            value={`${money(stats.target)} ₽`}
+            hint="сумма цен"
+            color="#fb923c"
+            icon={<IconCoin size={18} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Накоплено"
+            value={`${money(stats.saved)} ₽`}
+            hint={
+              stats.target > 0
+                ? `${Math.min(100, Math.round((stats.saved / stats.target) * 100))}%`
+                : "в копилках"
+            }
+            color="#34d399"
+            icon={<IconHabits size={18} />}
+          />
+        </div>
 
-      {saveFor ? (
-        <form onSubmit={saveToward} className="surface flex flex-wrap items-end gap-3 p-4">
-          <div className="min-w-[12rem] flex-1">
-            <p className="text-[13px] font-bold text-[var(--c-pink)]">Коплю на: {saveFor.title}</p>
-            <input
-              className="field mt-2"
-              inputMode="decimal"
-              value={saveAmount}
-              onChange={(e) => setSaveAmount(e.target.value)}
-              placeholder="Сумма в подушку"
-              autoFocus
-            />
+        <div className="span-12">
+          <form onSubmit={createCategory} className="panel flex flex-wrap items-end gap-3">
+            <div className="min-w-[12rem] flex-1">
+              <WidgetHead title={`Новая категория · ${tabMeta.label}`} tone={tabMeta.tone} />
+              <input
+                className="field"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                placeholder={
+                  tab === "skill"
+                    ? "Категория навыка, напр. excel"
+                    : tab === "material"
+                      ? "Категория вещей, напр. tech"
+                      : "Своя категория"
+                }
+              />
+            </div>
+            <button type="submit" className="btn btn-primary shrink-0">
+              + Категория
+            </button>
+          </form>
+        </div>
+
+        {saveFor ? (
+          <div className="span-12">
+            <form onSubmit={saveToward} className="panel flex flex-wrap items-end gap-3">
+              <div className="min-w-[12rem] flex-1">
+                <WidgetHead title={`Коплю · ${saveFor.title}`} tone="pink" />
+                <input
+                  className="field"
+                  inputMode="decimal"
+                  value={saveAmount}
+                  onChange={(e) => setSaveAmount(e.target.value)}
+                  placeholder="Сумма в подушку"
+                  autoFocus
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                Отложить
+              </button>
+              <button type="button" className="btn" onClick={() => setSaveFor(null)}>
+                Отмена
+              </button>
+            </form>
           </div>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            Отложить
-          </button>
-          <button type="button" className="btn" onClick={() => setSaveFor(null)}>
-            Отмена
-          </button>
-        </form>
-      ) : null}
+        ) : null}
 
-      {visible.length === 0 ? (
-        <p className="text-[14px] font-semibold text-[var(--accent)]">Пока пусто — добавь категорию.</p>
-      ) : (
-        <div className="space-y-3">
-          {visible.map((b, i) => {
-            const accents = ["var(--c-blue)", "var(--c-green)", "var(--c-orange)", "var(--c-violet)", "var(--c-pink)"];
+        {visible.length === 0 ? (
+          <div className="span-12">
+            <section className="panel">
+              <p className="text-[14px] text-[var(--ink-soft)]">Пока пусто — добавь категорию.</p>
+            </section>
+          </div>
+        ) : (
+          visible.map((b, i) => {
+            const accents = ["#38bdf8", "#34d399", "#fb923c", "#a855f7", "#f472b6"];
             const accent = accents[i % accents.length];
+            const items = b.items.filter((it) => !it.archived);
             return (
-              <div
-                key={b.id}
-                className="surface overflow-hidden"
-                style={{ borderLeft: `4px solid ${accent}` }}
-              >
-                <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1 font-bold" style={{ color: accent }}>
+              <div key={b.id} className="span-6">
+                <section className="panel h-full">
+                  <WidgetHead
+                    title={`#${b.hashtag}`}
+                    tone={tabMeta.tone}
+                    action={
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ minHeight: "2rem", padding: "0.35rem 0.7rem" }}
+                          onClick={() => setAddFor(addFor === b.id ? null : b.id)}
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{
+                            minHeight: "2rem",
+                            padding: "0.35rem 0.7rem",
+                            color: "var(--behind)",
+                          }}
+                          onClick={() => void removeBlock(b.id, b.hashtag)}
+                          aria-label="Удалить категорию"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    }
+                  />
+                  <div className="mb-2 font-bold" style={{ color: accent }}>
                     <span className="mr-0.5">#</span>
                     <EditableText
                       value={b.hashtag}
@@ -256,37 +351,16 @@ export default function WishlistPage() {
                       onSave={(hashtag) => renameBlock(b.id, hashtag)}
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => setAddFor(addFor === b.id ? null : b.id)}
-                    >
-                      +
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
-                      style={{ color: "var(--behind)" }}
-                      onClick={() => void removeBlock(b.id, b.hashtag)}
-                      aria-label="Удалить категорию"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-                <div className="divide-y divide-[var(--line)] border-t border-[var(--line)]">
-                  {b.items
-                    .filter((it) => !it.archived)
-                    .map((it) => {
+                  <ul className="space-y-2">
+                    {items.map((it) => {
                       const target = it.targetAmount ?? 0;
                       const saved = it.savedToward ?? 0;
                       return (
-                        <div key={it.id} className="flex items-center gap-3 px-4 py-3">
+                        <li key={it.id} className="signal-row">
                           <button
                             type="button"
-                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-black text-white"
-                            style={{ background: it.done ? "var(--ahead)" : accent }}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black text-white"
+                            style={{ background: it.done ? "#34d399" : accent }}
                             onClick={() => void toggleItem(b.id, it.id)}
                             aria-label={it.done ? "Снять" : "Готово"}
                           >
@@ -300,7 +374,7 @@ export default function WishlistPage() {
                               onSave={(title) => renameItem(b.id, it.id, title)}
                             />
                             {target > 0 ? (
-                              <p className="text-[12px] font-semibold" style={{ color: accent }}>
+                              <p className="text-[11px] font-semibold" style={{ color: accent }}>
                                 {money(saved)} / {money(target)} ₽
                               </p>
                             ) : null}
@@ -334,44 +408,45 @@ export default function WishlistPage() {
                           >
                             ×
                           </button>
-                        </div>
+                        </li>
                       );
                     })}
-                </div>
-                {addFor === b.id ? (
-                  <form
-                    className="flex flex-wrap gap-2 border-t border-[var(--line)] p-3"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void addItem(b.id);
-                    }}
-                  >
-                    <input
-                      className="field min-w-0 flex-1"
-                      value={itemTitle}
-                      onChange={(e) => setItemTitle(e.target.value)}
-                      placeholder="Что добавить"
-                      autoFocus
-                    />
-                    {tab === "material" ? (
+                  </ul>
+                  {addFor === b.id ? (
+                    <form
+                      className="mt-3 flex flex-wrap gap-2 border-t border-[var(--line)] pt-3"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        void addItem(b.id);
+                      }}
+                    >
                       <input
-                        className="field w-[7rem]"
-                        inputMode="decimal"
-                        value={itemPrice}
-                        onChange={(e) => setItemPrice(e.target.value)}
-                        placeholder="Цена"
+                        className="field min-w-0 flex-1"
+                        value={itemTitle}
+                        onChange={(e) => setItemTitle(e.target.value)}
+                        placeholder="Что добавить"
+                        autoFocus
                       />
-                    ) : null}
-                    <button type="submit" className="btn btn-primary">
-                      Ок
-                    </button>
-                  </form>
-                ) : null}
+                      {tab === "material" ? (
+                        <input
+                          className="field w-[7rem]"
+                          inputMode="decimal"
+                          value={itemPrice}
+                          onChange={(e) => setItemPrice(e.target.value)}
+                          placeholder="Цена"
+                        />
+                      ) : null}
+                      <button type="submit" className="btn btn-primary">
+                        Ок
+                      </button>
+                    </form>
+                  ) : null}
+                </section>
               </div>
             );
-          })}
-        </div>
-      )}
+          })
+        )}
+      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EditableText } from "@/components/ui/EditableText";
 import { EmptyState } from "@/components/ui/Progress";
+import { PageHero } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type Principle = {
@@ -88,24 +89,22 @@ export default function PrinciplesPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="page-kicker">Принципы</p>
-        <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Принципы</h1>
-        <p className="page-lede">Правило → поведение → результат.</p>
-      </header>
-
-      <div className="flex flex-wrap gap-2">
-        {(["all", "inner", "outer"] as const).map((f) => (
+      <PageHero
+        kicker="Принципы"
+        title="Принципы"
+        lede="Правило → поведение → результат."
+        meta={(["all", "inner", "outer"] as const).map((f) => (
           <button
             key={f}
             type="button"
-            className={`btn ${filter === f ? "btn-primary" : ""}`}
+            className="chip-soft"
+            data-active={filter === f}
             onClick={() => setFilter(f)}
           >
             {f === "all" ? "Все" : f === "inner" ? "Внутреннее" : "Внешнее"}
           </button>
         ))}
-      </div>
+      />
 
       {shown.length === 0 ? (
         <EmptyState

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EmptyState } from "@/components/ui/Progress";
+import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type Capture = {
@@ -74,13 +75,14 @@ export default function InboxPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <p className="page-kicker">Inbox</p>
-        <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Inbox</h1>
-        <p className="page-lede">Заметки. Потом привяжи к направлению, цели или принципу.</p>
-      </header>
+      <PageHero
+        kicker="Inbox"
+        title="Inbox"
+        lede="Заметки. Потом привяжи к направлению, цели или принципу."
+      />
 
-      <form onSubmit={capture} className="surface space-y-3 p-5">
+      <form onSubmit={capture} className="panel space-y-3">
+        <WidgetHead title="Новая заметка" tone="blue" />
         <textarea
           className="field resize-none"
           rows={3}

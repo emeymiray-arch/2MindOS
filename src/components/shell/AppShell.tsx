@@ -2,28 +2,46 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, type ComponentType } from "react";
+import {
+  IconCalendar,
+  IconChart,
+  IconHabits,
+  IconHome,
+  IconMap,
+  IconMore,
+  IconPath,
+  IconWallet,
+  IconWish,
+} from "@/components/ui/Icons";
 
-const NAV = [
-  { href: "/", label: "Сегодня" },
-  { href: "/goals", label: "Путь" },
-  { href: "/map", label: "Карта" },
-  { href: "/calendar", label: "Календарь" },
-  { href: "/analytics", label: "Аналитика" },
-  { href: "/finance", label: "Финансы" },
-  { href: "/habits", label: "Привычки" },
-  { href: "/wishlist", label: "Wishlist" },
-  { href: "/life", label: "Ещё" },
-] as const;
+type NavItem = {
+  href: string;
+  label: string;
+  short: string;
+  Icon: ComponentType<{ size?: number }>;
+};
+
+const NAV: NavItem[] = [
+  { href: "/", label: "Сегодня", short: "Сегодня", Icon: IconHome },
+  { href: "/goals", label: "Путь", short: "Путь", Icon: IconPath },
+  { href: "/map", label: "Карта", short: "Карта", Icon: IconMap },
+  { href: "/calendar", label: "Календарь", short: "Календ.", Icon: IconCalendar },
+  { href: "/analytics", label: "Аналитика", short: "Аналит.", Icon: IconChart },
+  { href: "/finance", label: "Финансы", short: "Финансы", Icon: IconWallet },
+  { href: "/habits", label: "Привычки", short: "Ритм", Icon: IconHabits },
+  { href: "/wishlist", label: "Wishlist", short: "Wish", Icon: IconWish },
+  { href: "/life", label: "Ещё", short: "Ещё", Icon: IconMore },
+];
 
 const MOBILE_NAV = [
-  { href: "/", label: "Сегодня" },
-  { href: "/goals", label: "Путь" },
-  { href: "/map", label: "Карта" },
-  { href: "/finance", label: "Финансы" },
-  { href: "/wishlist", label: "Wish" },
-  { href: "/life", label: "Ещё" },
-] as const;
+  NAV[0],
+  NAV[1],
+  NAV[2],
+  NAV[5],
+  NAV[7],
+  NAV[8],
+];
 
 const WIDE = ["/calendar", "/analytics"];
 
@@ -121,7 +139,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               data-active={active(item.href)}
               className="nav-link"
             >
-              {item.label}
+              <span className="nav-ico">
+                <item.Icon size={18} />
+              </span>
+              <span>{item.label}</span>
             </Link>
           ))}
         </nav>
@@ -139,7 +160,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="shell-mobile shell-mobile-wide" aria-label="Основное меню">
         {MOBILE_NAV.map((item) => (
           <Link key={item.href} href={item.href} data-active={active(item.href)}>
-            {item.label}
+            <span className="nav-ico">
+              <item.Icon size={18} />
+            </span>
+            <span>{item.short}</span>
           </Link>
         ))}
       </nav>

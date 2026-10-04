@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet } from "@/lib/client-api";
 import { EmptyState } from "@/components/ui/Progress";
+import { IconCalendar, IconInner, IconOuter } from "@/components/ui/Icons";
+import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
 
 type SidePulse = { planned: number; completed: number; percent: number };
 type Sides = { inner: SidePulse; outer: SidePulse; unset: SidePulse };
@@ -219,9 +221,11 @@ function SideSplit({
 
 function TaskList({ title, items }: { title: string; items: DayTask[] }) {
   if (!items.length) return null;
+  const tone =
+    title === "Ритм" ? "green" : title === "Шаги пути" ? "violet" : "blue";
   return (
     <section className="panel">
-      <h3 className="mb-3 text-[15px] font-semibold tracking-tight">{title}</h3>
+      <WidgetHead title={title} tone={tone} />
       <ul className="space-y-2">
         {items.map((t) => (
           <li
@@ -386,39 +390,39 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-4">
-      <header className="dash-header">
-        <div>
-          <p className="page-kicker">Календарь</p>
-          <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">
+      <PageHero
+        kicker="Календарь"
+        title={
+          <>
             {view === "year" && year}
             {view === "month" && `${monthTitle(month)} ${year}`}
             {view === "day" && date && formatDay(date)}
-          </h1>
-          <p className="page-lede">
-            Год → месяц → день. Сводки разделены на внутреннее и внешнее.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <a href="/api/export" className="btn" download>
-            Экспорт в Excel
-          </a>
-          {view !== "year" ? (
-            <button type="button" className="btn" onClick={() => openYear(year)}>
-              ← Год
-            </button>
-          ) : null}
-          {view === "day" ? (
-            <button type="button" className="btn" onClick={() => openMonth(year, month)}>
-              ← Месяц
-            </button>
-          ) : null}
-          {today ? (
-            <button type="button" className="btn btn-primary" onClick={() => openDay(today)}>
-              Сегодня
-            </button>
-          ) : null}
-        </div>
-      </header>
+          </>
+        }
+        lede="Год → месяц → день. Сводки разделены на внутреннее и внешнее."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <a href="/api/export" className="btn" download>
+              Экспорт
+            </a>
+            {view !== "year" ? (
+              <button type="button" className="btn" onClick={() => openYear(year)}>
+                ← Год
+              </button>
+            ) : null}
+            {view === "day" ? (
+              <button type="button" className="btn" onClick={() => openMonth(year, month)}>
+                ← Месяц
+              </button>
+            ) : null}
+            {today ? (
+              <button type="button" className="btn btn-primary" onClick={() => openDay(today)}>
+                Сегодня
+              </button>
+            ) : null}
+          </div>
+        }
+      />
 
       {view === "year" && yearData ? (
         <>
@@ -582,31 +586,31 @@ export default function CalendarPage() {
 
           <div className="bento">
             <div className="span-4">
-              <div className="kpi-card h-full">
-                <p className="kpi-label">День</p>
-                <p className="kpi-value">{dayData.summary.percent}%</p>
-                <p className="kpi-hint mt-2">
-                  {dayData.summary.completed}/{dayData.summary.planned} задач
-                </p>
-              </div>
+              <KpiTile
+                label="День"
+                value={<>{dayData.summary.percent}%</>}
+                hint={`${dayData.summary.completed}/${dayData.summary.planned} задач`}
+                color="#a855f7"
+                icon={<IconCalendar size={18} />}
+              />
             </div>
             <div className="span-4">
-              <div className="kpi-card h-full">
-                <p className="kpi-label">Внутреннее</p>
-                <p className="kpi-value">{dayData.summary.sides.inner.percent}%</p>
-                <p className="kpi-hint mt-2">
-                  {dayData.summary.sides.inner.completed}/{dayData.summary.sides.inner.planned}
-                </p>
-              </div>
+              <KpiTile
+                label="Внутреннее"
+                value={<>{dayData.summary.sides.inner.percent}%</>}
+                hint={`${dayData.summary.sides.inner.completed}/${dayData.summary.sides.inner.planned}`}
+                color="#f472b6"
+                icon={<IconInner size={18} />}
+              />
             </div>
             <div className="span-4">
-              <div className="kpi-card h-full">
-                <p className="kpi-label">Внешнее</p>
-                <p className="kpi-value">{dayData.summary.sides.outer.percent}%</p>
-                <p className="kpi-hint mt-2">
-                  {dayData.summary.sides.outer.completed}/{dayData.summary.sides.outer.planned}
-                </p>
-              </div>
+              <KpiTile
+                label="Внешнее"
+                value={<>{dayData.summary.sides.outer.percent}%</>}
+                hint={`${dayData.summary.sides.outer.completed}/${dayData.summary.sides.outer.planned}`}
+                color="#38bdf8"
+                icon={<IconOuter size={18} />}
+              />
             </div>
           </div>
 
