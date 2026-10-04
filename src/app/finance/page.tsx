@@ -196,11 +196,9 @@ export default function FinancePage() {
   const cushion = data?.cushion ?? 0;
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHero
-        kicker="Финансы"
         title="Финансы"
-        lede="Доход, обязательное, подушка."
         action={
           <div className="text-right">
             <p className="home-clock-time" style={{ fontSize: "1.6rem" }}>
@@ -216,36 +214,32 @@ export default function FinancePage() {
           <KpiTile
             label="Зарплата"
             value={money(data?.salary ?? 0, cur)}
-            hint="месячная ставка"
             color="#34d399"
-            icon={<IconCoin size={18} />}
+            icon={<IconCoin size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Доход"
             value={money(income, cur)}
-            hint="за этот месяц"
             color="#38bdf8"
-            icon={<IconTrendUp size={18} />}
+            icon={<IconTrendUp size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Расход"
             value={money(expenses, cur)}
-            hint="за этот месяц"
             color="#fb923c"
-            icon={<IconTrendDown size={18} />}
+            icon={<IconTrendDown size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Подушка"
             value={money(cushion, cur)}
-            hint={data?.cushionManual ? "ручной режим" : "из истории"}
             color="#a855f7"
-            icon={<IconWallet size={18} />}
+            icon={<IconWallet size={16} />}
           />
         </div>
 

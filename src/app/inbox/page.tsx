@@ -74,11 +74,9 @@ export default function InboxPage() {
   const done = items.filter((c) => c.status !== "pending");
 
   return (
-    <div className="space-y-8">
+    <div className="page-stack">
       <PageHero
-        kicker="Inbox"
         title="Inbox"
-        lede="Заметки. Потом привяжи к направлению, цели или принципу."
       />
 
       <form onSubmit={capture} className="panel space-y-3">

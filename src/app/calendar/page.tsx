@@ -389,9 +389,8 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHero
-        kicker="Календарь"
         title={
           <>
             {view === "year" && year}
@@ -399,7 +398,6 @@ export default function CalendarPage() {
             {view === "day" && date && formatDay(date)}
           </>
         }
-        lede="Год → месяц → день. Сводки разделены на внутреннее и внешнее."
         action={
           <div className="flex flex-wrap gap-2">
             <a href="/api/export" className="btn" download>
@@ -589,27 +587,24 @@ export default function CalendarPage() {
               <KpiTile
                 label="День"
                 value={<>{dayData.summary.percent}%</>}
-                hint={`${dayData.summary.completed}/${dayData.summary.planned} задач`}
                 color="#a855f7"
-                icon={<IconCalendar size={18} />}
+                icon={<IconCalendar size={16} />}
               />
             </div>
             <div className="span-4">
               <KpiTile
                 label="Внутреннее"
                 value={<>{dayData.summary.sides.inner.percent}%</>}
-                hint={`${dayData.summary.sides.inner.completed}/${dayData.summary.sides.inner.planned}`}
                 color="#f472b6"
-                icon={<IconInner size={18} />}
+                icon={<IconInner size={16} />}
               />
             </div>
             <div className="span-4">
               <KpiTile
                 label="Внешнее"
                 value={<>{dayData.summary.sides.outer.percent}%</>}
-                hint={`${dayData.summary.sides.outer.completed}/${dayData.summary.sides.outer.planned}`}
                 color="#38bdf8"
-                icon={<IconOuter size={18} />}
+                icon={<IconOuter size={16} />}
               />
             </div>
           </div>

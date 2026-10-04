@@ -320,11 +320,9 @@ export default function AnalyticsPage() {
       : 0;
 
   return (
-    <div className="space-y-4 analytics-wide">
+    <div className="page-stack analytics-wide">
       <PageHero
-        kicker="Аналитика"
         title="Аналитика"
-        lede={`${data.asOf} · неделя ${data.week.percent}% · 14д ${v.percent14}% · серия ${v.activeStreak}д`}
         action={
           <div className="flex flex-wrap gap-2">
             <Link href="/settings" className="btn btn-primary">
@@ -345,18 +343,16 @@ export default function AnalyticsPage() {
           <KpiTile
             label="Цели"
             value={data.goals.length}
-            hint={`${onTrack} в графике · ${data.byStatus.behind} отстаёт`}
             color="#a855f7"
-            icon={<IconPath size={18} />}
+            icon={<IconPath size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Неделя"
             value={<>{data.week.percent}%</>}
-            hint={`${data.week.completed}/${data.week.planned} задач`}
             color="#c084fc"
-            icon={<IconChart size={18} />}
+            icon={<IconChart size={16} />}
             series={lineValues}
           />
         </div>
@@ -369,9 +365,8 @@ export default function AnalyticsPage() {
                 <span className="kpi-den"> дн</span>
               </>
             }
-            hint={`рекорд 60д: ${v.bestStreak60}`}
             color="#fb923c"
-            icon={<IconFlame size={18} />}
+            icon={<IconFlame size={16} />}
           />
         </div>
         <div className="span-3">
@@ -383,17 +378,14 @@ export default function AnalyticsPage() {
                 <span className="kpi-den">/{v.daysWithPlan14}</span>
               </>
             }
-            hint={`${v.percent14}% · ~${v.avgTasksDay14}/день`}
             color="#34d399"
-            icon={<IconHabits size={18} />}
+            icon={<IconHabits size={16} />}
           />
         </div>
 
         <div className="span-4">
           <section className="panel h-full space-y-2">
-            <PanelTitle tone="green" aside={<span className="text-[12px] text-[var(--ink-faint)]">наведи</span>}>
-              Статус целей
-            </PanelTitle>
+            <PanelTitle tone="green">Статус целей</PanelTitle>
             <DonutChart
               size={172}
               thickness={18}

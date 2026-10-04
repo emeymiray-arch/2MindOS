@@ -85,11 +85,9 @@ export default function HabitsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHero
-        kicker="Ритм"
         title="Привычки"
-        lede="Ежедневный ритм — отмечай и копи серии."
         action={
           <div className="text-right">
             <p className="home-clock-time" style={{ fontSize: "1.6rem" }}>
@@ -105,9 +103,8 @@ export default function HabitsPage() {
           <KpiTile
             label="Активных"
             value={stats.total}
-            hint="в ритме"
             color="#34d399"
-            icon={<IconHabits size={18} />}
+            icon={<IconHabits size={16} />}
           />
         </div>
         <div className="span-3">
@@ -119,9 +116,8 @@ export default function HabitsPage() {
                 <span className="kpi-den">/{stats.total}</span>
               </>
             }
-            hint="закрыто"
             color="#38bdf8"
-            icon={<IconTarget size={18} />}
+            icon={<IconTarget size={16} />}
           />
         </div>
         <div className="span-3">
@@ -133,18 +129,16 @@ export default function HabitsPage() {
                 <span className="kpi-den"> дн</span>
               </>
             }
-            hint="среди привычек"
             color="#fb923c"
-            icon={<IconFlame size={18} />}
+            icon={<IconFlame size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Средний %"
             value={<>{stats.avg}%</>}
-            hint="выполнение"
             color="#a855f7"
-            icon={<IconSteps size={18} />}
+            icon={<IconSteps size={16} />}
           />
         </div>
 

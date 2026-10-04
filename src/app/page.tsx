@@ -11,7 +11,6 @@ import {
   IconAlert,
   IconFlame,
   IconHabits,
-  IconNote,
   IconSteps,
   IconTarget,
 } from "@/components/ui/Icons";
@@ -224,34 +223,26 @@ export default function HomePage() {
       goals[0];
     return { direction: d, goal };
   });
-  const greet =
-    new Date().getHours() < 12 ? "Доброе утро" : new Date().getHours() < 18 ? "Добрый день" : "Добрый вечер";
-
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <header className="home-hero">
         <div className="min-w-0">
-          <p className="home-greet">
-            {greet}
-            {life?.vision?.trim() ? (
-              <span className="home-greet-sub"> · {life.vision}</span>
-            ) : null}
-          </p>
-          <h1 className="page-title text-[2rem] md:text-[2.4rem]">{formatDay(data.today)}</h1>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {main.map((d) => (
-              <span key={d.id} className="chip-soft">
-                {d.name}
-              </span>
-            ))}
-          </div>
+          <h1 className="page-title text-[1.85rem] md:text-[2.25rem]">{formatDay(data.today)}</h1>
+          {main.length ? (
+            <div className="home-hero-meta">
+              {main.slice(0, 3).map((d) => (
+                <span key={d.id} className="chip-soft">
+                  {d.name}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
-        <div className="home-clock">
+        <div className="home-hero-action">
           <p className="home-clock-time">{clock}</p>
-          <p className="home-clock-meta">сегодня {pct}% · серия {velocity?.activeStreak ?? 0}д</p>
-          <Link href="/map" className="btn btn-primary mt-2">
-            Карта
-          </Link>
+          <p className="home-clock-meta">
+            {pct}% · серия {velocity?.activeStreak ?? 0}д
+          </p>
         </div>
       </header>
 
@@ -265,25 +256,23 @@ export default function HomePage() {
                 <span className="kpi-den">/{habits.length}</span>
               </>
             }
-            hint="за 14 дней"
             color="#34d399"
-            icon={<IconHabits size={18} />}
-            series={habitSeries.length ? habitSeries : [0]}
+            icon={<IconHabits size={16} />}
+            series={habitSeries.length ? habitSeries : undefined}
           />
         </div>
         <div className="span-3">
           <KpiTile
-            label="Шаги пути"
+            label="Шаги"
             value={
               <>
                 {stepsDone}
                 <span className="kpi-den">/{steps.length}</span>
               </>
             }
-            hint="за 14 дней"
             color="#a855f7"
-            icon={<IconSteps size={18} />}
-            series={goalSeries.length ? goalSeries : [0]}
+            icon={<IconSteps size={16} />}
+            series={goalSeries.length ? goalSeries : undefined}
           />
         </div>
         <div className="span-3">
@@ -292,58 +281,46 @@ export default function HomePage() {
             value={
               <>
                 {velocity?.activeStreak ?? 0}
-                <span className="kpi-den"> дн</span>
+                <span className="kpi-den">д</span>
               </>
             }
-            hint={`рекорд ${velocity?.bestStreak60 ?? 0} дн`}
             color="#fb923c"
-            icon={<IconFlame size={18} />}
+            icon={<IconFlame size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Неделя"
             value={<>{data.week?.percent ?? 0}%</>}
-            hint={`${data.week?.completed ?? 0}/${data.week?.planned ?? 0} задач`}
             color="#38bdf8"
-            icon={<IconTarget size={18} />}
-            series={weekPcts.length ? weekPcts : [0]}
+            icon={<IconTarget size={16} />}
+            series={weekPcts.length ? weekPcts : undefined}
           />
         </div>
 
         <div className="span-5">
           <section className="panel h-full">
             <WidgetHead
-              title="Главное сегодня"
+              title="Главное"
               tone="violet"
               action={
                 data.tasks.overdue.length ? (
-                  <Link href="/analytics" className="text-[12px] font-semibold text-[var(--behind)]">
-                    просрочено {data.tasks.overdue.length}
+                  <Link href="/analytics" className="widget-link" style={{ color: "var(--behind)" }}>
+                    {data.tasks.overdue.length}
                   </Link>
                 ) : null
               }
             />
             {mainTasks.length === 0 ? (
-              <p className="text-[14px] text-[var(--ink-soft)]">
-                {total > 0 && done === total
-                  ? "Всё важное закрыто."
-                  : "Нет шагов из целей — начни с ритма или своего."}
+              <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">
+                {total > 0 && done === total ? "Всё закрыто." : "Пока пусто."}
               </p>
             ) : (
               <TaskBlock>
-                <ol className="-mx-1 space-y-1">
+                <ol className="-mx-1 space-y-2">
                   {mainTasks.map((c) => (
                     <li key={c.task.id}>
                       <TaskRow task={c.task} onChanged={() => void load()} />
-                      {c.reason ? (
-                        <p
-                          className="truncate pb-1 pl-9 text-[11px] font-medium"
-                          style={{ color: c.behind ? "var(--behind)" : "var(--ink-faint)" }}
-                        >
-                          {c.reason}
-                        </p>
-                      ) : null}
                     </li>
                   ))}
                 </ol>
@@ -353,45 +330,36 @@ export default function HomePage() {
         </div>
 
         <div className="span-3">
-          <section className="panel flex h-full flex-col items-center justify-center gap-3">
-            <WidgetHead title="Фокус дня" tone="pink" />
-            <DualRing
-              size={148}
-              outer={{ percent: pct, color: "#c084fc", label: "сегодня" }}
-              inner={{ percent: data.week?.percent ?? 0, color: "#38bdf8", label: "неделя" }}
-            />
-            <p className="text-center text-[12px] text-[var(--ink-soft)]">
-              {done}/{total} закрыто
-            </p>
+          <section className="panel flex h-full flex-col">
+            <WidgetHead title="Фокус" tone="pink" />
+            <div className="flex flex-1 flex-col items-center justify-center py-2">
+              <DualRing
+                size={136}
+                outer={{ percent: pct, color: "#c084fc", label: "сегодня" }}
+                inner={{ percent: data.week?.percent ?? 0, color: "#38bdf8", label: "неделя" }}
+              />
+            </div>
           </section>
         </div>
 
         <div className="span-4">
           <section className="panel h-full">
-            <WidgetHead
-              title="Неделя"
-              tone="blue"
-              action={<span className="text-[12px] text-[var(--ink-faint)]">{pct}% сегодня</span>}
-            />
-            <div className="grid grid-cols-7 gap-1.5">
+            <WidgetHead title="Неделя" tone="blue" />
+            <div className="grid grid-cols-7 gap-2">
               {days7.map((d) => {
                 const isToday = d.date === data.today;
                 const value = isToday ? pct : d.percent;
                 const empty = !isToday && d.planned === 0;
                 return (
-                  <div key={d.date} className="flex flex-col items-center gap-1">
+                  <div key={d.date} className="flex flex-col items-center gap-1.5">
                     <div
                       className="week-bar"
                       data-today={isToday}
                       title={`${d.date}: ${d.completed}/${d.planned}`}
                     >
-                      <span
-                        style={{
-                          height: empty ? "6%" : `${Math.max(10, value)}%`,
-                        }}
-                      />
+                      <span style={{ height: empty ? "6%" : `${Math.max(10, value)}%` }} />
                     </div>
-                    <span className="text-[10px] font-semibold text-[var(--ink-faint)]">
+                    <span className="text-[11px] font-medium text-[var(--ink-faint)]">
                       {weekdayShort(d.date)}
                     </span>
                   </div>
@@ -406,17 +374,13 @@ export default function HomePage() {
             <WidgetHead
               title="Ритм"
               tone="green"
-              action={
-                <Link href="/habits" className="text-[12px] font-semibold text-[var(--accent)]">
-                  все →
-                </Link>
-              }
+              action={<Link href="/habits" className="widget-link">все →</Link>}
             />
             {habits.length === 0 ? (
-              <p className="text-[14px] text-[var(--ink-soft)]">Нет привычек.</p>
+              <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">Нет привычек.</p>
             ) : (
               <TaskBlock>
-                <div className="-mx-1">
+                <div className="-mx-1 space-y-1">
                   {habits.map((t) => (
                     <TaskRow key={t.id} task={t} onChanged={() => void load()} />
                   ))}
@@ -431,17 +395,13 @@ export default function HomePage() {
             <WidgetHead
               title="Шаги пути"
               tone="violet"
-              action={
-                <Link href="/goals" className="text-[12px] font-semibold text-[var(--accent)]">
-                  путь →
-                </Link>
-              }
+              action={<Link href="/goals" className="widget-link">путь →</Link>}
             />
             {steps.length === 0 ? (
-              <p className="text-[14px] text-[var(--ink-soft)]">Нет шагов из фокуса.</p>
+              <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">Нет шагов.</p>
             ) : (
               <TaskBlock>
-                <div className="-mx-1 max-h-[18rem] overflow-y-auto">
+                <div className="-mx-1 max-h-[16rem] space-y-1 overflow-y-auto">
                   {steps.map((t) => (
                     <TaskRow key={t.id} task={t} onChanged={() => void load()} />
                   ))}
@@ -456,33 +416,31 @@ export default function HomePage() {
             <WidgetHead
               title="Сигналы"
               tone="orange"
-              action={
-                <Link href="/analytics" className="text-[12px] font-semibold text-[var(--accent)]">
-                  аналитика →
-                </Link>
-              }
+              action={<Link href="/analytics" className="widget-link">→</Link>}
             />
             {alerts.length === 0 && data.tasks.overdue.length === 0 ? (
-              <p className="text-[14px] text-[var(--ink-soft)]">Без критичных сигналов.</p>
+              <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">Тихо.</p>
             ) : (
-              <ul className="space-y-2">
-                {alerts.slice(0, 4).map((a, i) => (
+              <ul className="space-y-2.5">
+                {alerts.slice(0, 3).map((a, i) => (
                   <li key={i}>
                     <Link href={a.href || "/analytics"} className="signal-row">
                       <span className="signal-ico" style={{ color: "#fbbf24" }}>
-                        <IconAlert size={16} />
+                        <IconAlert size={14} />
                       </span>
-                      <span className="min-w-0 truncate text-[13px] font-medium">{a.text}</span>
+                      <span className="min-w-0 truncate text-[14px] font-medium leading-snug">
+                        {a.text}
+                      </span>
                     </Link>
                   </li>
                 ))}
-                {data.tasks.overdue.slice(0, 3).map((t) => (
+                {data.tasks.overdue.slice(0, 2).map((t) => (
                   <li key={t.id} className="signal-row is-bad">
                     <span className="signal-ico" style={{ color: "var(--behind)" }}>
-                      <IconAlert size={16} />
+                      <IconAlert size={14} />
                     </span>
-                    <span className="min-w-0 truncate text-[13px] font-medium">
-                      Просрочено: {t.title}
+                    <span className="min-w-0 truncate text-[14px] font-medium leading-snug">
+                      {t.title}
                     </span>
                   </li>
                 ))}
@@ -493,33 +451,31 @@ export default function HomePage() {
 
         <div className="span-4">
           <section className="panel h-full">
-            <WidgetHead title="Следующий шаг" tone="pink" />
+            <WidgetHead title="Дальше" tone="pink" />
             {directionSteps.length === 0 ? (
-              <p className="text-[14px] text-[var(--ink-soft)]">
-                Задай главное на{" "}
+              <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">
                 <Link href="/map" className="font-semibold text-[var(--accent)]">
-                  карте
+                  Карта
                 </Link>
-                .
               </p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-2.5">
                 {directionSteps.map(({ direction, goal }) => (
                   <li key={direction.id}>
                     <Link href={goal ? `/goals/${goal.id}` : "/map"} className="next-card">
                       <span className="next-ico">
-                        <IconTarget size={16} />
+                        <IconTarget size={15} />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[11px] font-bold uppercase tracking-wide text-[var(--c-violet)]">
+                        <span className="block truncate text-[12px] font-medium text-[var(--ink-faint)]">
                           {direction.name}
                         </span>
-                        <span className="mt-0.5 block text-[13px] font-medium leading-snug">
-                          {goal?.nextStep?.title ?? (goal ? goal.title : "Нет активной цели")}
+                        <span className="mt-1 block text-[14px] font-medium leading-snug">
+                          {goal?.nextStep?.title ?? (goal ? goal.title : "Нет цели")}
                         </span>
                       </span>
                       {goal ? (
-                        <span className="shrink-0 text-[12px] tabular-nums text-[var(--ink-faint)]">
+                        <span className="shrink-0 text-[13px] tabular-nums text-[var(--ink-faint)]">
                           {goal.reality.actual}%
                         </span>
                       ) : null}
@@ -533,25 +489,17 @@ export default function HomePage() {
 
         <div className="span-4">
           <section className="panel h-full">
-            <WidgetHead
-              title="Своё"
-              tone="blue"
-              action={
-                <span className="text-[12px] text-[var(--ink-faint)]">
-                  <IconNote size={14} />
-                </span>
-              }
-            />
+            <WidgetHead title="Своё" tone="blue" />
             <TaskBlock>
-              <div className="-mx-1">
+              <div className="-mx-1 space-y-1">
                 {personal.map((t) => (
                   <TaskRow key={t.id} task={t} onChanged={() => void load()} />
                 ))}
-                <form onSubmit={addPersonal} className="flex gap-2 py-3">
+                <form onSubmit={addPersonal} className="flex gap-2 pt-3">
                   <input
                     value={personalTitle}
                     onChange={(e) => setPersonalTitle(e.target.value)}
-                    placeholder="Добавить задачу…"
+                    placeholder="Задача…"
                     className="field min-w-0 flex-1"
                   />
                   <button type="submit" className="btn btn-primary shrink-0">

@@ -6,11 +6,9 @@ import { Sparkline } from "@/components/ui/Charts";
 export type WidgetTone = "violet" | "green" | "blue" | "orange" | "pink";
 
 export function PageHero({
-  kicker,
   title,
-  lede,
-  meta,
   action,
+  meta,
 }: {
   kicker?: string;
   title: React.ReactNode;
@@ -21,12 +19,10 @@ export function PageHero({
   return (
     <header className="home-hero">
       <div className="min-w-0">
-        {kicker ? <p className="page-kicker">{kicker}</p> : null}
-        <h1 className="page-title text-[2rem] md:text-[2.4rem]">{title}</h1>
-        {lede ? <p className="page-lede mt-2">{lede}</p> : null}
-        {meta ? <div className="mt-2 flex flex-wrap gap-1.5">{meta}</div> : null}
+        <h1 className="page-title text-[1.85rem] md:text-[2.25rem]">{title}</h1>
+        {meta ? <div className="home-hero-meta">{meta}</div> : null}
       </div>
-      {action ? <div className="home-clock shrink-0">{action}</div> : null}
+      {action ? <div className="home-hero-action shrink-0">{action}</div> : null}
     </header>
   );
 }
@@ -35,17 +31,26 @@ export function WidgetHead({
   title,
   action,
   tone = "violet",
+  icon,
 }: {
   title: string;
   action?: React.ReactNode;
   tone?: WidgetTone;
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-2">
-      <h2 className="widget-title" data-tone={tone}>
-        {title}
-      </h2>
-      {action}
+    <div className="widget-head">
+      <div className="widget-head-left">
+        {icon ? (
+          <span className="widget-head-ico" data-tone={tone}>
+            {icon}
+          </span>
+        ) : (
+          <span className="widget-dot" data-tone={tone} aria-hidden />
+        )}
+        <h2 className="widget-title">{title}</h2>
+      </div>
+      {action ? <div className="widget-head-action">{action}</div> : null}
     </div>
   );
 }
@@ -62,19 +67,25 @@ export function KpiTile({
   value: React.ReactNode;
   hint?: string;
   color: string;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   series?: number[];
 }) {
   return (
     <div className="kpi-card kpi-tile h-full">
-      <div className="flex items-start justify-between gap-2">
-        <span className="kpi-ico" style={{ background: `${color}22`, color }}>
-          {icon}
-        </span>
-        {series?.length ? <Sparkline values={series} color={color} width={72} height={26} /> : null}
+      <div className="kpi-tile-top">
+        <p className="kpi-label">{label}</p>
+        {icon ? (
+          <span className="kpi-ico" style={{ color, background: `${color}1f` }}>
+            {icon}
+          </span>
+        ) : null}
       </div>
-      <p className="kpi-value mt-3">{value}</p>
-      <p className="kpi-label">{label}</p>
+      <div className="kpi-tile-main">
+        <p className="kpi-value">{value}</p>
+        {series?.length ? (
+          <Sparkline values={series} color={color} width={64} height={22} />
+        ) : null}
+      </div>
       {hint ? <p className="kpi-hint">{hint}</p> : null}
     </div>
   );
@@ -82,7 +93,7 @@ export function KpiTile({
 
 export function ViewAllLink({ href, label = "все →" }: { href: string; label?: string }) {
   return (
-    <Link href={href} className="text-[12px] font-semibold text-[var(--accent)]">
+    <Link href={href} className="widget-link">
       {label}
     </Link>
   );

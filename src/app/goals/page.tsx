@@ -182,11 +182,9 @@ export default function GoalsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHero
-        kicker="Путь"
         title="Цели"
-        lede="Две стороны: внутреннее (в себе) и внешнее (стиль, навыки, подача)."
         action={
           <button type="button" className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
             {creating ? "Закрыть" : "Новое намерение"}
@@ -199,36 +197,32 @@ export default function GoalsPage() {
           <KpiTile
             label="Всего"
             value={stats.total}
-            hint="активных целей"
             color="#a855f7"
-            icon={<IconPath size={18} />}
+            icon={<IconPath size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="В графике"
             value={stats.onTrack}
-            hint="ahead + on track"
             color="#34d399"
-            icon={<IconTarget size={18} />}
+            icon={<IconTarget size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Отстаёт"
             value={stats.behind}
-            hint="нужно внимание"
             color="#f87171"
-            icon={<IconAlert size={18} />}
+            icon={<IconAlert size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Без плана"
             value={stats.noPlan}
-            hint="открой план"
             color="#fbbf24"
-            icon={<IconOuter size={18} />}
+            icon={<IconOuter size={16} />}
           />
         </div>
 

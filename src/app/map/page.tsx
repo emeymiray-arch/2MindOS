@@ -148,11 +148,10 @@ export default function MapPage() {
   if (loading) return <p className="text-[var(--ink-faint)]">Загрузка…</p>;
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHero
-        kicker={`Карта · ${monthKey}`}
         title="Карта"
-        lede="Направления можно добавлять, менять и удалять."
+        meta={monthKey ? <span className="chip-soft">{monthKey}</span> : null}
         action={
           <Link href="/" className="btn btn-primary">
             Сегодня
@@ -165,36 +164,32 @@ export default function MapPage() {
           <KpiTile
             label="Направления"
             value={stats.total}
-            hint={`${stats.main} главных`}
             color="#a855f7"
-            icon={<IconMap size={18} />}
+            icon={<IconMap size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Главное"
             value={stats.main}
-            hint="фокус месяца"
             color="#f472b6"
-            icon={<IconTarget size={18} />}
+            icon={<IconTarget size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Поддержка"
             value={stats.support}
-            hint={`${stats.bg} на фоне`}
             color="#38bdf8"
-            icon={<IconWish size={18} />}
+            icon={<IconWish size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
             label="Цели"
             value={stats.linked}
-            hint="привязано"
             color="#34d399"
-            icon={<IconPath size={18} />}
+            icon={<IconPath size={16} />}
           />
         </div>
 

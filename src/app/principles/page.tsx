@@ -88,11 +88,9 @@ export default function PrinciplesPage() {
   const shown = items.filter((p) => filter === "all" || p.layer === filter);
 
   return (
-    <div className="space-y-8">
+    <div className="page-stack">
       <PageHero
-        kicker="Принципы"
         title="Принципы"
-        lede="Правило → поведение → результат."
         meta={(["all", "inner", "outer"] as const).map((f) => (
           <button
             key={f}
