@@ -4,13 +4,23 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
-/** Mental model: Today → Map → Path → Calendar → Analytics → More */
+/** Mental model: Today → Path → Calendar → Money → Habits → Wishlist → More */
 const NAV = [
   { href: "/", label: "Сегодня" },
-  { href: "/map", label: "Карта" },
   { href: "/goals", label: "Путь" },
   { href: "/calendar", label: "Календарь" },
-  { href: "/analytics", label: "Аналитика" },
+  { href: "/finance", label: "Финансы" },
+  { href: "/habits", label: "Привычки" },
+  { href: "/wishlist", label: "Wishlist" },
+  { href: "/life", label: "Ещё" },
+] as const;
+
+/** Compact mobile strip — full set lives in the side rail. */
+const MOBILE_NAV = [
+  { href: "/", label: "Сегодня" },
+  { href: "/goals", label: "Путь" },
+  { href: "/finance", label: "Финансы" },
+  { href: "/habits", label: "Привычки" },
   { href: "/life", label: "Ещё" },
 ] as const;
 
@@ -60,23 +70,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [isAdmin]);
 
   if (isAdmin) {
-    return <>{children}</>;
+    return (
+      <div className="admin-shell">
+        <div className="aurora" aria-hidden>
+          <img className="aurora-scene" src="/bg/scene-3d.jpg" alt="" draggable={false} />
+          <div className="aurora-veil" />
+        </div>
+        <div className="admin-shell-inner">{children}</div>
+      </div>
+    );
   }
 
   function active(href: string) {
     if (href === "/") return pathname === "/";
-    if (href === "/map") {
-      return pathname === "/map" || pathname.startsWith("/directions");
-    }
     if (href === "/life") {
       return (
         pathname === "/life" ||
-        pathname.startsWith("/wishlist") ||
-        pathname.startsWith("/habits") ||
         pathname.startsWith("/settings") ||
         pathname.startsWith("/inbox") ||
         pathname.startsWith("/principles") ||
-        pathname.startsWith("/finance")
+        pathname.startsWith("/map") ||
+        pathname.startsWith("/directions") ||
+        pathname.startsWith("/analytics") ||
+        pathname.startsWith("/archive")
       );
     }
     return pathname === href || pathname.startsWith(`${href}/`);
@@ -117,7 +133,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <nav className="shell-mobile" aria-label="Основное меню">
-        {NAV.map((item) => (
+        {MOBILE_NAV.map((item) => (
           <Link key={item.href} href={item.href} data-active={active(item.href)}>
             {item.label}
           </Link>

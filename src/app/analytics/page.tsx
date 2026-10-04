@@ -869,7 +869,7 @@ export default function AnalyticsPage() {
                   >
                     {money(finNet, data.finance.currency)}
                   </p>
-                  <p className="text-[11px] text-[var(--accent)]">деньги →</p>
+                  <p className="text-[11px] text-[var(--accent)]">финансы →</p>
                 </Link>
               ) : null}
             </div>

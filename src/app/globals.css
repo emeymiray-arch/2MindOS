@@ -508,7 +508,7 @@ select {
 }
 
 .page-enter {
-  animation: pageIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pageIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes pageIn {
@@ -520,6 +520,66 @@ select {
     opacity: 1;
     transform: none;
   }
+}
+
+/* Block entrance — GPU-only, no layout wait, no data delay */
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.rise-in,
+.bento > *,
+.shell-main-inner > .space-y-8 > .panel,
+.shell-main-inner > .space-y-6 > .panel,
+.shell-main-inner .bento > * {
+  animation: riseIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bento > *:nth-child(1),
+.shell-main-inner > .space-y-8 > .panel:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.bento > *:nth-child(2),
+.shell-main-inner > .space-y-8 > .panel:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.bento > *:nth-child(3),
+.shell-main-inner > .space-y-8 > .panel:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.bento > *:nth-child(4),
+.shell-main-inner > .space-y-8 > .panel:nth-child(4) {
+  animation-delay: 0.14s;
+}
+.bento > *:nth-child(5),
+.shell-main-inner > .space-y-8 > .panel:nth-child(5) {
+  animation-delay: 0.18s;
+}
+.bento > *:nth-child(6),
+.shell-main-inner > .space-y-8 > .panel:nth-child(6) {
+  animation-delay: 0.22s;
+}
+.bento > *:nth-child(n + 7),
+.shell-main-inner > .space-y-8 > .panel:nth-child(n + 7) {
+  animation-delay: 0.26s;
+}
+
+.admin-shell {
+  position: relative;
+  min-height: 100dvh;
+  color: var(--ink);
+}
+
+.admin-shell-inner {
+  position: relative;
+  z-index: 2;
 }
 
 @keyframes brandIn {
@@ -870,10 +930,24 @@ select {
 }
 
 [data-reduce-motion="true"] .page-enter,
+[data-reduce-motion="true"] .rise-in,
+[data-reduce-motion="true"] .bento > *,
+[data-reduce-motion="true"] .shell-main-inner > .space-y-8 > .panel,
+[data-reduce-motion="true"] .shell-main-inner > .space-y-6 > .panel,
 [data-reduce-motion="true"] .check-pop,
 [data-reduce-motion="true"] .toast-item,
 [data-reduce-motion="true"] .shell-brand-mark {
   animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .rise-in,
+  .bento > *,
+  .shell-main-inner > .space-y-8 > .panel,
+  .shell-main-inner > .space-y-6 > .panel {
+    animation: none;
+  }
 }
 
 .meta-text {

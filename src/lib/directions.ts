@@ -66,7 +66,7 @@ export const DIRECTION_CATALOG: Omit<Sphere, "id">[] = [
   },
   {
     slug: "money",
-    name: "Деньги",
+    name: "Финансы",
     description: "Доход, подушка, траты, финансовая ясность",
     priority: "high",
     layerBias: "both",

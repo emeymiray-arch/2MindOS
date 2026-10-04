@@ -1,18 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { toast } from "@/components/ui/Toast";
-
-type VaultInfo = {
-  weight: number;
-  goals: number;
-  sparse: boolean;
-  cloudOk: boolean | null;
-  backupCount: number;
-  lastBackup: string | null;
-  dataPath: string;
-};
 
 export default function SettingsPage() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
@@ -20,32 +11,39 @@ export default function SettingsPage() {
   const [capacityMin, setCapacityMin] = useState("270");
   const [vision, setVision] = useState("");
   const [busy, setBusy] = useState(false);
-  const [vault, setVault] = useState<VaultInfo | null>(null);
-
-  const loadVault = useCallback(async () => {
-    const res = await apiGet("/api/health?ping=0");
-    if (!res.ok) return;
-    const d = res.data.durability as VaultInfo | undefined;
-    if (d) setVault(d);
-  }, []);
+  const [login, setLogin] = useState<string | null>(null);
+  const [tenantMode, setTenantMode] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [goals, setGoals] = useState<number | null>(null);
 
   useEffect(() => {
-    void apiGet("/api/state").then((res) => {
-      if (res.ok) {
-        const s = res.data.settings as {
-          theme?: string;
-          dailyCapacity?: number;
-          dailyCapacityMinutes?: number;
-          visionNote?: string;
-        };
-        if (s?.theme === "dark" || s?.theme === "light") setTheme(s.theme);
-        if (s?.dailyCapacity != null) setCapacity(String(s.dailyCapacity));
-        if (s?.dailyCapacityMinutes != null) setCapacityMin(String(s.dailyCapacityMinutes));
-        if (s?.visionNote != null) setVision(s.visionNote);
-      }
+    void apiGet("/api/auth").then((res) => {
+      if (!res.ok) return;
+      const d = res.data as {
+        login?: string | null;
+        tenantMode?: boolean;
+        isAdmin?: boolean;
+      };
+      setLogin(d.login ?? null);
+      setTenantMode(Boolean(d.tenantMode));
+      setIsAdmin(Boolean(d.isAdmin));
     });
-    void loadVault();
-  }, [loadVault]);
+    void apiGet("/api/state").then((res) => {
+      if (!res.ok) return;
+      const s = res.data.settings as {
+        theme?: string;
+        dailyCapacity?: number;
+        dailyCapacityMinutes?: number;
+        visionNote?: string;
+      };
+      if (s?.theme === "dark" || s?.theme === "light") setTheme(s.theme);
+      if (s?.dailyCapacity != null) setCapacity(String(s.dailyCapacity));
+      if (s?.dailyCapacityMinutes != null) setCapacityMin(String(s.dailyCapacityMinutes));
+      if (s?.visionNote != null) setVision(s.visionNote);
+      const g = (res.data as { goals?: unknown[] }).goals;
+      if (Array.isArray(g)) setGoals(g.length);
+    });
+  }, []);
 
   async function saveVision(e: React.FormEvent) {
     e.preventDefault();
@@ -90,82 +88,52 @@ export default function SettingsPage() {
     toast("Ёмкость дня сохранена", "ok");
   }
 
-  async function restoreSafest() {
-    if (busy) return;
+  async function logout() {
     setBusy(true);
-    const res = await apiPost("/api/state", { action: "restoreSafest" });
-    setBusy(false);
-    if (!res.ok) {
-      toast(res.error ?? "Не удалось восстановить", "warn");
-      return;
-    }
-    if (res.data.restored) {
-      toast(`Восстановила (вес ${res.data.weight})`, "ok");
-      window.location.href = "/";
-      return;
-    }
-    toast("Уже лучшая копия", "ok");
-    await loadVault();
-  }
-
-  async function syncCloud() {
-    if (busy) return;
-    setBusy(true);
-    const res = await apiPost("/api/state", { action: "syncCloud" });
-    setBusy(false);
-    if (!res.ok || res.data.ok === false) {
-      toast(String(res.data.error ?? res.data.skipped ?? res.error ?? "Cloud не принял"), "warn");
-      return;
-    }
-    toast(`В облако · ${res.data.goals ?? "?"} целей`, "ok");
-    await loadVault();
+    await fetch("/api/auth", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "logout" }),
+    });
+    window.location.href = "/";
   }
 
   return (
     <div className="space-y-8">
       <header>
         <p className="page-kicker">Настройки</p>
-        <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Система</h1>
-        <p className="page-lede">Локальный vault. Облако — только по кнопке.</p>
+        <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Профиль</h1>
+        <p className="page-lede">
+          {tenantMode
+            ? "Тема, фокус и личный кабинет. Данные хранятся в облаке вашего профиля."
+            : "Тема, фокус и ёмкость дня."}
+        </p>
       </header>
 
-      <section className="panel panel-tint-blue space-y-3">
-        <p className="text-[13px] font-bold" style={{ color: "var(--c-blue)" }}>
-          Vault
-        </p>
-        {vault ? (
-          <>
-            <p className="font-display text-[1.6rem]">
-              {vault.sparse ? "Vault пустоват" : "Vault OK"}
-              <span className="ml-2 text-[1rem] font-semibold text-[var(--ink-soft)]">
-                · {vault.goals} целей · вес {vault.weight}
-              </span>
-            </p>
-            <p className="break-all text-[12px] font-semibold text-[var(--ink-faint)]">
-              {vault.dataPath}
-            </p>
-            <p className="text-[13px] font-semibold text-[var(--ink-soft)]">
-              Бэкапов: {vault.backupCount}
-              {vault.lastBackup ? ` · последний ${vault.lastBackup}` : ""}
-            </p>
-          </>
-        ) : (
-          <p className="text-[14px] text-[var(--ink-faint)]">Проверяю vault…</p>
-        )}
-        <div className="flex flex-wrap gap-2 pt-1">
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void restoreSafest()}>
-            Восстановить лучшую копию
-          </button>
-          <button type="button" className="btn" disabled={busy} onClick={() => void syncCloud()}>
-            Синхронизировать в облако
-          </button>
-          <button type="button" className="btn" disabled={busy} onClick={() => void loadVault()}>
-            Обновить статус
-          </button>
-        </div>
-      </section>
+      {tenantMode ? (
+        <section className="panel panel-tint-blue space-y-3 rise-in">
+          <p className="text-[13px] font-bold" style={{ color: "var(--c-blue)" }}>
+            Аккаунт
+          </p>
+          <p className="font-display text-[1.5rem]">{login ?? "…"}</p>
+          <p className="text-[13px] font-semibold text-[var(--ink-soft)]">
+            {goals != null ? `${goals} целей в профиле` : "Профиль синхронизирован"}
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button type="button" className="btn" disabled={busy} onClick={() => void logout()}>
+              Выйти
+            </button>
+            {(isAdmin || login === "owner") && (
+              <Link href="/admin" className="btn btn-primary">
+                Клиенты
+              </Link>
+            )}
+          </div>
+        </section>
+      ) : null}
 
-      <form onSubmit={saveVision} className="panel panel-tint-pink space-y-3">
+      <form onSubmit={saveVision} className="panel panel-tint-pink space-y-3 rise-in">
         <p className="text-[13px] font-bold" style={{ color: "var(--c-pink)" }}>
           Фокус периода
         </p>
@@ -184,7 +152,7 @@ export default function SettingsPage() {
         </button>
       </form>
 
-      <section className="panel panel-tint-violet space-y-3">
+      <section className="panel panel-tint-violet space-y-3 rise-in">
         <p className="text-[13px] font-bold" style={{ color: "var(--c-violet)" }}>
           Тема
         </p>
@@ -206,7 +174,7 @@ export default function SettingsPage() {
         </div>
       </section>
 
-      <form onSubmit={saveCapacity} className="panel panel-tint-cyan space-y-4">
+      <form onSubmit={saveCapacity} className="panel panel-tint-cyan space-y-4 rise-in">
         <p className="text-[13px] font-bold" style={{ color: "var(--c-cyan)" }}>
           Ёмкость дня
         </p>

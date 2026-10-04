@@ -149,10 +149,13 @@ export default function AdminPage() {
 
   if (!authed) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-6">
+      <div className="flex min-h-[100dvh] items-center justify-center px-6">
         <form onSubmit={adminLogin} className="surface w-full max-w-sm space-y-4 p-8">
-          <h1 className="font-display text-2xl">Админ 2Mind</h1>
-          <p className="text-[14px] text-[var(--ink-soft)]">Введи MINDOS_ADMIN_SECRET</p>
+          <h1 className="font-display text-2xl">Клиенты</h1>
+          <p className="text-[14px] text-[var(--ink-soft)]">
+            Войди как <code>owner</code> в основном приложении и открой эту страницу снова — или
+            введи админ-ключ.
+          </p>
           <input
             type="password"
             className="field"
@@ -165,6 +168,9 @@ export default function AdminPage() {
           <button className="btn btn-primary w-full" disabled={busy || !adminSecret.trim()}>
             Войти
           </button>
+          <a href="/" className="btn w-full text-center">
+            На главную
+          </a>
         </form>
       </div>
     );
@@ -173,15 +179,15 @@ export default function AdminPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-6 py-10">
       <header className="space-y-1">
-        <p className="text-[12px] uppercase tracking-[0.14em] text-[var(--ink-faint)]">Admin</p>
+        <p className="text-[12px] uppercase tracking-[0.14em] text-[var(--ink-faint)]">Админ</p>
         <h1 className="font-display text-3xl">Клиенты</h1>
         <p className="text-[14px] text-[var(--ink-soft)]">
-          Выдача логинов. Саморегистрации нет. Страница только по прямой ссылке /admin.
+          Выдача логинов. Саморегистрации нет.
         </p>
       </header>
 
       {error ? <p className="text-[13px] text-[var(--bad)]">{error}</p> : null}
-      {note ? <p className="text-[13px] text-[var(--good)]">{note}</p> : null}
+      {note ? <p className="text-[13px] text-[var(--ok)]">{note}</p> : null}
 
       {lastIssued ? (
         <div className="surface space-y-2 p-5">

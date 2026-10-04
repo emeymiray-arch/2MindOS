@@ -5,7 +5,7 @@ import {
   updateAccount,
   type AccountStatus,
 } from "@/lib/accounts";
-import { isAdminRequest, adminSecret } from "@/lib/auth";
+import { isAdminRequest } from "@/lib/auth";
 import { ensureSnapshot } from "@/lib/cloud-store";
 import { createEmptyStore } from "@/lib/seed";
 import { migrateStore } from "@/lib/migrate";
@@ -18,9 +18,6 @@ function deny() {
 }
 
 export async function GET(request: Request) {
-  if (!adminSecret()) {
-    return NextResponse.json({ error: "MINDOS_ADMIN_SECRET не задан" }, { status: 503 });
-  }
   if (!isAdminRequest(request)) return deny();
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase не настроен" }, { status: 503 });
@@ -30,9 +27,6 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!adminSecret()) {
-    return NextResponse.json({ error: "MINDOS_ADMIN_SECRET не задан" }, { status: 503 });
-  }
   if (!isAdminRequest(request)) return deny();
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase не настроен" }, { status: 503 });

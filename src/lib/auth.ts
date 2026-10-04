@@ -167,8 +167,15 @@ export function isAuthenticated(request: Request): boolean {
   return verifyBearer(request) || verifyCookieValue(getCookie(request, AUTH_COOKIE));
 }
 
+/** Product owner login can open /admin without a separate admin cookie. */
+export function isOwnerAdminSession(request: Request): boolean {
+  const session = getSession(request);
+  return Boolean(session && session.login === "owner");
+}
+
 export function isAdminRequest(request: Request): boolean {
   if (verifyAdminCookie(getCookie(request, ADMIN_COOKIE))) return true;
+  if (isOwnerAdminSession(request)) return true;
   const header = request.headers.get("x-mindos-admin") ?? "";
   if (header && verifyAdminSecret(header)) return true;
   const auth = request.headers.get("authorization") ?? "";
