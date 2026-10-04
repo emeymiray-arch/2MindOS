@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
+import { Onboarding } from "@/components/shell/Onboarding";
 import { EmptyState } from "@/components/ui/Progress";
 import { TaskBlock, TaskRow, type TaskRowData } from "@/components/tasks/TaskRow";
 import { Sparkline } from "@/components/ui/Charts";
@@ -132,10 +133,19 @@ export default function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [personalTitle, setPersonalTitle] = useState("");
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await apiGet("/api/os");
-    if (res.ok) setData(res.data as unknown as HomeData);
+    const [osRes, stateRes] = await Promise.all([apiGet("/api/os"), apiGet("/api/state")]);
+    if (osRes.ok) setData(osRes.data as unknown as HomeData);
+    if (stateRes.ok) {
+      const settings = stateRes.data.settings as { onboardingDone?: boolean } | undefined;
+      const goals = (stateRes.data.goals as { archived?: boolean; active?: boolean }[]) ?? [];
+      const habits = (stateRes.data.habits as { archived?: boolean; active?: boolean }[]) ?? [];
+      const activeGoals = goals.filter((g) => g.active !== false && !g.archived).length;
+      const activeHabits = habits.filter((h) => h.active !== false && !h.archived).length;
+      setShowOnboarding(settings?.onboardingDone !== true && activeGoals === 0 && activeHabits === 0);
+    }
     setLoading(false);
   }, []);
 
@@ -157,11 +167,21 @@ export default function HomePage() {
   }
 
   if (loading) return <p className="text-[var(--ink-faint)]">Загрузка…</p>;
+  if (showOnboarding) {
+    return (
+      <Onboarding
+        onDone={() => {
+          setShowOnboarding(false);
+          void load();
+        }}
+      />
+    );
+  }
   if (!data) {
     return (
       <EmptyState
         title="Нет данных"
-        body="Проверь vault в настройках."
+        body="Открой настройки или обнови страницу."
         action={
           <Link href="/settings" className="btn btn-primary">
             Настройки

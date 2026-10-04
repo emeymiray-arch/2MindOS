@@ -46,6 +46,7 @@ function defaultSettings(partial?: Partial<AppSettings>): AppSettings {
     email: "",
     dailyCapacity: 6,
     dailyCapacityMinutes: 270,
+    onboardingDone: false,
     ...partial,
     shortcutsToken: token,
   };

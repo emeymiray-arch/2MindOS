@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       exportedAt: new Date().toISOString(),
       store: publicStore(store),
-      note: "Пароли и ключи в экспорте замаскированы. Полная копия — в ~/Documents/2MindOS.",
+      note: "Пароли и ключи в экспорте замаскированы. Это копия вашего профиля.",
     });
   }
   if (body.action === "import") {

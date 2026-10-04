@@ -41,7 +41,7 @@ export default function SettingsPage() {
       if (s?.dailyCapacityMinutes != null) setCapacityMin(String(s.dailyCapacityMinutes));
       if (s?.visionNote != null) setVision(s.visionNote);
       const g = (res.data as { goals?: unknown[] }).goals;
-      if (Array.isArray(g)) setGoals(g.length);
+      if (Array.isArray(g)) setGoals(g.filter((x) => !(x as { archived?: boolean }).archived).length);
     });
   }, []);
 
@@ -99,6 +99,45 @@ export default function SettingsPage() {
     window.location.href = "/";
   }
 
+  async function exportJson() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await apiPost("/api/state", { action: "export" });
+      if (!res.ok) {
+        toast(res.error ?? "Не удалось экспортировать", "warn");
+        return;
+      }
+      const blob = new Blob([JSON.stringify(res.data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const day = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `2MindOS-${login || "export"}-${day}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("JSON скачан", "ok");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restartOnboarding() {
+    setBusy(true);
+    const res = await apiPost("/api/state", {
+      action: "settings",
+      settings: { onboardingDone: false },
+    });
+    setBusy(false);
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось", "warn");
+      return;
+    }
+    window.location.href = "/";
+  }
+
   return (
     <div className="space-y-8">
       <header>
@@ -106,8 +145,8 @@ export default function SettingsPage() {
         <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Профиль</h1>
         <p className="page-lede">
           {tenantMode
-            ? "Тема, фокус и личный кабинет. Данные хранятся в облаке вашего профиля."
-            : "Тема, фокус и ёмкость дня."}
+            ? "Тема, фокус, экспорт и личный кабинет."
+            : "Тема, фокус, ёмкость и экспорт."}
         </p>
       </header>
 
@@ -135,6 +174,23 @@ export default function SettingsPage() {
           </div>
         </section>
       ) : null}
+
+      <section className="panel panel-tint-green space-y-3 rise-in">
+        <p className="text-[13px] font-bold" style={{ color: "var(--c-green)" }}>
+          Экспорт
+        </p>
+        <p className="text-[13px] font-semibold text-[var(--ink-faint)]">
+          Скачайте копию своего профиля: Excel-сводка или JSON для резерва.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a href="/api/export" className="btn btn-primary" download>
+            Excel · сводка
+          </a>
+          <button type="button" className="btn" disabled={busy} onClick={() => void exportJson()}>
+            JSON · полный профиль
+          </button>
+        </div>
+      </section>
 
       <form onSubmit={saveVision} className="panel panel-tint-pink space-y-3 rise-in">
         <p className="text-[13px] font-bold" style={{ color: "var(--c-pink)" }}>
@@ -208,6 +264,16 @@ export default function SettingsPage() {
           Сохранить
         </button>
       </form>
+
+      <section className="panel space-y-3 rise-in">
+        <p className="text-[13px] font-bold text-[var(--ink-soft)]">Знакомство</p>
+        <p className="text-[13px] text-[var(--ink-faint)]">
+          Короткий старт: фокус, первая цель и привычка.
+        </p>
+        <button type="button" className="btn" disabled={busy} onClick={() => void restartOnboarding()}>
+          Пройти снова
+        </button>
+      </section>
     </div>
   );
 }

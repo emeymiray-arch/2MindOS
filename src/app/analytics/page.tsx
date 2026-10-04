@@ -325,9 +325,9 @@ export default function AnalyticsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href="/api/export" className="btn btn-primary" download>
-            Экспорт в Excel
-          </a>
+          <Link href="/settings" className="btn btn-primary">
+            Экспорт в настройках
+          </Link>
           <Link href="/goals" className="btn">
             Цели
           </Link>

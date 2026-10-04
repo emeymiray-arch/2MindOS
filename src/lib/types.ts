@@ -548,6 +548,8 @@ export interface AppSettings {
   dailyCapacity?: number;
   /** Minutes-based daily focus capacity (default 270 = 6×45) */
   dailyCapacityMinutes?: number;
+  /** First-run guide completed or skipped */
+  onboardingDone?: boolean;
 }
 
 /** @deprecated visual tree — kept for archive/history */

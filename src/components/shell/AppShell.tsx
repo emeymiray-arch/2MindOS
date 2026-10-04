@@ -20,7 +20,7 @@ const MOBILE_NAV = [
   { href: "/", label: "Сегодня" },
   { href: "/goals", label: "Путь" },
   { href: "/map", label: "Карта" },
-  { href: "/analytics", label: "Аналит." },
+  { href: "/finance", label: "Финансы" },
   { href: "/wishlist", label: "Wish" },
   { href: "/life", label: "Ещё" },
 ] as const;
