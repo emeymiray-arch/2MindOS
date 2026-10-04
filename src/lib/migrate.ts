@@ -297,6 +297,14 @@ export function migrateStore(raw: LifeStore): LifeStore {
   ) {
     store.finance.currency = "₽";
   }
+  if (!Array.isArray(store.finance.categories) || store.finance.categories.length === 0) {
+    store.finance.categories = [
+      { id: id(), name: "Доход", kind: "income", color: "#34d399" },
+      { id: id(), name: "Расход", kind: "expense", color: "#fb923c" },
+      { id: id(), name: "Обязательное", kind: "mandatory", color: "#a855f7" },
+      { id: id(), name: "В подушку", kind: "savings", color: "#38bdf8" },
+    ];
+  }
 
   if (!store.roadmap) store.roadmap = emptyRoadmap();
   store.roadmap.stages = (store.roadmap.stages ?? []).map((s, i) => ({

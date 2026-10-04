@@ -470,6 +470,15 @@ export interface ThoughtEntry {
   archived?: boolean;
 }
 
+export interface FinanceCategory {
+  id: string;
+  name: string;
+  /** How the category affects monthly totals. */
+  kind: "income" | "expense" | "mandatory" | "savings";
+  color: string;
+  archived?: boolean;
+}
+
 export interface FinanceTx {
   id: string;
   type: "income" | "expense" | "mandatory" | "savings";
@@ -478,6 +487,7 @@ export interface FinanceTx {
   date: string;
   note?: string;
   archived?: boolean;
+  categoryId?: string;
   /** Optional link: savings toward a wishlist item. */
   wishItemId?: string;
   wishBlockId?: string;
@@ -496,6 +506,7 @@ export interface FinanceSummary {
   currency: string;
   subscriptions: { name: string; amount: number }[];
   goals: { title: string; target: number; current: number }[];
+  categories?: FinanceCategory[];
   transactions: FinanceTx[];
 }
 

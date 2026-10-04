@@ -1,51 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { displayCurrency } from "@/lib/format";
-import {
-  IconCoin,
-  IconTarget,
-  IconTrendDown,
-  IconTrendUp,
-  IconWallet,
-} from "@/components/ui/Icons";
-import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
+import { EditableText } from "@/components/ui/EditableText";
+import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
+import type { FinanceCategory } from "@/lib/types";
 
 type Tx = {
   id: string;
-  type: "income" | "expense" | "mandatory" | "savings";
+  type: FinanceCategory["kind"];
+  categoryId?: string;
   title: string;
   amount: number;
   date: string;
-  note?: string;
 };
 
 type Finance = {
   incomeMonth: number;
   expensesMonth: number;
-  mandatoryMonth?: number;
-  salary?: number;
   cushion: number;
-  cushionManual?: boolean;
   currency?: string;
+  categories?: FinanceCategory[];
   transactions: Tx[];
 };
 
-const TYPES: { id: Tx["type"]; label: string; color: string; soft: string }[] = [
-  { id: "income", label: "Доход", color: "var(--c-green)", soft: "var(--c-green-soft)" },
-  { id: "expense", label: "Расход", color: "var(--c-orange)", soft: "var(--c-orange-soft)" },
-  { id: "mandatory", label: "Обязательное", color: "var(--c-violet)", soft: "var(--c-violet-soft)" },
-  { id: "savings", label: "В подушку", color: "var(--c-blue)", soft: "var(--c-blue-soft)" },
-];
+const KIND_LABEL: Record<FinanceCategory["kind"], string> = {
+  income: "Доход",
+  expense: "Расход",
+  mandatory: "Обязат.",
+  savings: "Подушка",
+};
+
+const COLORS = ["#34d399", "#fb923c", "#a855f7", "#38bdf8", "#f472b6", "#fbbf24"];
 
 function money(n: number, cur: string) {
   return `${n.toLocaleString("ru-RU")} ${cur}`;
-}
-
-function typeMeta(type: string) {
-  return TYPES.find((t) => t.id === type) ?? TYPES[1];
 }
 
 export default function FinancePage() {
@@ -53,42 +44,48 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  const [type, setType] = useState<Tx["type"]>("expense");
+  const [categoryId, setCategoryId] = useState("");
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [cushionEdit, setCushionEdit] = useState("");
-  const [salaryEdit, setSalaryEdit] = useState("");
+  const [newCat, setNewCat] = useState("");
+  const [newKind, setNewKind] = useState<FinanceCategory["kind"]>("expense");
 
   const load = useCallback(async () => {
     const res = await apiGet("/api/finance");
     if (res.ok) {
       const f = (res.data.finance as Finance) ?? null;
       setData(f);
-      if (f) {
-        setCushionEdit(String(f.cushion ?? 0));
-        setSalaryEdit(String(f.salary ?? 0));
+      const cats = (f?.categories ?? []).filter((c) => !c.archived);
+      if (cats.length && !cats.some((c) => c.id === categoryId)) {
+        setCategoryId(cats[0].id);
       }
     }
     setLoading(false);
-  }, []);
+  }, [categoryId]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
+  const categories = useMemo(
+    () => (data?.categories ?? []).filter((c) => !c.archived),
+    [data]
+  );
+  const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+
   async function addTx(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
     const amt = Number(String(amount).replace(",", "."));
-    if (!title.trim() || !(amt > 0)) {
-      toast("Нужны название и сумма", "warn");
+    if (!title.trim() || !(amt > 0) || !categoryId) {
+      toast("Нужны категория, название и сумма", "warn");
       return;
     }
     setBusy(true);
     const res = await apiPost("/api/finance", {
       action: "add",
-      type,
+      categoryId,
       title: title.trim(),
       amount: amt,
       date,
@@ -101,75 +98,6 @@ export default function FinancePage() {
     setTitle("");
     setAmount("");
     toast("Добавила", "ok");
-    await load();
-  }
-
-  async function saveCushion(e: React.FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    const n = Number(String(cushionEdit).replace(",", "."));
-    if (!Number.isFinite(n) || n < 0) {
-      toast("Некорректная сумма", "warn");
-      return;
-    }
-    setBusy(true);
-    const res = await apiPost("/api/finance", { action: "setCushion", cushion: n });
-    setBusy(false);
-    if (!res.ok) {
-      toast(res.error ?? "Не сохранилось", "warn");
-      return;
-    }
-    toast("Подушка зафиксирована вручную", "ok");
-    await load();
-  }
-
-  async function clearCushionManual() {
-    if (busy) return;
-    setBusy(true);
-    const res = await apiPost("/api/finance", { action: "clearCushionManual" });
-    setBusy(false);
-    if (!res.ok) {
-      toast(res.error ?? "Не сохранилось", "warn");
-      return;
-    }
-    toast("Подушка снова из истории", "ok");
-    await load();
-  }
-
-  async function saveSalary(e: React.FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    const n = Number(String(salaryEdit).replace(",", "."));
-    if (!Number.isFinite(n) || n < 0) {
-      toast("Некорректная сумма", "warn");
-      return;
-    }
-    setBusy(true);
-    const res = await apiPost("/api/finance", { action: "setSalary", salary: n });
-    setBusy(false);
-    if (!res.ok) {
-      toast(res.error ?? "Не сохранилось", "warn");
-      return;
-    }
-    toast("ЗП сохранена", "ok");
-    await load();
-  }
-
-  async function paySalary() {
-    if (busy) return;
-    const n = Number(String(salaryEdit).replace(",", ".")) || data?.salary || 0;
-    if (!(n > 0)) {
-      toast("Сначала укажи сумму ЗП", "warn");
-      return;
-    }
-    setBusy(true);
-    const res = await apiPost("/api/finance", { action: "paySalary", amount: n });
-    setBusy(false);
-    if (!res.ok) {
-      toast(res.error ?? "Не удалось начислить", "warn");
-      return;
-    }
-    toast("ЗП начислена в доход месяца", "ok");
     await load();
   }
 
@@ -186,139 +114,98 @@ export default function FinancePage() {
     await load();
   }
 
+  async function addCategory(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newCat.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    const res = await apiPost("/api/finance", {
+      action: "addCategory",
+      name,
+      kind: newKind,
+      color: COLORS[categories.length % COLORS.length],
+    });
+    setBusy(false);
+    if (!res.ok) {
+      toast(res.error ?? "Не создалось", "warn");
+      return;
+    }
+    setNewCat("");
+    toast("Категория добавлена", "ok");
+    await load();
+  }
+
+  async function renameCategory(id: string, name: string) {
+    if (!name.trim()) return;
+    const res = await apiPost("/api/finance", {
+      action: "updateCategory",
+      id,
+      name: name.trim(),
+    });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else await load();
+  }
+
+  async function setCategoryKind(id: string, kind: FinanceCategory["kind"]) {
+    const res = await apiPost("/api/finance", { action: "updateCategory", id, kind });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else await load();
+  }
+
+  async function removeCategory(id: string, name: string) {
+    if (!window.confirm(`Удалить категорию «${name}»?`)) return;
+    setBusy(true);
+    const res = await apiPost("/api/finance", { action: "deleteCategory", id });
+    setBusy(false);
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось удалить", "warn");
+      return;
+    }
+    toast("Удалила", "ok");
+    await load();
+  }
+
   if (loading) return <p className="text-[var(--ink-faint)]">Секунду…</p>;
 
   const cur = displayCurrency(data?.currency);
   const txs = data?.transactions ?? [];
-  const income = data?.incomeMonth ?? 0;
-  const expenses = data?.expensesMonth ?? 0;
-  const net = income - expenses;
-  const cushion = data?.cushion ?? 0;
+  const net = (data?.incomeMonth ?? 0) - (data?.expensesMonth ?? 0);
 
   return (
     <div className="page-stack">
       <PageHero
         title="Финансы"
         action={
-          <div className="text-right">
-            <p className="home-clock-time" style={{ fontSize: "1.6rem" }}>
+          <div className="home-hero-action">
+            <p className="home-clock-time" style={{ fontSize: "1.55rem" }}>
               {money(net, cur)}
             </p>
-            <p className="home-clock-meta">баланс месяца</p>
+            <p className="home-clock-meta">месяц</p>
           </div>
         }
       />
 
       <div className="bento">
-        <div className="span-3">
-          <KpiTile
-            label="Зарплата"
-            value={money(data?.salary ?? 0, cur)}
-            color="#34d399"
-            icon={<IconCoin size={16} />}
-          />
-        </div>
-        <div className="span-3">
-          <KpiTile
-            label="Доход"
-            value={money(income, cur)}
-            color="#38bdf8"
-            icon={<IconTrendUp size={16} />}
-          />
-        </div>
-        <div className="span-3">
-          <KpiTile
-            label="Расход"
-            value={money(expenses, cur)}
-            color="#fb923c"
-            icon={<IconTrendDown size={16} />}
-          />
-        </div>
-        <div className="span-3">
-          <KpiTile
-            label="Подушка"
-            value={money(cushion, cur)}
-            color="#a855f7"
-            icon={<IconWallet size={16} />}
-          />
-        </div>
-
-        <div className="span-6">
-          <form onSubmit={saveSalary} className="panel h-full space-y-3">
-            <WidgetHead title="Зарплата" tone="green" />
-            <input
-              className="field"
-              inputMode="decimal"
-              value={salaryEdit}
-              onChange={(e) => setSalaryEdit(e.target.value)}
-              placeholder="Сумма ЗП"
-            />
-            <div className="flex flex-wrap gap-2">
-              <button type="submit" className="btn" disabled={busy}>
-                Сохранить
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy}
-                onClick={() => void paySalary()}
-              >
-                Начислить ЗП
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <div className="span-6">
-          <form onSubmit={saveCushion} className="panel h-full space-y-3">
-            <WidgetHead title="Подушка" tone="blue" />
-            <input
-              className="field"
-              inputMode="decimal"
-              value={cushionEdit}
-              onChange={(e) => setCushionEdit(e.target.value)}
-            />
-            <p className="text-[12px] font-medium text-[var(--ink-faint)]">
-              {data?.cushionManual
-                ? "Ручной режим: история «В подушку» не меняет цифру"
-                : "Считается из записей «В подушку»"}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button type="submit" className="btn" disabled={busy}>
-                Зафиксировать
-              </button>
-              {data?.cushionManual ? (
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy}
-                  onClick={() => void clearCushionManual()}
-                >
-                  Считать из истории
-                </button>
-              ) : null}
-            </div>
-          </form>
-        </div>
-
-        <div className="span-5">
-          <form onSubmit={addTx} className="panel h-full space-y-3">
+        <div className="span-7">
+          <form onSubmit={addTx} className="panel h-full space-y-4 rise-in">
             <WidgetHead title="Новая запись" tone="orange" />
             <div className="flex flex-wrap gap-2">
-              {TYPES.map((t) => {
-                const on = type === t.id;
+              {categories.map((c) => {
+                const on = categoryId === c.id;
                 return (
                   <button
-                    key={t.id}
+                    key={c.id}
                     type="button"
-                    onClick={() => setType(t.id)}
-                    className="rounded-full px-3 py-1.5 text-[12px] font-bold transition"
-                    style={{
-                      background: on ? t.color : t.soft,
-                      color: on ? "#fff" : t.color,
-                    }}
+                    onClick={() => setCategoryId(c.id)}
+                    className="chip-soft"
+                    data-active={on}
+                    style={
+                      on
+                        ? { background: `${c.color}44`, color: c.color, borderColor: `${c.color}66` }
+                        : { color: c.color }
+                    }
                   >
-                    {t.label}
+                    {c.name}
                   </button>
                 );
               })}
@@ -327,7 +214,7 @@ export default function FinancePage() {
               className="field"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например: продукты / такси"
+              placeholder="Название"
               required
             />
             <div className="grid gap-3 sm:grid-cols-2">
@@ -352,42 +239,101 @@ export default function FinancePage() {
           </form>
         </div>
 
-        <div className="span-7">
-          <section className="panel h-full">
+        <div className="span-5">
+          <section className="panel h-full space-y-3 rise-in">
+            <WidgetHead title="Категории" tone="violet" />
+            <ul className="stack-tight">
+              {categories.map((c) => (
+                <li key={c.id} className="signal-row row-in">
+                  <span
+                    className="signal-ico"
+                    style={{ background: `${c.color}22`, color: c.color }}
+                  >
+                    ●
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <EditableText
+                      value={c.name}
+                      className="font-semibold"
+                      inputClassName="field py-1 text-[14px] font-semibold"
+                      onSave={(name) => renameCategory(c.id, name)}
+                    />
+                    <select
+                      className="mt-1 bg-transparent text-[11px] font-medium text-[var(--ink-faint)] outline-none"
+                      value={c.kind}
+                      onChange={(e) =>
+                        void setCategoryKind(c.id, e.target.value as FinanceCategory["kind"])
+                      }
+                    >
+                      {(Object.keys(KIND_LABEL) as FinanceCategory["kind"][]).map((k) => (
+                        <option key={k} value={k}>
+                          {KIND_LABEL[k]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-[14px] font-bold text-[var(--behind)]"
+                    disabled={busy}
+                    onClick={() => void removeCategory(c.id, c.name)}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <form onSubmit={addCategory} className="flex flex-wrap gap-2 border-t border-[var(--line)] pt-3">
+              <input
+                className="field min-w-0 flex-1"
+                value={newCat}
+                onChange={(e) => setNewCat(e.target.value)}
+                placeholder="Новая категория"
+              />
+              <select
+                className="field w-auto"
+                value={newKind}
+                onChange={(e) => setNewKind(e.target.value as FinanceCategory["kind"])}
+              >
+                {(Object.keys(KIND_LABEL) as FinanceCategory["kind"][]).map((k) => (
+                  <option key={k} value={k}>
+                    {KIND_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="btn btn-primary" disabled={busy}>
+                +
+              </button>
+            </form>
+          </section>
+        </div>
+
+        <div className="span-12">
+          <section className="panel rise-in">
             <WidgetHead
               title="История"
-              tone="violet"
-              action={
-                <span className="text-[12px] text-[var(--ink-faint)]">{txs.length} записей</span>
-              }
+              tone="blue"
+              action={<span className="text-[12px] text-[var(--ink-faint)]">{txs.length}</span>}
             />
             {txs.length === 0 ? (
-              <p className="py-6 text-center text-[14px] text-[var(--ink-soft)]">
-                Пока пусто — добавь первую запись.
-              </p>
+              <p className="py-4 text-[14px] text-[var(--ink-soft)]">Пока пусто.</p>
             ) : (
-              <ul className="max-h-[22rem] space-y-2 overflow-y-auto">
+              <ul className="stack-tight max-h-[26rem] overflow-y-auto">
                 {txs.map((tx) => {
-                  const meta = typeMeta(tx.type);
+                  const cat = tx.categoryId ? catMap.get(tx.categoryId) : undefined;
+                  const color = cat?.color ?? "#a855f7";
+                  const label = cat?.name ?? KIND_LABEL[tx.type];
                   const sign = tx.type === "income" || tx.type === "savings" ? "+" : "−";
                   return (
-                    <li key={tx.id} className="signal-row">
-                      <span
-                        className="signal-ico flex h-8 w-8 items-center justify-center rounded-xl"
-                        style={{ background: meta.soft, color: meta.color }}
-                      >
-                        <IconTarget size={14} />
-                      </span>
+                    <li key={tx.id} className="signal-row row-in">
+                      <span className="signal-ico" style={{ background: `${color}22`, color }} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-semibold">{tx.title}</p>
-                        <p className="text-[11px] font-medium" style={{ color: meta.color }}>
-                          {meta.label} · {tx.date}
+                        <p className="truncate text-[14px] font-semibold">{tx.title}</p>
+                        <p className="text-[11px] font-medium text-[var(--ink-faint)]">
+                          {label} · {tx.date}
                         </p>
                       </div>
-                      <p
-                        className="shrink-0 text-[13px] font-bold tabular-nums"
-                        style={{ color: meta.color }}
-                      >
+                      <p className="shrink-0 text-[14px] font-bold tabular-nums" style={{ color }}>
                         {sign}
                         {money(tx.amount, cur)}
                       </p>

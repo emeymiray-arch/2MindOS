@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EditableText } from "@/components/ui/EditableText";
-import { IconMap, IconPath, IconTarget, IconWish } from "@/components/ui/Icons";
-import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
+import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type FocusLevel = "main" | "support" | "background";
@@ -26,10 +25,13 @@ type GoalLite = {
 };
 
 const FOCUS_ORDER: FocusLevel[] = ["main", "support", "background"];
-const FOCUS_LABEL: Record<FocusLevel, string> = {
-  main: "Главное",
-  support: "Поддерживает",
-  background: "На фоне",
+const FOCUS_META: Record<
+  FocusLevel,
+  { label: string; tone: "pink" | "violet" | "blue"; hint: string }
+> = {
+  main: { label: "Главное", tone: "pink", hint: "в центре внимания" },
+  support: { label: "Поддержка", tone: "violet", hint: "держит курс" },
+  background: { label: "Фон", tone: "blue", hint: "на периферии" },
 };
 
 export default function MapPage() {
@@ -39,9 +41,7 @@ export default function MapPage() {
   const [vision, setVision] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [editingVision, setEditingVision] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newDesc, setNewDesc] = useState("");
 
   const load = useCallback(async () => {
     const [dirRes, goalsRes, stateRes] = await Promise.all([
@@ -78,15 +78,10 @@ export default function MapPage() {
     else await load();
   }
 
-  async function saveVision() {
-    setBusy(true);
-    const res = await apiPost("/api/life", { action: "setVision", visionNote: vision.trim() });
-    setBusy(false);
+  async function saveVision(next: string) {
+    const res = await apiPost("/api/life", { action: "setVision", visionNote: next.trim() });
     if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
-    else {
-      setEditingVision(false);
-      toast("Сохранила", "ok");
-    }
+    else setVision(next.trim());
   }
 
   async function renameDir(id: string, name: string) {
@@ -96,16 +91,8 @@ export default function MapPage() {
     else await load();
   }
 
-  async function setDesc(id: string, description: string) {
-    const res = await apiPost("/api/directions", { action: "update", id, description });
-    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
-    else await load();
-  }
-
   async function removeDir(id: string, name: string) {
-    if (!window.confirm(`Удалить направление «${name}»? Цели останутся, но отвяжутся от него.`)) {
-      return;
-    }
+    if (!window.confirm(`Удалить «${name}»?`)) return;
     setBusy(true);
     const res = await apiPost("/api/directions", { action: "update", id, archived: true });
     setBusy(false);
@@ -121,28 +108,21 @@ export default function MapPage() {
     const name = newName.trim();
     if (!name || busy) return;
     setBusy(true);
-    const res = await apiPost("/api/directions", {
-      action: "create",
-      name,
-      description: newDesc.trim() || undefined,
-    });
+    const res = await apiPost("/api/directions", { action: "create", name });
     setBusy(false);
     if (!res.ok) {
       toast(res.error ?? "Не создалось", "warn");
       return;
     }
     setNewName("");
-    setNewDesc("");
-    toast("Направление добавлено", "ok");
+    toast("Добавлено", "ok");
     await load();
   }
 
-  const stats = useMemo(() => {
-    const main = dirs.filter((d) => d.focus === "main").length;
-    const support = dirs.filter((d) => d.focus === "support").length;
-    const bg = dirs.filter((d) => d.focus === "background").length;
-    const linked = dirs.reduce((s, d) => s + d.goals, 0);
-    return { main, support, bg, linked, total: dirs.length };
+  const byFocus = useMemo(() => {
+    const map: Record<FocusLevel, Direction[]> = { main: [], support: [], background: [] };
+    for (const d of dirs) map[d.focus].push(d);
+    return map;
   }, [dirs]);
 
   if (loading) return <p className="text-[var(--ink-faint)]">Загрузка…</p>;
@@ -152,213 +132,108 @@ export default function MapPage() {
       <PageHero
         title="Карта"
         meta={monthKey ? <span className="chip-soft">{monthKey}</span> : null}
-        action={
-          <Link href="/" className="btn btn-primary">
-            Сегодня
-          </Link>
-        }
       />
 
-      <div className="bento">
-        <div className="span-3">
-          <KpiTile
-            label="Направления"
-            value={stats.total}
-            color="#a855f7"
-            icon={<IconMap size={16} />}
-          />
-        </div>
-        <div className="span-3">
-          <KpiTile
-            label="Главное"
-            value={stats.main}
-            color="#f472b6"
-            icon={<IconTarget size={16} />}
-          />
-        </div>
-        <div className="span-3">
-          <KpiTile
-            label="Поддержка"
-            value={stats.support}
-            color="#38bdf8"
-            icon={<IconWish size={16} />}
-          />
-        </div>
-        <div className="span-3">
-          <KpiTile
-            label="Цели"
-            value={stats.linked}
-            color="#34d399"
-            icon={<IconPath size={16} />}
-          />
-        </div>
+      <section className="panel map-vision rise-in">
+        <p className="text-[12px] font-semibold text-[var(--ink-faint)]">Фокус периода</p>
+        <EditableText
+          value={vision}
+          className="mt-2 block text-[1.35rem] font-semibold tracking-tight md:text-[1.55rem]"
+          inputClassName="field text-[1.25rem] font-semibold"
+          placeholder="Кратко: куда идёшь сейчас"
+          onSave={(next) => void saveVision(next)}
+        />
+      </section>
 
-        <div className="span-12">
-          <section className="panel space-y-3">
-            <WidgetHead title="Фокус периода" tone="violet" />
-            {editingVision ? (
-              <div className="space-y-3">
-                <textarea
-                  className="field resize-none text-[1.15rem] font-semibold tracking-tight"
-                  rows={2}
-                  value={vision}
-                  onChange={(e) => setVision(e.target.value)}
-                  placeholder="Кратко: цель на период"
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={busy}
-                    onClick={() => void saveVision()}
-                  >
-                    Сохранить
-                  </button>
-                  <button type="button" className="btn" onClick={() => setEditingVision(false)}>
-                    Отмена
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <p className="text-[1.35rem] font-semibold leading-snug tracking-tight md:text-[1.55rem]">
-                  {vision.trim() || "Не задано."}
-                </p>
-                <button type="button" className="btn" onClick={() => setEditingVision(true)}>
-                  Изменить
-                </button>
-              </>
-            )}
-          </section>
-        </div>
-
-        <div className="span-12">
-          <form onSubmit={createDir} className="panel flex flex-wrap items-end gap-3">
-            <div className="min-w-[12rem] flex-1">
-              <WidgetHead title="Новое направление" tone="blue" />
-              <input
-                className="field"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Название"
-              />
-            </div>
-            <div className="min-w-[12rem] flex-1">
-              <input
-                className="field"
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="Описание (необязательно)"
-              />
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={busy || !newName.trim()}>
-              Добавить
-            </button>
-          </form>
-        </div>
-
+      <div className="map-board">
         {FOCUS_ORDER.map((level) => {
-          const items = dirs.filter((d) => d.focus === level);
-          if (!items.length) return null;
-          const tone =
-            level === "main" ? "pink" : level === "support" ? "violet" : "blue";
+          const items = byFocus[level];
+          const meta = FOCUS_META[level];
           return (
-            <div key={level} className="span-12 space-y-3">
+            <section key={level} className="map-zone panel" data-level={level}>
               <WidgetHead
-                title={FOCUS_LABEL[level]}
-                tone={tone}
-                action={
-                  <span className="text-[12px] text-[var(--ink-faint)]">{items.length}</span>
-                }
+                title={meta.label}
+                tone={meta.tone}
+                action={<span className="text-[12px] text-[var(--ink-faint)]">{items.length}</span>}
               />
-              <div className="bento">
-                {items.map((d) => {
-                  const linked = goals.filter((g) => g.lifeAreaId === d.id);
-                  return (
-                    <div key={d.id} className="span-6 panel space-y-3">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1 space-y-1">
+              <ul className="stack-tight">
+                {items.length === 0 ? (
+                  <li className="py-2 text-[13px] text-[var(--ink-faint)]">Пусто</li>
+                ) : (
+                  items.map((d) => {
+                    const linked = goals.filter((g) => g.lifeAreaId === d.id);
+                    return (
+                      <li key={d.id} className="map-node row-in">
+                        <div className="min-w-0 flex-1">
                           <EditableText
                             value={d.name}
-                            className="text-[1.2rem] font-semibold tracking-tight"
-                            inputClassName="field text-[1.1rem] font-semibold"
+                            className="font-semibold"
+                            inputClassName="field py-1 text-[15px] font-semibold"
                             onSave={(name) => renameDir(d.id, name)}
                           />
-                          <EditableText
-                            value={d.description ?? ""}
-                            className="block text-[13px] text-[var(--ink-soft)]"
-                            inputClassName="field text-[13px]"
-                            placeholder="Добавить описание…"
-                            onSave={(description) => setDesc(d.id, description)}
-                          />
-                          <p className="mt-2">
-                            <span
-                              className="stat-pill"
-                              style={{
-                                background: "var(--accent-soft)",
-                                color: "var(--c-violet)",
-                                borderColor: "color-mix(in srgb, var(--accent) 45%, transparent)",
-                              }}
-                            >
-                              {linked.length} целей
-                            </span>
-                          </p>
+                          {linked.length ? (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {linked.slice(0, 3).map((g) => (
+                                <Link key={g.id} href={`/goals/${g.id}`} className="map-goal-chip">
+                                  {g.title}
+                                </Link>
+                              ))}
+                              {linked.length > 3 ? (
+                                <span className="map-goal-chip is-more">+{linked.length - 3}</span>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <p className="mt-1 text-[11px] text-[var(--ink-faint)]">без целей</p>
+                          )}
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {FOCUS_ORDER.map((lv) => (
-                            <button
-                              key={lv}
-                              type="button"
-                              disabled={busy}
-                              className={`btn ${d.focus === lv ? "btn-primary" : ""}`}
-                              onClick={() => void setFocus(d.id, lv)}
-                            >
-                              {lv === "main" ? "Главное" : lv === "support" ? "Поддержка" : "Фон"}
-                            </button>
-                          ))}
+                        <div className="map-node-actions">
+                          <select
+                            className="map-focus-select"
+                            value={d.focus}
+                            disabled={busy}
+                            onChange={(e) => void setFocus(d.id, e.target.value as FocusLevel)}
+                            aria-label="Фокус"
+                          >
+                            {FOCUS_ORDER.map((lv) => (
+                              <option key={lv} value={lv}>
+                                {FOCUS_META[lv].label}
+                              </option>
+                            ))}
+                          </select>
                           <button
                             type="button"
-                            className="btn"
-                            style={{ color: "var(--behind)" }}
+                            className="map-x"
                             disabled={busy}
                             onClick={() => void removeDir(d.id, d.name)}
+                            aria-label="Удалить"
                           >
                             ×
                           </button>
                         </div>
-                      </div>
-                      {linked.length > 0 ? (
-                        <ul className="space-y-2 border-t border-[var(--line)] pt-3">
-                          {linked.map((g) => (
-                            <li key={g.id}>
-                              <Link
-                                href={`/goals/${g.id}`}
-                                className="flex items-center justify-between gap-3 text-[14px] font-medium hover:text-[var(--accent)]"
-                              >
-                                <span className="truncate">{g.title}</span>
-                                <span className="shrink-0 text-[12px] text-[var(--ink-faint)]">
-                                  {g.reality?.label || "открыть"}
-                                </span>
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="text-[13px] text-[var(--ink-faint)]">
-                          Нет целей.{" "}
-                          <Link href="/goals" className="font-semibold text-[var(--accent)]">
-                            Добавить
-                          </Link>
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </section>
           );
         })}
       </div>
+
+      <form onSubmit={createDir} className="panel flex flex-wrap items-end gap-3 rise-in">
+        <div className="min-w-[12rem] flex-1">
+          <WidgetHead title="Новое направление" tone="green" />
+          <input
+            className="field"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Название"
+          />
+        </div>
+        <button type="submit" className="btn btn-primary" disabled={busy || !newName.trim()}>
+          Добавить
+        </button>
+      </form>
     </div>
   );
 }

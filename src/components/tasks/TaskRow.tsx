@@ -43,7 +43,7 @@ export function TaskBlock({ children }: { children: React.ReactNode }) {
 
   return (
     <BlockModeContext.Provider value={mode}>
-      <div className="flex flex-1 flex-col">
+      <div className="task-block flex flex-1 flex-col">
         {children}
         <div className="mt-auto flex items-center justify-end gap-1 pt-2">
           {mode !== "none" ? (

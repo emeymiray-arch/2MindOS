@@ -662,6 +662,25 @@ button.chip-soft {
   transition: height var(--dur-mid) var(--ease-apple);
 }
 
+.stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.stack-tight .signal-row,
+.stack-tight .map-node {
+  padding-top: 0.42rem;
+  padding-bottom: 0.42rem;
+}
+
+.task-block > div > * + *,
+.task-block ol > li + li,
+.task-block .space-y-1 > * + *,
+.task-block .space-y-2 > * + * {
+  margin-top: 0.1rem !important;
+}
+
 .signal-row {
   display: flex;
   align-items: center;
@@ -670,7 +689,10 @@ button.chip-soft {
   border-radius: 0.95rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid transparent;
-  transition: background var(--dur-fast) var(--ease-apple), border-color var(--dur-fast) var(--ease-apple);
+  transition:
+    background var(--dur-fast) var(--ease-apple),
+    border-color var(--dur-fast) var(--ease-apple),
+    transform var(--dur-fast) var(--ease-spring);
 }
 
 a.signal-row:hover {
@@ -757,6 +779,121 @@ a.next-card:hover {
   width: 2.4rem;
   height: 2.4rem;
   border-radius: 0.85rem;
+}
+
+/* Map board */
+.map-vision {
+  animation: riseIn var(--dur-mid) var(--ease-spring) both;
+}
+
+.map-board {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .map-board {
+    grid-template-columns: 1.15fr 1fr 0.9fr;
+    align-items: start;
+  }
+}
+
+.map-zone {
+  min-height: 12rem;
+  animation: riseIn var(--dur-mid) var(--ease-spring) both;
+}
+
+.map-zone[data-level="main"] {
+  box-shadow: 0 0 0 1px rgba(244, 114, 182, 0.18), 0 12px 36px rgba(244, 114, 182, 0.12);
+  animation-delay: 0.04s;
+}
+
+.map-zone[data-level="support"] {
+  animation-delay: 0.1s;
+}
+
+.map-zone[data-level="background"] {
+  animation-delay: 0.16s;
+  opacity: 0.92;
+}
+
+.map-node {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    background var(--dur-fast) var(--ease-apple),
+    border-color var(--dur-fast) var(--ease-apple);
+}
+
+.map-node:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(192, 132, 252, 0.25);
+}
+
+.map-node-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.map-focus-select {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.map-x {
+  color: var(--ink-faint);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 0.2rem;
+}
+
+.map-x:hover {
+  color: var(--behind);
+}
+
+.map-goal-chip {
+  display: inline-flex;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: color var(--dur-fast) var(--ease-apple), border-color var(--dur-fast) var(--ease-apple);
+}
+
+a.map-goal-chip:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.map-goal-chip.is-more {
+  color: var(--ink-faint);
 }
 
 @media (max-width: 767px) {
@@ -923,6 +1060,7 @@ a.next-card:hover {
 }
 
 .rise-in,
+.page-stack > *,
 .bento > *,
 .shell-main-inner > .space-y-8 > .panel,
 .shell-main-inner > .space-y-6 > .panel,
@@ -930,6 +1068,48 @@ a.next-card:hover {
 .shell-main-inner .surface,
 .shell-main-inner .kpi-card {
   animation: riseIn var(--dur-mid) var(--ease-spring) both;
+}
+
+.page-stack > *:nth-child(1) { animation-delay: 0.02s; }
+.page-stack > *:nth-child(2) { animation-delay: 0.07s; }
+.page-stack > *:nth-child(3) { animation-delay: 0.12s; }
+.page-stack > *:nth-child(4) { animation-delay: 0.17s; }
+.page-stack > *:nth-child(n + 5) { animation-delay: 0.22s; }
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translate3d(-8px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.row-in {
+  animation: rowIn 0.35s var(--ease-spring) both;
+}
+
+.stack-tight > .row-in:nth-child(1) { animation-delay: 0.02s; }
+.stack-tight > .row-in:nth-child(2) { animation-delay: 0.05s; }
+.stack-tight > .row-in:nth-child(3) { animation-delay: 0.08s; }
+.stack-tight > .row-in:nth-child(4) { animation-delay: 0.11s; }
+.stack-tight > .row-in:nth-child(5) { animation-delay: 0.14s; }
+.stack-tight > .row-in:nth-child(n + 6) { animation-delay: 0.17s; }
+
+@keyframes softPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.85; }
+}
+
+.kpi-ico,
+.widget-dot {
+  animation: softPulse 3.6s var(--ease-apple) infinite;
+}
+
+.chip-soft[data-active="true"] {
+  animation: riseIn 0.28s var(--ease-spring) both;
 }
 
 .panel,
@@ -944,7 +1124,8 @@ a.next-card:hover {
 .panel:hover,
 .surface:hover,
 .kpi-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28), 0 0 28px rgba(168, 85, 247, 0.12);
 }
 
 .bento > *:nth-child(1),
@@ -1634,11 +1815,16 @@ a.next-card:hover {
 
 [data-reduce-motion="true"] .page-enter,
 [data-reduce-motion="true"] .rise-in,
+[data-reduce-motion="true"] .row-in,
+[data-reduce-motion="true"] .page-stack > *,
 [data-reduce-motion="true"] .bento > *,
 [data-reduce-motion="true"] .shell-main-inner > .space-y-8 > .panel,
 [data-reduce-motion="true"] .shell-main-inner > .space-y-6 > .panel,
 [data-reduce-motion="true"] .shell-main-inner .surface,
 [data-reduce-motion="true"] .shell-main-inner .kpi-card,
+[data-reduce-motion="true"] .kpi-ico,
+[data-reduce-motion="true"] .widget-dot,
+[data-reduce-motion="true"] .next-ico,
 [data-reduce-motion="true"] .check-pop,
 [data-reduce-motion="true"] .toast-item,
 [data-reduce-motion="true"] .shell-brand-mark {
