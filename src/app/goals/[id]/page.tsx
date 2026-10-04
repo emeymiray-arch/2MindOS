@@ -5,6 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EmptyState, StatusChip } from "@/components/ui/Progress";
+import { DualRing } from "@/components/ui/Charts";
+import { IconInner, IconOuter, IconPath, IconSteps } from "@/components/ui/Icons";
+import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 import { PlanQuestB } from "@/components/plan/PlanQuestB";
 
@@ -14,6 +17,18 @@ type Reality = {
   status: "ahead" | "on_track" | "behind" | "no_plan";
   label: string;
   detail: string;
+};
+
+type Module = { id: string; title: string; done: boolean; deadlineEnd?: string };
+type Phase = {
+  id: string;
+  title: string;
+  progress: number;
+  status?: string;
+  deadlineStart?: string;
+  deadlineEnd?: string;
+  durationWeeks?: number;
+  modules: Module[];
 };
 
 type GoalDetail = {
@@ -31,32 +46,14 @@ type GoalDetail = {
     title: string;
     progress: number;
     desiredResult?: string;
-    phases: {
-      id: string;
-      title: string;
-      progress: number;
-      status?: string;
-      deadlineStart?: string;
-      deadlineEnd?: string;
-      durationWeeks?: number;
-      modules: { id: string; title: string; done: boolean; deadlineEnd?: string }[];
-    }[];
+    phases: Phase[];
     phaseGroups?: {
       phaseNum: number;
       label: string;
       start?: string;
       end?: string;
       progress: number;
-      stages: {
-        id: string;
-        title: string;
-        progress: number;
-        status?: string;
-        deadlineStart?: string;
-        deadlineEnd?: string;
-        durationWeeks?: number;
-        modules: { id: string; title: string; done: boolean; deadlineEnd?: string }[];
-      }[];
+      stages: Phase[];
     }[];
   } | null;
 };
@@ -93,10 +90,7 @@ export default function GoalDetailPage() {
   async function setSide(layer: "inner" | "outer") {
     const res = await apiPost("/api/goals", { action: "update", id: goalId, layer });
     if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
-    else {
-      toast(layer === "inner" ? "Внутреннее" : "Внешнее", "ok");
-      await load();
-    }
+    else await load();
   }
 
   async function ensurePlan() {
@@ -120,7 +114,7 @@ export default function GoalDetailPage() {
     if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
     else {
       setOutcomeText("");
-      toast("Результат записан", "ok");
+      toast("Записано", "ok");
     }
   }
 
@@ -139,72 +133,123 @@ export default function GoalDetailPage() {
   }
 
   const { goal, reality, plan } = data;
+  const allSteps = plan?.phases.flatMap((p) => p.modules) ?? [];
+  const stepsDone = allSteps.filter((m) => m.done).length;
+  const stagesDone = plan?.phases.filter((p) => p.status === "done" || p.progress >= 100).length ?? 0;
+  const progress = Math.round(plan?.progress ?? reality.actual ?? 0);
 
   return (
-    <div className="space-y-10">
-      <div>
-        <Link href="/goals" className="text-[13px] font-bold text-[var(--accent)]">
-          ← Намерения
-        </Link>
-        <h1 className="page-title mt-4 text-[2.1rem] md:text-[2.5rem]">{goal.title}</h1>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <StatusChip status={reality.status} label={reality.label} />
-          {goal.area?.name ? (
-            <span className="text-[13px] font-medium text-[var(--ink-faint)]">{goal.area.name}</span>
-          ) : null}
-          <span className="text-[13px] font-medium text-[var(--c-violet)]">
-            {goal.layer === "inner"
-              ? "Внутреннее"
-              : goal.layer === "outer"
-                ? "Внешнее"
-                : "Сторона не задана"}
-          </span>
-        </div>
-        {reality.detail ? (
-          <p className="mt-3 text-[14px] font-medium text-[var(--ink-soft)]">{reality.detail}</p>
-        ) : null}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn"
-            data-active={goal.layer === "inner"}
-            onClick={() => void setSide("inner")}
-          >
-            Внутреннее
-          </button>
-          <button
-            type="button"
-            className="btn"
-            data-active={goal.layer === "outer"}
-            onClick={() => void setSide("outer")}
-          >
-            Внешнее
-          </button>
+    <div className="page-stack">
+      <Link href="/goals" className="widget-link w-fit">
+        ← Цели
+      </Link>
+
+      <PageHero
+        title={goal.title}
+        meta={
+          <>
+            <StatusChip status={reality.status} label={reality.label} />
+            {goal.area?.name ? <span className="chip-soft">{goal.area.name}</span> : null}
+            <button
+              type="button"
+              className="chip-soft"
+              data-active={goal.layer === "inner"}
+              onClick={() => void setSide("inner")}
+            >
+              Внутреннее
+            </button>
+            <button
+              type="button"
+              className="chip-soft"
+              data-active={goal.layer === "outer"}
+              onClick={() => void setSide("outer")}
+            >
+              Внешнее
+            </button>
+          </>
+        }
+        action={
           <button type="button" className="btn" onClick={() => void closeGoal()}>
-            Закрыть цель
+            Закрыть
           </button>
+        }
+      />
+
+      <div className="bento">
+        <div className="span-3">
+          <KpiTile
+            label="Прогресс"
+            value={<>{progress}%</>}
+            color="#c084fc"
+            icon={<IconPath size={16} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Шаги"
+            value={
+              <>
+                {stepsDone}
+                <span className="kpi-den">/{allSteps.length}</span>
+              </>
+            }
+            color="#34d399"
+            icon={<IconSteps size={16} />}
+          />
+        </div>
+        <div className="span-3">
+          <KpiTile
+            label="Этапы"
+            value={
+              <>
+                {stagesDone}
+                <span className="kpi-den">/{plan?.phases.length ?? 0}</span>
+              </>
+            }
+            color="#38bdf8"
+            icon={goal.layer === "outer" ? <IconOuter size={16} /> : <IconInner size={16} />}
+          />
+        </div>
+        <div className="span-3">
+          <section className="panel flex h-full items-center justify-center">
+            <DualRing
+              size={112}
+              outer={{ percent: progress, color: "#c084fc", label: "факт" }}
+              inner={{
+                percent: Math.round(reality.expected ?? progress),
+                color: "#38bdf8",
+                label: "план",
+              }}
+            />
+          </section>
+        </div>
+
+        <div className="span-12">
+          <form onSubmit={addOutcome} className="panel flex flex-wrap items-end gap-3">
+            <div className="min-w-[12rem] flex-1">
+              <WidgetHead title="Результат" tone="green" />
+              <input
+                className="field"
+                value={outcomeText}
+                onChange={(e) => setOutcomeText(e.target.value)}
+                placeholder="Что изменилось?"
+              />
+            </div>
+            <button type="submit" className="btn btn-primary shrink-0">
+              Записать
+            </button>
+          </form>
         </div>
       </div>
 
-      <form onSubmit={addOutcome} className="flex gap-2 border-t border-[var(--line)] pt-6">
-        <input
-          className="field min-w-0 flex-1"
-          value={outcomeText}
-          onChange={(e) => setOutcomeText(e.target.value)}
-          placeholder="Что изменилось?"
-        />
-        <button type="submit" className="btn shrink-0">
-          Результат
-        </button>
-      </form>
-
       {!plan ? (
-        <div className="space-y-3">
-          <p className="text-[15px] font-medium text-[var(--ink-soft)]">Плана ещё нет.</p>
+        <section className="panel">
+          <WidgetHead title="План" tone="violet" />
+          <p className="mb-3 text-[14px] text-[var(--ink-soft)]">Плана ещё нет.</p>
           <button type="button" className="btn btn-primary" onClick={() => void ensurePlan()}>
             Открыть план
           </button>
-        </div>
+        </section>
       ) : (
         <PlanQuestB
           planId={plan.id}

@@ -4,16 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useMemo, useState } from "react";
 import { apiPost } from "@/lib/client-api";
 import { toast } from "@/components/ui/Toast";
+import { WidgetHead } from "@/components/ui/Widgets";
 import type { PlanPhaseBlock, PlanModuleBlock } from "./PlanQuest";
 
-const PALETTE = [
-  { idle: "#e8efff", done: "#2f6bff", soft: "#b8cbff" },
-  { idle: "#dff8ed", done: "#00b87a", soft: "#9ae8c8" },
-  { idle: "#ffe6dc", done: "#ff6b3d", soft: "#ffb89a" },
-  { idle: "#ece6ff", done: "#7c5cff", soft: "#c4b4ff" },
-  { idle: "#ffe3f0", done: "#ff4d9a", soft: "#ff9fc8" },
-  { idle: "#fff0d6", done: "#ff9f1a", soft: "#ffd28a" },
-];
+const TONES = ["#c084fc", "#38bdf8", "#34d399", "#fb923c", "#f472b6", "#fbbf24"] as const;
 
 type PhaseGroup = {
   phaseNum: number;
@@ -25,35 +19,38 @@ type PhaseGroup = {
 };
 
 function stageCaption(title: string, indexInPhase: number) {
-  // Strip auto prefixes like "Фаза 1 · " so the card reads as an Этап.
   const cleaned = title.replace(/^Фаза\s+\d+\s*·\s*/i, "").trim();
   if (/^этап\s*\d+/i.test(cleaned)) return cleaned;
-  return `Этап ${indexInPhase + 1}: ${cleaned || "без названия"}`;
+  return cleaned || `Этап ${indexInPhase + 1}`;
 }
 
-function ActionBtn({
+function IconBtn({
   label,
   onClick,
   danger,
   disabled,
+  children,
 }: {
   label: string;
   onClick: () => void;
   danger?: boolean;
   disabled?: boolean;
+  children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
+      aria-label={label}
+      title={label}
       disabled={disabled}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
       }}
-      className="rounded-lg px-2 py-1 text-[12px] font-bold transition hover:bg-black/5 disabled:opacity-40"
-      style={{ color: danger ? "var(--behind)" : "var(--ink-soft)" }}
+      className="plan-icon-btn"
+      data-danger={danger ? "true" : undefined}
     >
-      {label}
+      {children}
     </button>
   );
 }
@@ -62,7 +59,7 @@ function StageCard({
   planId,
   ph,
   index,
-  skin,
+  tone,
   busyId,
   setBusyId,
   onChanged,
@@ -70,18 +67,20 @@ function StageCard({
   planId: string;
   ph: PlanPhaseBlock;
   index: number;
-  skin: (typeof PALETTE)[number];
+  tone: string;
   busyId: string | null;
   setBusyId: (id: string | null) => void;
   onChanged: () => void;
 }) {
   const stageDone = ph.status === "done" || ph.progress >= 100;
+  const [open, setOpen] = useState(!stageDone);
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState(ph.title);
   const [addingStep, setAddingStep] = useState(false);
   const [stepTitle, setStepTitle] = useState("");
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [stepDraft, setStepDraft] = useState("");
+  const doneCount = ph.modules.filter((m) => m.done).length;
 
   async function saveStageTitle() {
     const title = titleDraft.trim();
@@ -105,7 +104,7 @@ function StageCard({
 
   async function deleteStage() {
     if (busyId) return;
-    if (!window.confirm(`Удалить этап «${stageCaption(ph.title, index)}» и все его шаги?`)) return;
+    if (!window.confirm(`Удалить этап «${stageCaption(ph.title, index)}» и все шаги?`)) return;
     setBusyId(ph.id);
     const res = await apiPost("/api/work-plans", {
       action: "deletePhase",
@@ -136,13 +135,15 @@ function StageCard({
       toast(res.error ?? "Не удалось отметить", "warn");
       return;
     }
-    if (!mod.done) toast("Шаг отмечен — смотри на Главной", "ok");
     onChanged();
   }
 
   async function saveStep(mod: PlanModuleBlock) {
     const title = stepDraft.trim();
-    if (!title) return;
+    if (!title) {
+      setEditingStepId(null);
+      return;
+    }
     setBusyId(mod.id);
     const res = await apiPost("/api/work-plans", {
       action: "updateModule",
@@ -157,7 +158,6 @@ function StageCard({
       return;
     }
     setEditingStepId(null);
-    toast("Шаг обновлён", "ok");
     onChanged();
   }
 
@@ -176,7 +176,6 @@ function StageCard({
       toast(res.error ?? "Не удалось удалить шаг", "warn");
       return;
     }
-    toast("Шаг удалён", "ok");
     onChanged();
   }
 
@@ -198,221 +197,212 @@ function StageCard({
     }
     setStepTitle("");
     setAddingStep(false);
-    toast("Шаг добавлен", "ok");
     onChanged();
   }
 
   return (
-    <motion.div
+    <motion.article
       layout
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-white"
-      style={{ boxShadow: "0 4px 14px rgba(18,24,38,0.05)" }}
+      transition={{ type: "spring", stiffness: 380, damping: 32 }}
+      className="plan-stage"
+      data-done={stageDone ? "true" : undefined}
+      style={{ ["--tone" as string]: tone }}
     >
-      <div
-        className="flex items-start gap-3 px-4 py-3.5"
-        style={{ background: stageDone ? skin.done : skin.idle }}
-      >
-        <span
-          className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-[13px] font-black text-white"
-          style={{ background: stageDone ? "rgba(255,255,255,0.28)" : skin.done }}
+      <header className="plan-stage-head">
+        <button
+          type="button"
+          className="plan-stage-toggle"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
         >
-          {stageDone ? "✓" : index + 1}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p
-            className="text-[11px] font-bold uppercase tracking-wide"
-            style={{ color: stageDone ? "rgba(255,255,255,0.8)" : skin.done }}
-          >
-            Этап · 2 месяца
-          </p>
-          {editing ? (
-            <form
-              className="mt-1 flex flex-wrap gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void saveStageTitle();
-              }}
-            >
-              <input
-                className="field min-w-0 flex-1 py-1 text-[14px] font-bold"
-                value={titleDraft}
-                autoFocus
-                onChange={(e) => setTitleDraft(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary">
-                Ок
-              </button>
-              <button type="button" className="btn" onClick={() => setEditing(false)}>
-                Отмена
-              </button>
-            </form>
-          ) : (
-            <p
-              className="mt-0.5 text-[15px] font-bold leading-snug"
-              style={{ color: stageDone ? "#fff" : "var(--ink)" }}
-            >
-              {stageCaption(ph.title, index)}
-            </p>
-          )}
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/10">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${Math.min(100, ph.progress)}%`,
-                background: stageDone ? "#fff" : skin.done,
-              }}
-            />
-          </div>
-        </div>
-        {!editing ? (
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <span
-              className="text-[12px] font-extrabold tabular-nums"
-              style={{ color: stageDone ? "#fff" : skin.done }}
-            >
-              {Math.round(ph.progress)}%
+          <span className="plan-stage-num">{stageDone ? "✓" : index + 1}</span>
+          <span className="min-w-0 flex-1 text-left">
+            {editing ? null : (
+              <span className="block truncate text-[15px] font-semibold tracking-tight">
+                {stageCaption(ph.title, index)}
+              </span>
+            )}
+            <span className="mt-0.5 block text-[12px] text-[var(--ink-faint)]">
+              {doneCount}/{ph.modules.length} шагов
             </span>
-            <div className="flex">
-              <ActionBtn
-                label="Изменить"
-                disabled={busyId === ph.id}
-                onClick={() => {
-                  setTitleDraft(ph.title);
-                  setEditing(true);
-                }}
-              />
-              <ActionBtn
-                label="Удалить"
-                danger
-                disabled={busyId === ph.id}
-                onClick={() => void deleteStage()}
-              />
-            </div>
-          </div>
-        ) : null}
-      </div>
+          </span>
+        </button>
 
-      <div className="space-y-2 px-3 py-3">
-        <p className="px-1 text-[11px] font-bold uppercase tracking-wide text-[var(--ink-faint)]">
-          Шаги внутри этапа
-        </p>
-        <AnimatePresence initial={false}>
-          {ph.modules.length === 0 ? (
-            <p className="px-1 py-2 text-[13px] font-semibold text-[var(--ink-soft)]">
-              Пока пусто — добавь первый шаг ниже
-            </p>
-          ) : (
-            ph.modules.map((m) => {
-              const done = m.done;
-              return (
-                <motion.div
-                  key={m.id}
-                  layout
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-1 rounded-[14px] border border-[var(--line)] px-2 py-2"
-                  style={{
-                    background: done ? skin.done : "#fff",
-                    color: done ? "#fff" : "var(--ink)",
-                  }}
-                >
-                  <button
-                    type="button"
-                    disabled={busyId === m.id}
-                    onClick={() => void toggleModule(m)}
-                    className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-1 text-left"
-                    title="Отметить шаг"
-                  >
-                    <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-black"
-                      style={{
-                        background: done ? "rgba(255,255,255,0.28)" : skin.soft,
-                        color: done ? "#fff" : skin.done,
-                      }}
-                    >
-                      {done ? "✓" : "◇"}
-                    </span>
-                    {editingStepId === m.id ? (
-                      <input
-                        className="field min-w-0 flex-1 py-1 text-[13px] font-bold"
-                        value={stepDraft}
-                        autoFocus
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setStepDraft(e.target.value)}
-                        onBlur={() => void saveStep(m)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            void saveStep(m);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <span className="min-w-0 flex-1 text-[13.5px] font-bold leading-snug">
-                        {m.title}
-                      </span>
-                    )}
-                  </button>
-                  {editingStepId !== m.id ? (
-                    <div className="flex shrink-0">
-                      <ActionBtn
-                        label="Изменить"
-                        disabled={busyId === m.id}
-                        onClick={() => {
-                          setEditingStepId(m.id);
-                          setStepDraft(m.title);
-                        }}
-                      />
-                      <ActionBtn
-                        label="Удалить"
-                        danger
-                        disabled={busyId === m.id}
-                        onClick={() => void deleteModule(m)}
-                      />
-                    </div>
-                  ) : null}
-                </motion.div>
-              );
-            })
-          )}
-        </AnimatePresence>
-
-        {addingStep ? (
-          <form onSubmit={addStep} className="flex flex-wrap gap-2 rounded-[14px] bg-[var(--bg-muted)] p-2">
+        {editing ? (
+          <form
+            className="flex min-w-0 flex-1 gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveStageTitle();
+            }}
+          >
             <input
-              className="field min-w-0 flex-1"
-              value={stepTitle}
+              className="field min-w-0 flex-1 py-1.5 text-[14px] font-semibold"
+              value={titleDraft}
               autoFocus
-              placeholder="Название шага"
-              onChange={(e) => setStepTitle(e.target.value)}
+              onChange={(e) => setTitleDraft(e.target.value)}
             />
-            <button type="submit" className="btn btn-primary" disabled={busyId === `add-${ph.id}`}>
-              Добавить шаг
+            <button type="submit" className="btn btn-primary">
+              Ок
             </button>
-            <button type="button" className="btn" onClick={() => setAddingStep(false)}>
-              Отмена
+            <button type="button" className="btn" onClick={() => setEditing(false)}>
+              ×
             </button>
           </form>
         ) : (
-          <button
-            type="button"
-            className="w-full rounded-[14px] border border-dashed border-[var(--line-strong)] px-3 py-2.5 text-[13px] font-bold"
-            style={{ color: skin.done }}
-            onClick={() => setAddingStep(true)}
-          >
-            + Шаг в этот этап
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <span className="plan-stage-pct">{Math.round(ph.progress)}%</span>
+            <IconBtn
+              label="Изменить этап"
+              disabled={busyId === ph.id}
+              onClick={() => {
+                setTitleDraft(ph.title);
+                setEditing(true);
+              }}
+            >
+              ✎
+            </IconBtn>
+            <IconBtn
+              label="Удалить этап"
+              danger
+              disabled={busyId === ph.id}
+              onClick={() => void deleteStage()}
+            >
+              ×
+            </IconBtn>
+          </div>
         )}
+      </header>
+
+      <div className="plan-stage-bar">
+        <motion.span
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(100, ph.progress)}%` }}
+          transition={{ duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
+        />
       </div>
-    </motion.div>
+
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
+            className="overflow-hidden"
+          >
+            <ul className="stack-tight mt-3">
+              <AnimatePresence initial={false}>
+                {ph.modules.length === 0 ? (
+                  <li className="px-1 py-2 text-[13px] text-[var(--ink-faint)]">Нет шагов</li>
+                ) : (
+                  ph.modules.map((m) => (
+                    <motion.li
+                      key={m.id}
+                      layout
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 8 }}
+                      className="plan-step"
+                      data-done={m.done ? "true" : undefined}
+                    >
+                      <button
+                        type="button"
+                        disabled={busyId === m.id}
+                        onClick={() => void toggleModule(m)}
+                        className="plan-check"
+                        aria-label={m.done ? "Снять" : "Отметить"}
+                      >
+                        {m.done ? "✓" : ""}
+                      </button>
+                      {editingStepId === m.id ? (
+                        <input
+                          className="field min-w-0 flex-1 py-1 text-[13px]"
+                          value={stepDraft}
+                          autoFocus
+                          onChange={(e) => setStepDraft(e.target.value)}
+                          onBlur={() => void saveStep(m)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void saveStep(m);
+                            }
+                            if (e.key === "Escape") setEditingStepId(null);
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 truncate text-left text-[14px] font-medium"
+                          onClick={() => void toggleModule(m)}
+                        >
+                          {m.title}
+                        </button>
+                      )}
+                      {editingStepId !== m.id ? (
+                        <div className="plan-step-actions">
+                          <IconBtn
+                            label="Изменить шаг"
+                            disabled={busyId === m.id}
+                            onClick={() => {
+                              setEditingStepId(m.id);
+                              setStepDraft(m.title);
+                            }}
+                          >
+                            ✎
+                          </IconBtn>
+                          <IconBtn
+                            label="Удалить шаг"
+                            danger
+                            disabled={busyId === m.id}
+                            onClick={() => void deleteModule(m)}
+                          >
+                            ×
+                          </IconBtn>
+                        </div>
+                      ) : null}
+                    </motion.li>
+                  ))
+                )}
+              </AnimatePresence>
+            </ul>
+
+            {addingStep ? (
+              <form onSubmit={addStep} className="mt-2 flex gap-2">
+                <input
+                  className="field min-w-0 flex-1 py-2"
+                  value={stepTitle}
+                  autoFocus
+                  placeholder="Новый шаг"
+                  onChange={(e) => setStepTitle(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={busyId === `add-${ph.id}`}
+                >
+                  +
+                </button>
+                <button type="button" className="btn" onClick={() => setAddingStep(false)}>
+                  ×
+                </button>
+              </form>
+            ) : (
+              <button type="button" className="plan-add" onClick={() => setAddingStep(true)}>
+                + шаг
+              </button>
+            )}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </motion.article>
   );
 }
 
-/**
- * План цели: Фаза (6 мес) → Этап (2 мес) → Шаг.
- */
+/** План цели: Фаза → Этап → Шаг. */
 export function PlanQuestB({
   planId,
   phases,
@@ -430,10 +420,9 @@ export function PlanQuestB({
 
   const groups = useMemo((): PhaseGroup[] => {
     if (phaseGroups?.length) return phaseGroups;
-    const sorted = [...phases];
     const out: PhaseGroup[] = [];
-    for (let i = 0; i < sorted.length; i += 3) {
-      const chunk = sorted.slice(i, i + 3);
+    for (let i = 0; i < phases.length; i += 3) {
+      const chunk = phases.slice(i, i + 3);
       const n = Math.floor(i / 3) + 1;
       const prog =
         chunk.length === 0
@@ -456,11 +445,7 @@ export function PlanQuestB({
     const title = newStageTitle.trim();
     if (!title) return;
     setBusyId("add-stage");
-    const res = await apiPost("/api/work-plans", {
-      action: "addPhase",
-      planId,
-      title,
-    });
+    const res = await apiPost("/api/work-plans", { action: "addPhase", planId, title });
     setBusyId(null);
     if (!res.ok) {
       toast(res.error ?? "Не удалось добавить этап", "warn");
@@ -474,13 +459,7 @@ export function PlanQuestB({
 
   async function deletePhaseGroup(grp: PhaseGroup) {
     if (!grp.stages.length) return;
-    if (
-      !window.confirm(
-        `Удалить ${grp.label} целиком (${grp.stages.length} этап(а/ов) и все шаги внутри)?`
-      )
-    ) {
-      return;
-    }
+    if (!window.confirm(`Удалить ${grp.label} целиком?`)) return;
     setBusyId(`del-phase-${grp.phaseNum}`);
     for (const stage of [...grp.stages].reverse()) {
       const res = await apiPost("/api/work-plans", {
@@ -500,75 +479,83 @@ export function PlanQuestB({
     onChanged();
   }
 
-  return (
-    <div className="space-y-5">
-      <div className="rounded-[18px] border border-[var(--line)] bg-[var(--bg-muted)] px-4 py-3.5">
-        <p className="text-[13px] font-bold text-[var(--ink)]">Как устроен план</p>
-        <ol className="mt-2 space-y-1.5 text-[13px] font-semibold text-[var(--ink-soft)]">
-          <li>
-            <span className="font-bold text-[var(--accent)]">Фаза</span> — ~6 месяцев (три этапа)
-          </li>
-          <li>
-            <span className="font-bold text-[var(--accent)]">Этап</span> — ~2 месяца внутри фазы
-          </li>
-          <li>
-            <span className="font-bold text-[var(--accent)]">Шаг</span> — конкретное действие; отметь —
-            попадёт на Главную
-          </li>
-        </ol>
-      </div>
+  const addForm = (
+    <form onSubmit={addStage} className="flex gap-2">
+      <input
+        className="field min-w-0 flex-1"
+        value={newStageTitle}
+        autoFocus
+        placeholder="Название этапа"
+        onChange={(e) => setNewStageTitle(e.target.value)}
+      />
+      <button type="submit" className="btn btn-primary" disabled={busyId === "add-stage"}>
+        Добавить
+      </button>
+      <button type="button" className="btn" onClick={() => setAddingStageFor(null)}>
+        ×
+      </button>
+    </form>
+  );
 
+  return (
+    <div className="plan-root">
       {groups.length === 0 ? (
-        <p className="text-[14px] font-semibold text-[var(--ink-soft)]">
-          План пуст — добавь первый этап ниже.
-        </p>
+        <section className="panel">
+          <p className="text-[14px] text-[var(--ink-soft)]">План пуст — добавь первый этап.</p>
+        </section>
       ) : null}
 
       {groups.map((grp, gi) => {
-        const skin = PALETTE[gi % PALETTE.length];
+        const tone = TONES[gi % TONES.length];
         return (
-          <section
+          <motion.section
             key={grp.phaseNum}
-            className="space-y-3 rounded-[22px] border border-[var(--line)] p-3 sm:p-4"
-            style={{ background: `color-mix(in srgb, ${skin.done} 6%, white)` }}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: gi * 0.06, type: "spring", stiffness: 300, damping: 30 }}
+            className="panel plan-phase"
+            style={{ ["--tone" as string]: tone }}
           >
-            <div className="flex flex-wrap items-start justify-between gap-2 px-1">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: skin.done }}>
-                  Фаза · 6 месяцев
-                </p>
-                <h3 className="font-display text-[1.35rem]" style={{ color: skin.done }}>
-                  {grp.label}
-                </h3>
-                {(grp.start || grp.end) && (
-                  <p className="mt-0.5 text-[12px] font-semibold text-[var(--ink-soft)]">
-                    {[grp.start, grp.end].filter(Boolean).join(" → ")}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-extrabold tabular-nums" style={{ color: skin.done }}>
-                  {grp.progress}%
-                </span>
-                {grp.stages.length > 0 ? (
-                  <ActionBtn
-                    label="Удалить фазу"
-                    danger
-                    disabled={busyId === `del-phase-${grp.phaseNum}`}
-                    onClick={() => void deletePhaseGroup(grp)}
-                  />
-                ) : null}
-              </div>
+            <WidgetHead
+              title={grp.label}
+              tone={(["violet", "blue", "green", "orange", "pink", "orange"] as const)[gi % 6]}
+              action={
+                <div className="flex items-center gap-2">
+                  {(grp.start || grp.end) && (
+                    <span className="hidden text-[11px] text-[var(--ink-faint)] sm:inline">
+                      {[grp.start, grp.end].filter(Boolean).join(" → ")}
+                    </span>
+                  )}
+                  <span className="plan-phase-pct">{grp.progress}%</span>
+                  {grp.stages.length > 0 ? (
+                    <IconBtn
+                      label="Удалить фазу"
+                      danger
+                      disabled={busyId === `del-phase-${grp.phaseNum}`}
+                      onClick={() => void deletePhaseGroup(grp)}
+                    >
+                      ×
+                    </IconBtn>
+                  ) : null}
+                </div>
+              }
+            />
+            <div className="plan-phase-bar">
+              <motion.span
+                initial={{ width: 0 }}
+                animate={{ width: `${grp.progress}%` }}
+                transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
+              />
             </div>
 
-            <div className="space-y-3">
+            <div className="plan-stages">
               {grp.stages.map((ph, i) => (
                 <StageCard
                   key={ph.id}
                   planId={planId}
                   ph={ph}
                   index={i}
-                  skin={PALETTE[(gi * 3 + i) % PALETTE.length]}
+                  tone={TONES[(gi * 3 + i) % TONES.length]}
                   busyId={busyId}
                   setBusyId={setBusyId}
                   onChanged={onChanged}
@@ -577,54 +564,25 @@ export function PlanQuestB({
             </div>
 
             {addingStageFor === grp.phaseNum ? (
-              <form onSubmit={addStage} className="flex flex-wrap gap-2 rounded-[16px] bg-white p-3">
-                <input
-                  className="field min-w-0 flex-1"
-                  value={newStageTitle}
-                  autoFocus
-                  placeholder="Название этапа"
-                  onChange={(e) => setNewStageTitle(e.target.value)}
-                />
-                <button type="submit" className="btn btn-primary" disabled={busyId === "add-stage"}>
-                  Добавить этап
-                </button>
-                <button type="button" className="btn" onClick={() => setAddingStageFor(null)}>
-                  Отмена
-                </button>
-              </form>
+              <div className="mt-3">{addForm}</div>
             ) : (
               <button
                 type="button"
-                className="w-full rounded-[16px] border border-dashed px-3 py-2.5 text-[13px] font-bold"
-                style={{ color: skin.done, borderColor: skin.soft }}
+                className="plan-add mt-3"
                 onClick={() => {
                   setAddingStageFor(grp.phaseNum);
                   setNewStageTitle("");
                 }}
               >
-                + Этап в эту фазу
+                + этап
               </button>
             )}
-          </section>
+          </motion.section>
         );
       })}
 
       {addingStageFor === "end" ? (
-        <form onSubmit={addStage} className="surface flex flex-wrap gap-2 p-4">
-          <input
-            className="field min-w-0 flex-1"
-            value={newStageTitle}
-            autoFocus
-            placeholder="Название этапа"
-            onChange={(e) => setNewStageTitle(e.target.value)}
-          />
-          <button type="submit" className="btn btn-primary" disabled={busyId === "add-stage"}>
-            Добавить этап
-          </button>
-          <button type="button" className="btn" onClick={() => setAddingStageFor(null)}>
-            Отмена
-          </button>
-        </form>
+        <section className="panel">{addForm}</section>
       ) : (
         <button
           type="button"
@@ -634,7 +592,7 @@ export function PlanQuestB({
             setNewStageTitle("");
           }}
         >
-          + Новый этап (продолжит план / следующую фазу)
+          + Новый этап
         </button>
       )}
     </div>

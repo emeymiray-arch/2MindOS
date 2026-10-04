@@ -781,6 +781,225 @@ a.next-card:hover {
   border-radius: 0.85rem;
 }
 
+/* Goal plan */
+.plan-root {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.plan-phase {
+  position: relative;
+  overflow: hidden;
+}
+
+.plan-phase::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--tone);
+  opacity: 0.85;
+  box-shadow: 0 0 18px var(--tone);
+}
+
+.plan-phase-pct,
+.plan-stage-pct {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--tone, var(--accent));
+}
+
+.plan-phase-bar,
+.plan-stage-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+
+.plan-phase-bar {
+  margin: -0.35rem 0 1rem;
+}
+
+.plan-phase-bar > span,
+.plan-stage-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tone);
+  box-shadow: 0 0 12px var(--tone);
+}
+
+.plan-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.plan-stage {
+  border-radius: 1.1rem;
+  padding: 0.85rem 0.9rem 0.75rem;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  transition:
+    border-color var(--dur-fast) var(--ease-apple),
+    background var(--dur-fast) var(--ease-apple),
+    transform var(--dur-fast) var(--ease-spring);
+}
+
+.plan-stage:hover {
+  border-color: color-mix(in srgb, var(--tone) 35%, transparent);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.plan-stage[data-done="true"] {
+  opacity: 0.72;
+}
+
+.plan-stage-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.plan-stage-toggle {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.plan-stage-num {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.7rem;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 18%, transparent);
+}
+
+.plan-stage[data-done="true"] .plan-stage-num {
+  color: #0b0b12;
+  background: var(--tone);
+}
+
+.plan-stage-bar {
+  margin-top: 0.7rem;
+}
+
+.plan-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.38rem 0.45rem;
+  border-radius: 0.7rem;
+  transition: background var(--dur-fast) var(--ease-apple);
+}
+
+.plan-step:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.plan-step[data-done="true"] > button:nth-child(2) {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ink-faint) 60%, transparent);
+}
+
+.plan-check {
+  display: inline-flex;
+  width: 1.3rem;
+  height: 1.3rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.4rem;
+  border: 1.5px solid color-mix(in srgb, var(--tone, var(--accent)) 55%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+  color: #0b0b12;
+  transition:
+    background var(--dur-fast) var(--ease-apple),
+    transform var(--dur-fast) var(--ease-spring);
+}
+
+.plan-check:active {
+  transform: scale(0.88);
+}
+
+.plan-step[data-done="true"] .plan-check {
+  background: var(--tone, var(--accent));
+  border-color: transparent;
+}
+
+.plan-step-actions {
+  display: flex;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-apple);
+}
+
+.plan-step:hover .plan-step-actions,
+.plan-step:focus-within .plan-step-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .plan-step-actions {
+    opacity: 1;
+  }
+}
+
+.plan-icon-btn {
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.55rem;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  transition:
+    background var(--dur-fast) var(--ease-apple),
+    color var(--dur-fast) var(--ease-apple);
+}
+
+.plan-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ink);
+}
+
+.plan-icon-btn[data-danger="true"]:hover {
+  color: var(--behind);
+}
+
+.plan-add {
+  margin-top: 0.4rem;
+  width: 100%;
+  border-radius: 0.8rem;
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  padding: 0.5rem;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  transition:
+    border-color var(--dur-fast) var(--ease-apple),
+    color var(--dur-fast) var(--ease-apple);
+}
+
+.plan-add:hover {
+  color: var(--tone, var(--accent));
+  border-color: color-mix(in srgb, var(--tone, var(--accent)) 45%, transparent);
+}
+
 /* Map board */
 .map-vision {
   animation: riseIn var(--dur-mid) var(--ease-spring) both;
