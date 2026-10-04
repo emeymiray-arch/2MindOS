@@ -124,6 +124,9 @@ export default function SettingsPage() {
             <button type="button" className="btn" disabled={busy} onClick={() => void logout()}>
               Выйти
             </button>
+            <Link href="/privacy" className="btn">
+              Хранение данных
+            </Link>
             {(isAdmin || login === "owner") && (
               <Link href="/admin" className="btn btn-primary">
                 Клиенты

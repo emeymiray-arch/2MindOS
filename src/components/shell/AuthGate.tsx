@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -12,6 +13,11 @@ type AuthStatus = {
   login?: string | null;
 };
 
+function isPublicPath(pathname: string | null) {
+  if (!pathname) return false;
+  return pathname.startsWith("/admin") || pathname.startsWith("/privacy");
+}
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [status, setStatus] = useState<AuthStatus | null>(null);
@@ -20,7 +26,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [checked, setChecked] = useState(false);
-  const isAdminRoute = Boolean(pathname?.startsWith("/admin"));
+  const publicRoute = isPublicPath(pathname);
 
   const refresh = useCallback(async () => {
     const res = await fetch("/api/auth", { cache: "no-store", credentials: "include" });
@@ -31,12 +37,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isAdminRoute) {
+    if (publicRoute) {
       setChecked(true);
       return;
     }
     void refresh();
-  }, [refresh, isAdminRoute]);
+  }, [refresh, publicRoute]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -67,8 +73,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Admin has its own gate — don't require customer login.
-  if (isAdminRoute) {
+  // Public docs / admin — don't require customer login.
+  if (publicRoute) {
     return children;
   }
 
@@ -147,6 +153,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         >
           Войти
         </button>
+        <p className="text-center text-[12px] leading-relaxed text-[var(--ink-faint)]">
+          Входя, вы соглашаетесь с{" "}
+          <Link href="/privacy" className="font-semibold text-[var(--accent)] underline-offset-2 hover:underline">
+            условиями хранения данных
+          </Link>
+          .
+        </p>
       </form>
     </div>
   );

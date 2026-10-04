@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/principles", label: "Принципы", hint: "Правила" },
   { href: "/archive", label: "Архив", hint: "Закрытое" },
   { href: "/settings", label: "Настройки", hint: "Тема, фокус, ёмкость" },
+  { href: "/privacy", label: "Хранение данных", hint: "Как хранится ваш профиль" },
 ] as const;
 
 export default function LifePage() {

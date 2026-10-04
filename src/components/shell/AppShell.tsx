@@ -38,6 +38,8 @@ function persistTheme(theme: "light" | "dark") {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith("/admin");
+  const isPrivacy = pathname?.startsWith("/privacy");
+  const bare = isAdmin || isPrivacy;
   const wide = WIDE.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     } catch {
       persistTheme("dark");
     }
-    if (isAdmin) return;
+    if (bare) return;
     const t = window.setTimeout(() => {
       fetch("/api/state", { credentials: "include" })
         .then((r) => r.json())
@@ -67,9 +69,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         .catch(() => undefined);
     }, 4000);
     return () => window.clearTimeout(t);
-  }, [isAdmin]);
+  }, [bare]);
 
-  if (isAdmin) {
+  if (bare) {
     return (
       <div className="admin-shell">
         <div className="aurora" aria-hidden>

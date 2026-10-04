@@ -56,7 +56,7 @@ async function recoverIfNeeded() {
 
 export function DataGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const skip = pathname?.startsWith("/admin");
+  const skip = Boolean(pathname?.startsWith("/admin") || pathname?.startsWith("/privacy"));
 
   useEffect(() => {
     if (skip) return;
