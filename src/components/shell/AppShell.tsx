@@ -4,23 +4,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
-/** Mental model: Today → Path → Calendar → Money → Habits → Wishlist → More */
 const NAV = [
   { href: "/", label: "Сегодня" },
   { href: "/goals", label: "Путь" },
+  { href: "/map", label: "Карта" },
   { href: "/calendar", label: "Календарь" },
+  { href: "/analytics", label: "Аналитика" },
   { href: "/finance", label: "Финансы" },
   { href: "/habits", label: "Привычки" },
   { href: "/wishlist", label: "Wishlist" },
   { href: "/life", label: "Ещё" },
 ] as const;
 
-/** Compact mobile strip — full set lives in the side rail. */
 const MOBILE_NAV = [
   { href: "/", label: "Сегодня" },
   { href: "/goals", label: "Путь" },
-  { href: "/finance", label: "Финансы" },
-  { href: "/habits", label: "Привычки" },
+  { href: "/map", label: "Карта" },
+  { href: "/analytics", label: "Аналит." },
+  { href: "/wishlist", label: "Wish" },
   { href: "/life", label: "Ещё" },
 ] as const;
 
@@ -91,11 +92,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         pathname.startsWith("/settings") ||
         pathname.startsWith("/inbox") ||
         pathname.startsWith("/principles") ||
-        pathname.startsWith("/map") ||
-        pathname.startsWith("/directions") ||
-        pathname.startsWith("/analytics") ||
-        pathname.startsWith("/archive")
+        pathname.startsWith("/archive") ||
+        pathname.startsWith("/directions")
       );
+    }
+    if (href === "/map") {
+      return pathname === "/map" || pathname.startsWith("/directions");
     }
     return pathname === href || pathname.startsWith(`${href}/`);
   }
@@ -134,7 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      <nav className="shell-mobile" aria-label="Основное меню">
+      <nav className="shell-mobile shell-mobile-wide" aria-label="Основное меню">
         {MOBILE_NAV.map((item) => (
           <Link key={item.href} href={item.href} data-active={active(item.href)}>
             {item.label}

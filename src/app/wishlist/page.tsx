@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
+import { EditableText } from "@/components/ui/EditableText";
 import { toast } from "@/components/ui/Toast";
 import type { WishBlock, WishBucket } from "@/lib/types";
 
@@ -124,6 +125,26 @@ export default function WishlistPage() {
     await load();
   }
 
+  async function renameBlock(id: string, hashtag: string) {
+    const clean = hashtag.trim().replace(/^#/, "");
+    if (!clean) return;
+    const res = await apiPost("/api/wishes", { action: "renameBlock", id, hashtag: clean });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else await load();
+  }
+
+  async function renameItem(blockId: string, itemId: string, title: string) {
+    if (!title.trim()) return;
+    const res = await apiPost("/api/wishes", {
+      action: "updateItem",
+      blockId,
+      itemId,
+      title: title.trim(),
+    });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else await load();
+  }
+
   async function saveToward(e: React.FormEvent) {
     e.preventDefault();
     if (!saveFor || busy) return;
@@ -226,9 +247,15 @@ export default function WishlistPage() {
                 style={{ borderLeft: `4px solid ${accent}` }}
               >
                 <div className="flex items-center justify-between gap-3 px-4 py-3">
-                  <p className="font-bold" style={{ color: accent }}>
-                    #{b.hashtag}
-                  </p>
+                  <div className="min-w-0 flex-1 font-bold" style={{ color: accent }}>
+                    <span className="mr-0.5">#</span>
+                    <EditableText
+                      value={b.hashtag}
+                      className="font-bold"
+                      inputClassName="field inline-block w-auto min-w-[8rem] py-1 font-bold"
+                      onSave={(hashtag) => renameBlock(b.id, hashtag)}
+                    />
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
@@ -258,26 +285,26 @@ export default function WishlistPage() {
                         <div key={it.id} className="flex items-center gap-3 px-4 py-3">
                           <button
                             type="button"
-                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-black text-white"
+                            style={{ background: it.done ? "var(--ahead)" : accent }}
                             onClick={() => void toggleItem(b.id, it.id)}
+                            aria-label={it.done ? "Снять" : "Готово"}
                           >
-                            <span
-                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-black text-white"
-                              style={{ background: it.done ? "var(--ahead)" : accent }}
-                            >
-                              {it.done ? "✓" : "◇"}
-                            </span>
-                            <span className="min-w-0">
-                              <span className={`block font-semibold ${it.done ? "opacity-50" : ""}`}>
-                                {it.title}
-                              </span>
-                              {target > 0 ? (
-                                <span className="text-[12px] font-semibold" style={{ color: accent }}>
-                                  {money(saved)} / {money(target)} ₽
-                                </span>
-                              ) : null}
-                            </span>
+                            {it.done ? "✓" : "◇"}
                           </button>
+                          <div className={`min-w-0 flex-1 ${it.done ? "opacity-50" : ""}`}>
+                            <EditableText
+                              value={it.title}
+                              className="font-semibold"
+                              inputClassName="field py-1 text-[14px] font-semibold"
+                              onSave={(title) => renameItem(b.id, it.id, title)}
+                            />
+                            {target > 0 ? (
+                              <p className="text-[12px] font-semibold" style={{ color: accent }}>
+                                {money(saved)} / {money(target)} ₽
+                              </p>
+                            ) : null}
+                          </div>
                           {tab === "material" && !it.done ? (
                             <button
                               type="button"

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
+import { EditableText } from "@/components/ui/EditableText";
 import { EmptyState } from "@/components/ui/Progress";
 import { toast } from "@/components/ui/Toast";
 
@@ -75,6 +76,12 @@ export default function PrinciplesPage() {
     else await load();
   }
 
+  async function savePrinciple(id: string, patch: { title?: string; body?: string }) {
+    const res = await apiPost("/api/life", { action: "updatePrinciple", id, ...patch });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else await load();
+  }
+
   if (loading) return <p className="text-[var(--ink-faint)]">Загружаю…</p>;
 
   const shown = items.filter((p) => filter === "all" || p.layer === filter);
@@ -110,14 +117,24 @@ export default function PrinciplesPage() {
           {shown.map((p) => (
             <div key={p.id} className="surface space-y-2 p-4">
               <div className="flex items-start justify-between gap-2">
-                <div>
+                <div className="min-w-0 flex-1 space-y-1">
                   <p className="text-[12px] font-bold text-[var(--accent)]">
                     {p.layer === "inner" ? "Внутреннее" : "Внешнее"}
                   </p>
-                  <p className="text-[16px] font-bold">{p.title}</p>
-                  {p.body ? (
-                    <p className="mt-1 text-[13px] text-[var(--ink-soft)]">{p.body}</p>
-                  ) : null}
+                  <EditableText
+                    value={p.title}
+                    className="text-[16px] font-bold"
+                    inputClassName="field text-[16px] font-bold"
+                    onSave={(title) => savePrinciple(p.id, { title })}
+                  />
+                  <EditableText
+                    value={p.body ?? ""}
+                    className="mt-1 block text-[13px] text-[var(--ink-soft)]"
+                    inputClassName="field text-[13px]"
+                    multiline
+                    placeholder="Добавить описание…"
+                    onSave={(body) => savePrinciple(p.id, { body })}
+                  />
                   {p.supportsGoalIds?.length ? (
                     <p className="mt-2 text-[12px] font-semibold text-[var(--ink-faint)]">
                       Связано с{" "}

@@ -1,9 +1,6 @@
 import Link from "next/link";
 
 const LINKS = [
-  { href: "/map", label: "Карта", hint: "Направления жизни" },
-  { href: "/analytics", label: "Аналитика", hint: "План и факт" },
-  { href: "/wishlist", label: "Wishlist", hint: "Покупки и желания" },
   { href: "/inbox", label: "Inbox", hint: "Черновики до привязки" },
   { href: "/principles", label: "Принципы", hint: "Правила" },
   { href: "/archive", label: "Архив", hint: "Закрытое" },
@@ -17,7 +14,7 @@ export default function LifePage() {
       <header>
         <p className="page-kicker">Ещё</p>
         <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Ещё</h1>
-        <p className="page-lede">Карта, аналитика, inbox и настройки.</p>
+        <p className="page-lede">Inbox, принципы, архив и настройки.</p>
       </header>
       <div className="bento">
         {LINKS.map((l) => (

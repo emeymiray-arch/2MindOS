@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
+import { EditableText } from "@/components/ui/EditableText";
 import { toast } from "@/components/ui/Toast";
 
 type HabitRow = {
@@ -60,6 +61,13 @@ export default function HabitsPage() {
     await load();
   }
 
+  async function rename(id: string, title: string) {
+    if (!title.trim()) return;
+    const res = await apiPost("/api/habits", { action: "update", id, title: title.trim() });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else await load();
+  }
+
   return (
     <div className="space-y-8">
       <header>
@@ -94,21 +102,23 @@ export default function HabitsPage() {
               <button
                 type="button"
                 onClick={() => void toggle(h)}
-                className="flex min-w-0 flex-1 items-center gap-4 text-left"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-[15px] font-black text-white"
+                style={{ background: c }}
+                aria-label={h.todayDone ? "Снять отметку" : "Отметить"}
               >
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-[15px] font-black text-white"
-                  style={{ background: c }}
-                >
-                  {h.todayDone ? "✓" : "◇"}
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-bold">{h.title}</span>
-                  <span className="text-[12px] font-semibold" style={{ color: c }}>
-                    серия {h.streak} · {Math.round(h.completionRate * 100)}%
-                  </span>
-                </span>
+                {h.todayDone ? "✓" : "◇"}
               </button>
+              <div className="min-w-0 flex-1">
+                <EditableText
+                  value={h.title}
+                  className="font-bold"
+                  inputClassName="field py-1 text-[15px] font-bold"
+                  onSave={(next) => rename(h.id, next)}
+                />
+                <p className="text-[12px] font-semibold" style={{ color: c }}>
+                  серия {h.streak} · {Math.round(h.completionRate * 100)}%
+                </p>
+              </div>
               <button
                 type="button"
                 className="shrink-0 px-2 text-[18px] font-bold text-[var(--ink-soft)] hover:text-[var(--behind)]"

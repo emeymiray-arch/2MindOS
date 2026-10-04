@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
+import { EditableText } from "@/components/ui/EditableText";
 import { toast } from "@/components/ui/Toast";
 
 type FocusLevel = "main" | "support" | "background";
@@ -28,6 +29,7 @@ const FOCUS_LABEL: Record<FocusLevel, string> = {
   support: "Поддерживает",
   background: "На фоне",
 };
+
 export default function MapPage() {
   const [monthKey, setMonthKey] = useState("");
   const [dirs, setDirs] = useState<Direction[]>([]);
@@ -36,6 +38,8 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [editingVision, setEditingVision] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
 
   const load = useCallback(async () => {
     const [dirRes, goalsRes, stateRes] = await Promise.all([
@@ -83,6 +87,54 @@ export default function MapPage() {
     }
   }
 
+  async function renameDir(id: string, name: string) {
+    if (!name.trim()) return;
+    const res = await apiPost("/api/directions", { action: "update", id, name: name.trim() });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else await load();
+  }
+
+  async function setDesc(id: string, description: string) {
+    const res = await apiPost("/api/directions", { action: "update", id, description });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else await load();
+  }
+
+  async function removeDir(id: string, name: string) {
+    if (!window.confirm(`Удалить направление «${name}»? Цели останутся, но отвяжутся от него.`)) {
+      return;
+    }
+    setBusy(true);
+    const res = await apiPost("/api/directions", { action: "update", id, archived: true });
+    setBusy(false);
+    if (!res.ok) toast(res.error ?? "Не удалось удалить", "warn");
+    else {
+      toast("Удалила", "ok");
+      await load();
+    }
+  }
+
+  async function createDir(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newName.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    const res = await apiPost("/api/directions", {
+      action: "create",
+      name,
+      description: newDesc.trim() || undefined,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      toast(res.error ?? "Не создалось", "warn");
+      return;
+    }
+    setNewName("");
+    setNewDesc("");
+    toast("Направление добавлено", "ok");
+    await load();
+  }
+
   if (loading) return <p className="text-[var(--ink-faint)]">Загрузка…</p>;
 
   return (
@@ -91,7 +143,7 @@ export default function MapPage() {
         <div>
           <p className="page-kicker">Карта · {monthKey}</p>
           <h1 className="page-title text-[2.2rem] md:text-[2.6rem]">Карта</h1>
-          <p className="page-lede">Направления, фокус и цели.</p>
+          <p className="page-lede">Направления можно добавлять, менять и удалять.</p>
         </div>
         <Link href="/" className="btn btn-primary">
           Сегодня
@@ -140,6 +192,33 @@ export default function MapPage() {
           </section>
         </div>
 
+        <div className="span-12">
+          <form onSubmit={createDir} className="panel flex flex-wrap items-end gap-3">
+            <div className="min-w-[12rem] flex-1">
+              <p className="section-label mb-2" style={{ color: "var(--accent)" }}>
+                Новое направление
+              </p>
+              <input
+                className="field"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Название"
+              />
+            </div>
+            <div className="min-w-[12rem] flex-1">
+              <input
+                className="field"
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                placeholder="Описание (необязательно)"
+              />
+            </div>
+            <button type="submit" className="btn btn-primary" disabled={busy || !newName.trim()}>
+              Добавить
+            </button>
+          </form>
+        </div>
+
         {FOCUS_ORDER.map((level) => {
           const items = dirs.filter((d) => d.focus === level);
           if (!items.length) return null;
@@ -160,11 +239,20 @@ export default function MapPage() {
                   return (
                     <div key={d.id} className="span-6 panel space-y-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-[1.2rem] font-semibold tracking-tight">{d.name}</p>
-                          {d.description ? (
-                            <p className="mt-1 text-[13px] text-[var(--ink-soft)]">{d.description}</p>
-                          ) : null}
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <EditableText
+                            value={d.name}
+                            className="text-[1.2rem] font-semibold tracking-tight"
+                            inputClassName="field text-[1.1rem] font-semibold"
+                            onSave={(name) => renameDir(d.id, name)}
+                          />
+                          <EditableText
+                            value={d.description ?? ""}
+                            className="block text-[13px] text-[var(--ink-soft)]"
+                            inputClassName="field text-[13px]"
+                            placeholder="Добавить описание…"
+                            onSave={(description) => setDesc(d.id, description)}
+                          />
                           <p className="mt-2">
                             <span
                               className="stat-pill"
@@ -190,6 +278,15 @@ export default function MapPage() {
                               {lv === "main" ? "Главное" : lv === "support" ? "Поддержка" : "Фон"}
                             </button>
                           ))}
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ color: "var(--behind)" }}
+                            disabled={busy}
+                            onClick={() => void removeDir(d.id, d.name)}
+                          >
+                            ×
+                          </button>
                         </div>
                       </div>
                       {linked.length > 0 ? (
