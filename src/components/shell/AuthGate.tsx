@@ -14,12 +14,7 @@ type AuthStatus = {
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [status, setStatus] = useState<AuthStatus | null>({
-    configured: true,
-    openLocal: true,
-    authenticated: true,
-    needsSetup: false,
-  });
+  const [status, setStatus] = useState<AuthStatus | null>(null);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -36,7 +31,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isAdminRoute) return;
+    if (isAdminRoute) {
+      setChecked(true);
+      return;
+    }
     void refresh();
   }, [refresh, isAdminRoute]);
 
@@ -74,7 +72,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return children;
   }
 
-  if (!status) {
+  if (!checked || !status) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
         <p className="text-[var(--ink-faint)]">…</p>
@@ -83,10 +81,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (status.authenticated || status.openLocal) {
-    return children;
-  }
-
-  if (!checked) {
     return children;
   }
 
