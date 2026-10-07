@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EditableText } from "@/components/ui/EditableText";
-import { PageHero, WidgetHead } from "@/components/ui/Widgets";
+import { PageHero } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type FocusLevel = "main" | "support" | "background";
@@ -12,7 +12,6 @@ type FocusLevel = "main" | "support" | "background";
 type Direction = {
   id: string;
   name: string;
-  description?: string;
   focus: FocusLevel;
   goals: number;
 };
@@ -21,17 +20,13 @@ type GoalLite = {
   id: string;
   title: string;
   lifeAreaId?: string;
-  reality?: { status: string; label: string };
 };
 
 const FOCUS_ORDER: FocusLevel[] = ["main", "support", "background"];
-const FOCUS_META: Record<
-  FocusLevel,
-  { label: string; tone: "pink" | "violet" | "blue"; hint: string }
-> = {
-  main: { label: "Главное", tone: "pink", hint: "в центре внимания" },
-  support: { label: "Поддержка", tone: "violet", hint: "держит курс" },
-  background: { label: "Фон", tone: "blue", hint: "на периферии" },
+const FOCUS_LABEL: Record<FocusLevel, string> = {
+  main: "Главное",
+  support: "Поддержка",
+  background: "Фон",
 };
 
 export default function MapPage() {
@@ -64,6 +59,12 @@ export default function MapPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const sorted = useMemo(() => {
+    return [...dirs].sort(
+      (a, b) => FOCUS_ORDER.indexOf(a.focus) - FOCUS_ORDER.indexOf(b.focus)
+    );
+  }, [dirs]);
 
   async function setFocus(id: string, level: FocusLevel) {
     setBusy(true);
@@ -119,117 +120,101 @@ export default function MapPage() {
     await load();
   }
 
-  const byFocus = useMemo(() => {
-    const map: Record<FocusLevel, Direction[]> = { main: [], support: [], background: [] };
-    for (const d of dirs) map[d.focus].push(d);
-    return map;
-  }, [dirs]);
-
-  if (loading) return <p className="text-[var(--ink-faint)]">Загрузка…</p>;
+  if (loading) return <p className="text-[var(--ink-faint)]">…</p>;
 
   return (
-    <div className="page-stack">
+    <div className="page-stack calm-page">
       <PageHero
         title="Карта"
         meta={monthKey ? <span className="chip-soft">{monthKey}</span> : null}
       />
 
-      <section className="panel map-vision rise-in">
-        <p className="text-[12px] font-semibold text-[var(--ink-faint)]">Фокус периода</p>
+      <section className="calm-section">
+        <p className="calm-h">Фокус</p>
         <EditableText
           value={vision}
-          className="mt-2 block text-[1.35rem] font-semibold tracking-tight md:text-[1.55rem]"
-          inputClassName="field text-[1.25rem] font-semibold"
-          placeholder="Кратко: куда идёшь сейчас"
+          className="mt-1 block text-[1.1rem] font-medium tracking-tight"
+          inputClassName="field text-[1.05rem] font-medium"
+          placeholder="Куда идёшь сейчас — одна фраза"
           onSave={(next) => void saveVision(next)}
         />
       </section>
 
-      <div className="map-board">
-        {FOCUS_ORDER.map((level) => {
-          const items = byFocus[level];
-          const meta = FOCUS_META[level];
-          return (
-            <section key={level} className="map-zone panel" data-level={level}>
-              <WidgetHead
-                title={meta.label}
-                tone={meta.tone}
-                action={<span className="text-[12px] text-[var(--ink-faint)]">{items.length}</span>}
-              />
-              <ul className="stack-tight">
-                {items.length === 0 ? (
-                  <li className="py-2 text-[13px] text-[var(--ink-faint)]">Пусто</li>
-                ) : (
-                  items.map((d) => {
-                    const linked = goals.filter((g) => g.lifeAreaId === d.id);
-                    return (
-                      <li key={d.id} className="map-node row-in">
-                        <div className="min-w-0 flex-1">
-                          <EditableText
-                            value={d.name}
-                            className="font-semibold"
-                            inputClassName="field py-1 text-[15px] font-semibold"
-                            onSave={(name) => renameDir(d.id, name)}
-                          />
-                          {linked.length ? (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {linked.slice(0, 3).map((g) => (
-                                <Link key={g.id} href={`/goals/${g.id}`} className="map-goal-chip">
-                                  {g.title}
-                                </Link>
-                              ))}
-                              {linked.length > 3 ? (
-                                <span className="map-goal-chip is-more">+{linked.length - 3}</span>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <p className="mt-1 text-[11px] text-[var(--ink-faint)]">без целей</p>
-                          )}
-                        </div>
-                        <div className="map-node-actions">
-                          <select
-                            className="map-focus-select"
-                            value={d.focus}
-                            disabled={busy}
-                            onChange={(e) => void setFocus(d.id, e.target.value as FocusLevel)}
-                            aria-label="Фокус"
-                          >
-                            {FOCUS_ORDER.map((lv) => (
-                              <option key={lv} value={lv}>
-                                {FOCUS_META[lv].label}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="map-x"
-                            disabled={busy}
-                            onClick={() => void removeDir(d.id, d.name)}
-                            aria-label="Удалить"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })
-                )}
-              </ul>
-            </section>
-          );
-        })}
-      </div>
+      {/* One list instead of three giant columns */}
+      <section className="calm-section">
+        <h2 className="calm-h">Направления</h2>
+        {sorted.length === 0 ? (
+          <p className="calm-empty">Добавь первое направление ниже.</p>
+        ) : (
+          <ul className="calm-list">
+            {sorted.map((d) => {
+              const linked = goals.filter((g) => g.lifeAreaId === d.id);
+              return (
+                <li key={d.id} className="calm-row items-start">
+                  <div className="min-w-0 flex-1">
+                    <EditableText
+                      value={d.name}
+                      className="font-medium"
+                      inputClassName="field py-1 text-[15px] font-medium"
+                      onSave={(name) => renameDir(d.id, name)}
+                    />
+                    <p className="calm-muted mt-0.5 text-[12px]">
+                      {FOCUS_LABEL[d.focus]}
+                      {linked.length
+                        ? ` · ${linked
+                            .slice(0, 2)
+                            .map((g) => g.title)
+                            .join(", ")}${linked.length > 2 ? ` +${linked.length - 2}` : ""}`
+                        : " · без целей"}
+                    </p>
+                    {linked.length ? (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {linked.slice(0, 4).map((g) => (
+                          <Link key={g.id} href={`/goals/${g.id}`} className="map-goal-chip">
+                            {g.title}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <select
+                      className="map-focus-select"
+                      value={d.focus}
+                      disabled={busy}
+                      onChange={(e) => void setFocus(d.id, e.target.value as FocusLevel)}
+                      aria-label="Фокус"
+                    >
+                      {FOCUS_ORDER.map((lv) => (
+                        <option key={lv} value={lv}>
+                          {FOCUS_LABEL[lv]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="map-x"
+                      disabled={busy}
+                      onClick={() => void removeDir(d.id, d.name)}
+                      aria-label="Удалить"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
-      <form onSubmit={createDir} className="panel flex flex-wrap items-end gap-3 rise-in">
-        <div className="min-w-[12rem] flex-1">
-          <WidgetHead title="Новое направление" tone="green" />
-          <input
-            className="field"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="Название"
-          />
-        </div>
+      <form onSubmit={createDir} className="flex flex-wrap items-center gap-2">
+        <input
+          className="field min-w-[12rem] flex-1"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="Новое направление"
+        />
         <button type="submit" className="btn btn-primary" disabled={busy || !newName.trim()}>
           Добавить
         </button>

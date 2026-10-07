@@ -427,6 +427,95 @@ select {
   gap: 1.5rem;
 }
 
+/* Calm pages: map / path / analytics — light on the eyes */
+.calm-page {
+  max-width: 40rem;
+  gap: 1.75rem;
+}
+
+.calm-pulse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  padding: 0.15rem 0;
+  font-size: 14px;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1rem;
+}
+
+.calm-pulse b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.calm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.calm-h {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.calm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.15rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--dur-fast, 120ms) ease;
+}
+
+.calm-list > li:last-child .calm-row {
+  border-bottom: none;
+}
+
+a.calm-row:hover {
+  background: color-mix(in srgb, var(--accent-soft, rgba(168, 85, 247, 0.08)) 80%, transparent);
+  border-radius: 0.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.calm-muted {
+  color: var(--ink-faint);
+}
+
+.calm-empty {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-faint);
+}
+
+.calm-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
 .home-hero {
   display: flex;
   flex-wrap: wrap;
