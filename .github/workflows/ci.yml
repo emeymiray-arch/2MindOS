@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, v2]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+        env:
+          MINDOS_SESSION_SECRET: ci-session-secret-32-bytes-long!!
+
+      - name: Critical smoke
+        run: npm run test:critical
+        env:
+          MINDOS_SESSION_SECRET: ci-session-secret-32-bytes-long!!
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E smoke
+        run: npm run test:e2e
+        env:
+          CI: "1"
+          MINDOS_SESSION_SECRET: ci-session-secret-32-bytes-long!!

@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { apiError, apiJson } from "@/lib/api-response";
+import { parseValue, readJson, validationErrorResponse } from "@/lib/api-validate";
 import { id, now, todayKey } from "@/lib/id";
+import { habitSchemas } from "@/lib/schemas/habits";
 import { getStore, updateStore } from "@/lib/store";
 import type { Habit } from "@/lib/types";
 
@@ -38,99 +40,105 @@ export async function GET() {
         area: h.lifeAreaId ? store.spheres.find((s) => s.id === h.lifeAreaId) ?? null : null,
       };
     });
-  return NextResponse.json({ habits, today });
+  return apiJson({ habits, today });
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => ({}));
-  const action = String(body.action ?? "create");
+  try {
+    const raw = await readJson(request);
+    const action = String((raw as { action?: string } | null)?.action ?? "create");
 
-  if (action === "create") {
-    const title = String(body.title ?? "").trim();
-    if (!title) return NextResponse.json({ error: "title" }, { status: 400 });
-    const store = await updateStore((s) => {
-      const t = now();
-      const nodeId = id();
-      s.nodes.unshift({
-        id: nodeId,
-        kind: "habit",
-        title,
-        metadata: {},
-        salience: 0.7,
-        createdAt: t,
-        updatedAt: t,
-        sphereId: body.lifeAreaId ? String(body.lifeAreaId) : undefined,
-      });
-      const habit: Habit = {
-        id: id(),
-        nodeId,
-        title,
-        targetPerDay: Number(body.targetPerDay) || 1,
-        unit: body.unit ? String(body.unit) : undefined,
-        streak: 0,
-        active: true,
-        frequency: body.frequency === "weekly" ? "weekly" : "daily",
-        goalId: body.goalId ? String(body.goalId) : undefined,
-        lifeAreaId: body.lifeAreaId ? String(body.lifeAreaId) : undefined,
-      };
-      s.habits.unshift(habit);
-    });
-    return NextResponse.json({ habits: store.habits.filter((h) => h.active && !h.archived) });
-  }
-
-  if (action === "log") {
-    const habitId = String(body.habitId ?? "");
-    const date = String(body.date ?? todayKey());
-    const value = body.value != null ? Number(body.value) : 1;
-    const store = await updateStore((s) => {
-      const h = s.habits.find((x) => x.id === habitId);
-      if (!h) return;
-      const existing = s.habitLogs.find((l) => l.habitId === habitId && l.date === date);
-      if (existing) existing.value = value;
-      else
-        s.habitLogs.push({
-          id: id(),
-          habitId,
-          date,
-          value,
-          createdAt: now(),
+    if (action === "create") {
+      const data = parseValue(raw, habitSchemas.create);
+      const store = await updateStore((s) => {
+        const t = now();
+        const nodeId = id();
+        s.nodes.unshift({
+          id: nodeId,
+          kind: "habit",
+          title: data.title,
+          metadata: {},
+          salience: 0.7,
+          createdAt: t,
+          updatedAt: t,
+          sphereId: data.lifeAreaId,
         });
-      h.streak = streakFor(habitId, s.habitLogs);
-    });
-    return NextResponse.json({ ok: true, habits: store.habits });
-  }
+        const habit: Habit = {
+          id: id(),
+          nodeId,
+          title: data.title,
+          targetPerDay: data.targetPerDay || 1,
+          unit: data.unit,
+          streak: 0,
+          active: true,
+          frequency: data.frequency === "weekly" ? "weekly" : "daily",
+          goalId: data.goalId,
+          lifeAreaId: data.lifeAreaId,
+        };
+        s.habits.unshift(habit);
+      });
+      return apiJson({ habits: store.habits.filter((h) => h.active && !h.archived) });
+    }
 
-  if (action === "update") {
-    const store = await updateStore((s) => {
-      const h = s.habits.find((x) => x.id === body.id);
-      if (!h) return;
-      if (body.title != null) h.title = String(body.title);
-      if (body.goalId !== undefined) h.goalId = body.goalId || undefined;
-      if (body.lifeAreaId !== undefined) h.lifeAreaId = body.lifeAreaId || undefined;
-      if (body.frequency != null) h.frequency = body.frequency === "weekly" ? "weekly" : "daily";
-      if (body.targetPerDay != null) h.targetPerDay = Number(body.targetPerDay) || 1;
-    });
-    return NextResponse.json({ habits: store.habits });
-  }
+    if (action === "log") {
+      const data = parseValue(raw, habitSchemas.log);
+      const date = data.date ?? todayKey();
+      const store = await updateStore((s) => {
+        const h = s.habits.find((x) => x.id === data.habitId);
+        if (!h) return;
+        const existing = s.habitLogs.find((l) => l.habitId === data.habitId && l.date === date);
+        if (existing) existing.value = data.value;
+        else
+          s.habitLogs.push({
+            id: id(),
+            habitId: data.habitId,
+            date,
+            value: data.value,
+            createdAt: now(),
+          });
+        h.streak = streakFor(data.habitId, s.habitLogs);
+      });
+      return apiJson({ ok: true, habits: store.habits });
+    }
 
-  if (action === "archive") {
-    const store = await updateStore((s) => {
-      const h = s.habits.find((x) => x.id === body.id);
-      if (h) {
-        h.archived = true;
-        h.active = false;
-      }
-    });
-    return NextResponse.json({ habits: store.habits.filter((h) => h.active && !h.archived) });
-  }
+    if (action === "update") {
+      const data = parseValue(raw, habitSchemas.update);
+      const store = await updateStore((s) => {
+        const h = s.habits.find((x) => x.id === data.id);
+        if (!h) return;
+        if (data.title != null) h.title = data.title;
+        if (data.goalId !== undefined) h.goalId = data.goalId;
+        if (data.lifeAreaId !== undefined) h.lifeAreaId = data.lifeAreaId;
+        if (data.frequency != null) h.frequency = data.frequency;
+        if (data.targetPerDay != null) h.targetPerDay = data.targetPerDay;
+        if (data.active != null) h.active = data.active;
+      });
+      return apiJson({ habits: store.habits });
+    }
 
-  if (action === "delete") {
-    const store = await updateStore((s) => {
-      s.habits = s.habits.filter((h) => h.id !== body.id);
-      s.habitLogs = s.habitLogs.filter((l) => l.habitId !== body.id);
-    });
-    return NextResponse.json({ habits: store.habits });
-  }
+    if (action === "archive") {
+      const data = parseValue(raw, habitSchemas.archive);
+      const store = await updateStore((s) => {
+        const h = s.habits.find((x) => x.id === data.id);
+        if (h) {
+          h.archived = true;
+          h.active = false;
+        }
+      });
+      return apiJson({ habits: store.habits.filter((h) => h.active && !h.archived) });
+    }
 
-  return NextResponse.json({ error: "unknown" }, { status: 400 });
+    if (action === "delete") {
+      const data = parseValue(raw, habitSchemas.delete);
+      const store = await updateStore((s) => {
+        s.habits = s.habits.filter((h) => h.id !== data.id);
+        s.habitLogs = s.habitLogs.filter((l) => l.habitId !== data.id);
+      });
+      return apiJson({ habits: store.habits });
+    }
+
+    return apiJson({ error: "unknown" }, { status: 400 });
+  } catch (e) {
+    return validationErrorResponse(e) ?? apiError(e, "save failed");
+  }
 }

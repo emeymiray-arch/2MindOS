@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 import { AppShell } from "@/components/shell/AppShell";
 import { AuthGate } from "@/components/shell/AuthGate";
 import { DataGuard } from "@/components/shell/DataGuard";
@@ -23,13 +24,15 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
       </head>
       <body className="min-h-full">
-        <AuthGate>
-          <DataGuard>
-            <ToastProvider>
-              <AppShell>{children}</AppShell>
-            </ToastProvider>
-          </DataGuard>
-        </AuthGate>
+        <QueryProvider>
+          <AuthGate>
+            <DataGuard>
+              <ToastProvider>
+                <AppShell>{children}</AppShell>
+              </ToastProvider>
+            </DataGuard>
+          </AuthGate>
+        </QueryProvider>
       </body>
     </html>
   );

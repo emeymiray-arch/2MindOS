@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
+import { queryKeys } from "@/lib/query-keys";
 import { EditableText } from "@/components/ui/EditableText";
 import { IconFlame, IconHabits, IconSteps, IconTarget } from "@/components/ui/Icons";
 import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
@@ -18,18 +20,66 @@ type HabitRow = {
 
 const COLORS = ["#34d399", "#38bdf8", "#fb923c", "#a855f7", "#f472b6"];
 
+async function fetchHabits(): Promise<HabitRow[]> {
+  const res = await apiGet("/api/habits");
+  if (!res.ok) throw new Error("Не удалось загрузить привычки");
+  return (res.data.habits as HabitRow[]) ?? [];
+}
+
 export default function HabitsPage() {
-  const [habits, setHabits] = useState<HabitRow[]>([]);
+  const qc = useQueryClient();
   const [title, setTitle] = useState("");
+  const { data: habits = [] } = useQuery({
+    queryKey: queryKeys.habits,
+    queryFn: fetchHabits,
+  });
 
-  const load = useCallback(async () => {
-    const res = await apiGet("/api/habits");
-    if (res.ok) setHabits((res.data.habits as HabitRow[]) ?? []);
-  }, []);
+  const invalidate = () => qc.invalidateQueries({ queryKey: queryKeys.habits });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const createMut = useMutation({
+    mutationFn: async (t: string) => {
+      const res = await apiPost("/api/habits", { action: "create", title: t });
+      if (!res.ok) throw new Error(res.error ?? "Ошибка");
+    },
+    onSuccess: async () => {
+      setTitle("");
+      toast("Привычка добавлена", "ok");
+      await invalidate();
+    },
+    onError: (e: Error) => toast(e.message, "warn"),
+  });
+
+  const toggleMut = useMutation({
+    mutationFn: async (h: HabitRow) => {
+      await apiPost("/api/habits", {
+        action: "log",
+        habitId: h.id,
+        value: h.todayDone ? 0 : 1,
+      });
+    },
+    onSuccess: () => invalidate(),
+  });
+
+  const removeMut = useMutation({
+    mutationFn: async (h: HabitRow) => {
+      const res = await apiPost("/api/habits", { action: "delete", id: h.id });
+      if (!res.ok) throw new Error(res.error ?? "Не удалось удалить");
+    },
+    onSuccess: async () => {
+      toast("Удалила", "ok");
+      await invalidate();
+    },
+    onError: (e: Error) => toast(e.message, "warn"),
+  });
+
+  const renameMut = useMutation({
+    mutationFn: async ({ id, next }: { id: string; next: string }) => {
+      const res = await apiPost("/api/habits", { action: "update", id, title: next });
+      if (!res.ok) throw new Error(res.error ?? "Не сохранилось");
+    },
+    onSuccess: () => invalidate(),
+    onError: (e: Error) => toast(e.message, "warn"),
+  });
 
   const stats = useMemo(() => {
     const done = habits.filter((h) => h.todayDone).length;
@@ -42,47 +92,6 @@ export default function HabitsPage() {
         : 0;
     return { done, best, avg, total: habits.length };
   }, [habits]);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    const t = title.trim();
-    if (!t) return;
-    const res = await apiPost("/api/habits", { action: "create", title: t });
-    if (!res.ok) {
-      toast(res.error ?? "Ошибка", "warn");
-      return;
-    }
-    setTitle("");
-    toast("Привычка добавлена", "ok");
-    await load();
-  }
-
-  async function toggle(h: HabitRow) {
-    await apiPost("/api/habits", {
-      action: "log",
-      habitId: h.id,
-      value: h.todayDone ? 0 : 1,
-    });
-    await load();
-  }
-
-  async function remove(h: HabitRow) {
-    if (!window.confirm(`Удалить привычку «${h.title}»?`)) return;
-    const res = await apiPost("/api/habits", { action: "delete", id: h.id });
-    if (!res.ok) {
-      toast(res.error ?? "Не удалось удалить", "warn");
-      return;
-    }
-    toast("Удалила", "ok");
-    await load();
-  }
-
-  async function rename(id: string, next: string) {
-    if (!next.trim()) return;
-    const res = await apiPost("/api/habits", { action: "update", id, title: next.trim() });
-    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
-    else await load();
-  }
 
   return (
     <div className="page-stack">
@@ -143,7 +152,15 @@ export default function HabitsPage() {
         </div>
 
         <div className="span-12">
-          <form onSubmit={create} className="panel flex flex-wrap items-end gap-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const t = title.trim();
+              if (!t) return;
+              createMut.mutate(t);
+            }}
+            className="panel flex flex-wrap items-end gap-3"
+          >
             <div className="min-w-[12rem] flex-1">
               <WidgetHead title="Новая привычка" tone="green" />
               <input
@@ -153,7 +170,7 @@ export default function HabitsPage() {
                 placeholder="Например: вода / спорт / чтение"
               />
             </div>
-            <button type="submit" className="btn btn-primary shrink-0">
+            <button type="submit" className="btn btn-primary shrink-0" disabled={createMut.isPending}>
               Добавить
             </button>
           </form>
@@ -180,7 +197,7 @@ export default function HabitsPage() {
                     <li key={h.id} className="signal-row" data-done={h.todayDone}>
                       <button
                         type="button"
-                        onClick={() => void toggle(h)}
+                        onClick={() => toggleMut.mutate(h)}
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[14px] font-black text-white"
                         style={{
                           background: h.todayDone ? c : `${c}55`,
@@ -195,7 +212,10 @@ export default function HabitsPage() {
                           value={h.title}
                           className="font-semibold"
                           inputClassName="field py-1 text-[15px] font-semibold"
-                          onSave={(next) => rename(h.id, next)}
+                          onSave={(next) => {
+                            if (!next.trim()) return;
+                            renameMut.mutate({ id: h.id, next: next.trim() });
+                          }}
                         />
                         <p className="text-[12px] font-semibold" style={{ color: c }}>
                           серия {h.streak} · {Math.round(h.completionRate * 100)}%
@@ -207,7 +227,10 @@ export default function HabitsPage() {
                       <button
                         type="button"
                         className="shrink-0 px-2 text-[18px] font-bold text-[var(--ink-soft)] hover:text-[var(--behind)]"
-                        onClick={() => void remove(h)}
+                        onClick={() => {
+                          if (!window.confirm(`Удалить привычку «${h.title}»?`)) return;
+                          removeMut.mutate(h);
+                        }}
                         aria-label="Удалить"
                       >
                         ×

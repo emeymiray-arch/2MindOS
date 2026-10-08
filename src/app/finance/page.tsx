@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { displayCurrency } from "@/lib/format";
+import { queryKeys } from "@/lib/query-keys";
 import { EditableText } from "@/components/ui/EditableText";
+import { Select } from "@/components/ui/Select";
 import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 import type { FinanceCategory } from "@/lib/types";
@@ -39,9 +42,19 @@ function money(n: number, cur: string) {
   return `${n.toLocaleString("ru-RU")} ${cur}`;
 }
 
+const KIND_OPTIONS = (Object.keys(KIND_LABEL) as FinanceCategory["kind"][]).map((k) => ({
+  value: k,
+  label: KIND_LABEL[k],
+}));
+
+async function fetchFinance(): Promise<Finance | null> {
+  const res = await apiGet("/api/finance");
+  if (!res.ok) throw new Error("Не удалось загрузить финансы");
+  return (res.data.finance as Finance) ?? null;
+}
+
 export default function FinancePage() {
-  const [data, setData] = useState<Finance | null>(null);
-  const [loading, setLoading] = useState(true);
+  const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
 
   const [categoryId, setCategoryId] = useState("");
@@ -51,22 +64,21 @@ export default function FinancePage() {
   const [newCat, setNewCat] = useState("");
   const [newKind, setNewKind] = useState<FinanceCategory["kind"]>("expense");
 
-  const load = useCallback(async () => {
-    const res = await apiGet("/api/finance");
-    if (res.ok) {
-      const f = (res.data.finance as Finance) ?? null;
-      setData(f);
-      const cats = (f?.categories ?? []).filter((c) => !c.archived);
-      if (cats.length && !cats.some((c) => c.id === categoryId)) {
-        setCategoryId(cats[0].id);
-      }
-    }
-    setLoading(false);
-  }, [categoryId]);
+  const { data = null, isLoading: loading } = useQuery({
+    queryKey: queryKeys.finance,
+    queryFn: fetchFinance,
+  });
+
+  const load = async () => {
+    await qc.invalidateQueries({ queryKey: queryKeys.finance });
+  };
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    const cats = (data?.categories ?? []).filter((c) => !c.archived);
+    if (cats.length && !cats.some((c) => c.id === categoryId)) {
+      setCategoryId(cats[0].id);
+    }
+  }, [data, categoryId]);
 
   const categories = useMemo(
     () => (data?.categories ?? []).filter((c) => !c.archived),
@@ -258,19 +270,16 @@ export default function FinancePage() {
                       inputClassName="field py-1 text-[14px] font-semibold"
                       onSave={(name) => renameCategory(c.id, name)}
                     />
-                    <select
-                      className="mt-1 bg-transparent text-[11px] font-medium text-[var(--ink-faint)] outline-none"
-                      value={c.kind}
-                      onChange={(e) =>
-                        void setCategoryKind(c.id, e.target.value as FinanceCategory["kind"])
-                      }
-                    >
-                      {(Object.keys(KIND_LABEL) as FinanceCategory["kind"][]).map((k) => (
-                        <option key={k} value={k}>
-                          {KIND_LABEL[k]}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="mt-1">
+                      <Select
+                        value={c.kind}
+                        onValueChange={(v) =>
+                          void setCategoryKind(c.id, v as FinanceCategory["kind"])
+                        }
+                        options={KIND_OPTIONS}
+                        ariaLabel="Тип категории"
+                      />
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -290,17 +299,12 @@ export default function FinancePage() {
                 onChange={(e) => setNewCat(e.target.value)}
                 placeholder="Новая категория"
               />
-              <select
-                className="field w-auto"
+              <Select
                 value={newKind}
-                onChange={(e) => setNewKind(e.target.value as FinanceCategory["kind"])}
-              >
-                {(Object.keys(KIND_LABEL) as FinanceCategory["kind"][]).map((k) => (
-                  <option key={k} value={k}>
-                    {KIND_LABEL[k]}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(v) => setNewKind(v as FinanceCategory["kind"])}
+                options={KIND_OPTIONS}
+                ariaLabel="Тип новой категории"
+              />
               <button type="submit" className="btn btn-primary" disabled={busy}>
                 +
               </button>
