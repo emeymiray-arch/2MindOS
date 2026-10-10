@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet } from "@/lib/client-api";
 import { EmptyState } from "@/components/ui/Progress";
-import { IconCalendar, IconInner, IconOuter } from "@/components/ui/Icons";
+import { IconCalendar } from "@/components/ui/Icons";
 import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
 
 type SidePulse = { planned: number; completed: number; percent: number };
@@ -134,88 +134,76 @@ function SideSplit({
   achieved?: GoalLite[];
   active?: GoalLite[];
 }) {
-  const columns: { key: "inner" | "outer"; label: string; hint: string }[] = [
-    {
-      key: "inner",
-      label: "Внутреннее",
-      hint: "Принципы, понятия, дисциплина",
-    },
-    {
-      key: "outer",
-      label: "Внешнее",
-      hint: "Стиль, навыки, подача",
-    },
-  ];
+  const planned =
+    (sides.inner?.planned ?? 0) + (sides.outer?.planned ?? 0) + (sides.unset?.planned ?? 0);
+  const completed =
+    (sides.inner?.completed ?? 0) +
+    (sides.outer?.completed ?? 0) +
+    (sides.unset?.completed ?? 0);
+  const percent = planned > 0 ? Math.round((completed / planned) * 100) : 0;
+  const doneGoals = achieved ?? [];
+  const openGoals = active ?? [];
 
   return (
-    <div className="grid gap-3 md:grid-cols-2">
-      {columns.map((col) => {
-        const pulse = sides[col.key];
-        const doneGoals = (achieved ?? []).filter((g) => g.side === col.key);
-        const openGoals = (active ?? []).filter((g) => g.side === col.key);
-        return (
-          <section key={col.key} className="panel space-y-3">
-            <div>
-              <h3 className="text-[15px] font-semibold tracking-tight">{col.label}</h3>
-              <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">{col.hint}</p>
-            </div>
-            <div className="flex items-end justify-between gap-3">
-              <p className="text-[2rem] font-semibold tabular-nums leading-none">
-                {pulse.percent}
-                <span className="text-[1rem] text-[var(--ink-faint)]">%</span>
-              </p>
-              <p className="text-[12px] text-[var(--ink-soft)]">
-                {pulse.completed}/{pulse.planned} задач
-              </p>
-            </div>
-            <div className="quest-bar" style={{ height: 6 }}>
-              <span style={{ width: `${pulse.percent}%` }} />
-            </div>
-            {doneGoals.length ? (
-              <div>
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-faint)]">
-                  Достигнуто
-                </p>
-                <ul className="space-y-1">
-                  {doneGoals.slice(0, 5).map((g) => (
-                    <li key={g.id}>
-                      <Link
-                        href={`/goals/${g.id}`}
-                        className="truncate text-[13px] font-medium text-[var(--accent)]"
-                      >
-                        {g.title}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            {openGoals?.length ? (
-              <div>
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-faint)]">
-                  В работе
-                </p>
-                <ul className="space-y-1">
-                  {openGoals.slice(0, 4).map((g) => (
-                    <li key={g.id} className="flex justify-between gap-2 text-[13px]">
-                      <Link href={`/goals/${g.id}`} className="min-w-0 truncate font-medium">
-                        {g.title}
-                      </Link>
-                      <span className="shrink-0 tabular-nums text-[var(--ink-faint)]">
-                        {g.progress}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            {!doneGoals.length && !openGoals?.length ? (
-              <p className="text-[13px] text-[var(--ink-faint)]">Пока пусто на этой стороне.</p>
-            ) : null}
-          </section>
-        );
-      })}
-    </div>
+    <section className="panel space-y-3">
+      <div>
+        <h3 className="text-[15px] font-semibold tracking-tight">День</h3>
+        <p className="mt-0.5 text-[12px] text-[var(--ink-faint)]">Общий прогресс</p>
+      </div>
+      <div className="flex items-end justify-between gap-3">
+        <p className="text-[2rem] font-semibold tabular-nums leading-none">
+          {percent}
+          <span className="text-[1rem] text-[var(--ink-faint)]">%</span>
+        </p>
+        <p className="text-[12px] text-[var(--ink-soft)]">
+          {completed}/{planned} задач
+        </p>
+      </div>
+      <div className="quest-bar" style={{ height: 6 }}>
+        <span style={{ width: `${percent}%` }} />
+      </div>
+      {doneGoals.length ? (
+        <div>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-faint)]">
+            Достигнуто
+          </p>
+          <ul className="space-y-1">
+            {doneGoals.slice(0, 5).map((g) => (
+              <li key={g.id}>
+                <Link
+                  href={`/goals/${g.id}`}
+                  className="truncate text-[13px] font-medium text-[var(--accent)]"
+                >
+                  {g.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {openGoals.length ? (
+        <div>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-faint)]">
+            В работе
+          </p>
+          <ul className="space-y-1">
+            {openGoals.slice(0, 4).map((g) => (
+              <li key={g.id} className="flex justify-between gap-2 text-[13px]">
+                <Link href={`/goals/${g.id}`} className="min-w-0 truncate font-medium">
+                  {g.title}
+                </Link>
+                <span className="shrink-0 tabular-nums text-[var(--ink-faint)]">
+                  {g.progress}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {!doneGoals.length && !openGoals.length ? (
+        <p className="text-[13px] text-[var(--ink-faint)]">Пока пусто.</p>
+      ) : null}
+    </section>
   );
 }
 
@@ -246,8 +234,8 @@ function TaskList({ title, items }: { title: string; items: DayTask[] }) {
                 <p className="mt-0.5 truncate text-[11px] text-[var(--ink-faint)]">{t.goalTitle}</p>
               ) : null}
             </div>
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-faint)]">
-              {t.side === "inner" ? "внутр" : t.side === "outer" ? "внеш" : "—"}
+            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--ink-faint)]">
+              {t.done ? "✓" : ""}
             </span>
           </li>
         ))}
@@ -583,28 +571,20 @@ export default function CalendarPage() {
           </div>
 
           <div className="bento">
-            <div className="span-4">
+            <div className="span-6">
               <KpiTile
                 label="День"
                 value={<>{dayData.summary.percent}%</>}
-                color="#a855f7"
+                color="var(--accent)"
                 icon={<IconCalendar size={16} />}
               />
             </div>
-            <div className="span-4">
+            <div className="span-6">
               <KpiTile
-                label="Внутреннее"
-                value={<>{dayData.summary.sides.inner.percent}%</>}
-                color="#f472b6"
-                icon={<IconInner size={16} />}
-              />
-            </div>
-            <div className="span-4">
-              <KpiTile
-                label="Внешнее"
-                value={<>{dayData.summary.sides.outer.percent}%</>}
-                color="#38bdf8"
-                icon={<IconOuter size={16} />}
+                label="Цели"
+                value={dayData.goals.length}
+                color="var(--accent)"
+                icon={<IconCalendar size={16} />}
               />
             </div>
           </div>
@@ -664,9 +644,6 @@ export default function CalendarPage() {
                         className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-2 text-[13px]"
                       >
                         <span className="font-medium">{p.title}</span>
-                        <span className="ml-2 text-[11px] text-[var(--ink-faint)]">
-                          {p.layer === "inner" ? "внутр" : "внеш"}
-                        </span>
                       </li>
                     ))}
                   </ul>

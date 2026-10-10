@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Личная операционная система жизни",
 };
 
-const themeBoot = `(function(){try{var t=localStorage.getItem("mindos-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark");}catch(e){document.documentElement.setAttribute("data-theme","dark");}})();`;
+const themeBoot = `(function(){try{var t=localStorage.getItem("mindos-theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark");var a=localStorage.getItem("mindos-accent");var ok=["blue","green","purple","red","yellow"];document.documentElement.setAttribute("data-accent",ok.indexOf(a)>=0?a:"green");}catch(e){document.documentElement.setAttribute("data-theme","dark");document.documentElement.setAttribute("data-accent","green");}})();`;
 
 export default function RootLayout({
   children,
@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" data-theme="dark" className="h-full" suppressHydrationWarning>
+    <html lang="ru" data-theme="dark" data-accent="green" className="h-full" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBoot }} />
       </head>

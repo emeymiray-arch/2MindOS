@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
-import { EmptyState, StatusChip } from "@/components/ui/Progress";
-import { PageHero } from "@/components/ui/Widgets";
+import { EmptyState } from "@/components/ui/Progress";
+import { PageHero, ViewAllLink } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type GoalCard = {
@@ -22,9 +22,16 @@ type GoalCard = {
   };
 };
 
-type Area = { id: string; name: string };
+type Area = { id: string; name: string; layerBias?: "inner" | "outer" | "both" };
 type FocusMap = Record<string, "main" | "support" | "background">;
 type Side = "inner" | "outer";
+
+const STATUS_SHORT: Record<NonNullable<GoalCard["reality"]>["status"], string> = {
+  ahead: "впереди",
+  on_track: "в графике",
+  behind: "отстаёт",
+  no_plan: "нужен план",
+};
 
 export default function GoalsPage() {
   const router = useRouter();
@@ -76,7 +83,7 @@ export default function GoalsPage() {
     void load();
   }, [load]);
 
-  const groups = useMemo(() => {
+  const bySide = useMemo(() => {
     const inner: GoalCard[] = [];
     const outer: GoalCard[] = [];
     const unset: GoalCard[] = [];
@@ -89,15 +96,28 @@ export default function GoalsPage() {
     return { inner, outer, unset };
   }, [goals]);
 
+  const stats = useMemo(() => {
+    const behind = goals.filter((g) => g.reality?.status === "behind").length;
+    const onTrack = goals.filter(
+      (g) => g.reality?.status === "on_track" || g.reality?.status === "ahead"
+    ).length;
+    const noPlan = goals.filter((g) => !g.hasPlan || g.reality?.status === "no_plan").length;
+    return { total: goals.length, behind, onTrack, noPlan };
+  }, [goals]);
+
   async function createGoal(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || busy) return;
+    if (!layer) {
+      toast("Выбери: внутреннее или внешнее", "warn");
+      return;
+    }
     setBusy(true);
     const res = await apiPost("/api/goals", {
       action: "create",
       title: title.trim(),
       lifeAreaId: lifeAreaId || undefined,
-      layer: layer || undefined,
+      layer,
     });
     setBusy(false);
     if (!res.ok) {
@@ -112,49 +132,60 @@ export default function GoalsPage() {
     else await load();
   }
 
-  if (loading) return <p className="text-[var(--ink-faint)]">…</p>;
-
-  function Row({ g }: { g: GoalCard }) {
-    const areaId = g.lifeAreaId || g.area?.id;
-    const lv = areaId ? focus[areaId] : undefined;
+  if (loading) {
     return (
-      <Link href={`/goals/${g.id}`} className="calm-row">
-        <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium">{g.title}</span>
-          <span className="calm-muted block truncate text-[12px]">
-            {[g.area?.name, lv === "main" ? "главное" : null, !g.hasPlan ? "нет плана" : null]
-              .filter(Boolean)
-              .join(" · ") || "—"}
-          </span>
-        </span>
-        {g.reality ? <StatusChip status={g.reality.status} label={g.reality.label} /> : null}
+      <div className="page-stack">
+        <PageHero title="Цели" />
+        <section className="panel">
+          <p className="text-[var(--ink-faint)]">Собираю…</p>
+        </section>
+      </div>
+    );
+  }
+
+  function GoalRow({ g }: { g: GoalCard }) {
+    const status = g.reality?.status;
+    const statusText =
+      !g.hasPlan || status === "no_plan"
+        ? "нужен план"
+        : status
+          ? STATUS_SHORT[status]
+          : "";
+    return (
+      <Link href={`/goals/${g.id}`} className="sheet-goal">
+        <span className="sheet-goal-title">{g.title}</span>
+        <span className="sheet-goal-area">{g.area?.name || "—"}</span>
+        <span className="sheet-goal-status">{statusText}</span>
       </Link>
     );
   }
 
-  function Group({ label, items }: { label: string; items: GoalCard[] }) {
-    if (!items.length) return null;
+  function SideList({ label, items }: { label: string; items: GoalCard[] }) {
     return (
-      <section className="calm-section">
-        <h2 className="calm-h">
-          {label}
-          <span className="calm-muted font-normal"> · {items.length}</span>
-        </h2>
-        <ul className="calm-list">
-          {items.map((g) => (
-            <li key={g.id}>
-              <Row g={g} />
-            </li>
-          ))}
-        </ul>
+      <section className="sheet-block">
+        <header className="sheet-block-head">
+          <h2>{label}</h2>
+          <span className="sheet-block-aside">{items.length}</span>
+        </header>
+        {items.length === 0 ? (
+          <p className="sheet-empty">Пусто</p>
+        ) : (
+          <ul className="sheet-goal-list">
+            {items.map((g) => (
+              <li key={g.id}>
+                <GoalRow g={g} />
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     );
   }
 
   return (
-    <div className="page-stack calm-page">
+    <div className="page-stack sheet-page">
       <PageHero
-        title="Путь"
+        title="Цели"
         action={
           <button type="button" className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
             {creating ? "Закрыть" : "Новая цель"}
@@ -162,17 +193,37 @@ export default function GoalsPage() {
         }
       />
 
+      <section className="panel">
+        <p className="sheet-metrics" style={{ margin: 0 }}>
+          <span>
+            всего <b>{stats.total}</b>
+          </span>
+          <span>
+            в графике <b>{stats.onTrack}</b>
+          </span>
+          <span>
+            отстаёт <b>{stats.behind}</b>
+          </span>
+          <span>
+            без плана <b>{stats.noPlan}</b>
+          </span>
+        </p>
+      </section>
+
       {creating ? (
-        <form onSubmit={createGoal} className="calm-section space-y-3">
+        <form onSubmit={createGoal} className="sheet-block sheet-form">
+          <header className="sheet-block-head">
+            <h2>Новая цель</h2>
+          </header>
           <input
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Название цели"
+            placeholder="Название"
             className="field"
             autoFocus
           />
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="sheet-form-row">
             <select
               className="field"
               value={lifeAreaId}
@@ -182,6 +233,7 @@ export default function GoalsPage() {
               {areas.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
+                  {focus[a.id] === "main" ? " · главное" : ""}
                 </option>
               ))}
             </select>
@@ -190,21 +242,21 @@ export default function GoalsPage() {
               value={layer}
               onChange={(e) => setLayer(e.target.value as Side | "")}
             >
-              <option value="">Сторона…</option>
+              <option value="">Внутр. / внеш.…</option>
               <option value="inner">Внутреннее</option>
               <option value="outer">Внешнее</option>
             </select>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
+              Создать
+            </button>
           </div>
-          <button type="submit" className="btn btn-primary" disabled={busy}>
-            Создать
-          </button>
         </form>
       ) : null}
 
       {goals.length === 0 ? (
         <EmptyState
           title="Целей нет"
-          body="Добавь первую — она появится в пути."
+          body="Создай цель и выбери сторону."
           action={
             <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
               Создать
@@ -212,17 +264,32 @@ export default function GoalsPage() {
           }
         />
       ) : (
-        <>
-          <Group label="Внутреннее" items={groups.inner} />
-          <Group label="Внешнее" items={groups.outer} />
-          <Group label="Без стороны" items={groups.unset} />
-        </>
+        <div className="sheet-grid sheet-grid-path">
+          <SideList label="Внутренние" items={bySide.inner} />
+          <SideList label="Внешние" items={bySide.outer} />
+          {bySide.unset.length ? (
+            <section className="sheet-block sheet-span-full">
+              <header className="sheet-block-head">
+                <h2>Без категории</h2>
+                <span className="sheet-block-aside">{bySide.unset.length}</span>
+              </header>
+              <p className="sheet-empty" style={{ marginBottom: "0.75rem" }}>
+                Открой цель и назначь внутреннее или внешнее.
+              </p>
+              <ul className="sheet-goal-list sheet-goal-list-2">
+                {bySide.unset.map((g) => (
+                  <li key={g.id}>
+                    <GoalRow g={g} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
       )}
 
-      <p className="calm-muted text-[13px]">
-        <Link href="/map" className="underline">
-          ← Карта
-        </Link>
+      <p className="sheet-foot">
+        <ViewAllLink href="/map" label="← К карте" />
       </p>
     </div>
   );

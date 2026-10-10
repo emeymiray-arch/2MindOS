@@ -1,53 +1,92 @@
 @import "tailwindcss";
 
-/* 2Mind — Liquid Violet Glass
-   One accent. Mirror/water panels. Apple type. */
+/* 2Mind — Minimal black OS. Accent is switchable via data-accent. */
 
 :root,
 [data-theme="dark"] {
-  --bg: #05040a;
-  --bg-panel: transparent;
-  --bg-elevated: transparent;
-  --bg-card: transparent;
-  --bg-muted: rgba(168, 85, 247, 0.1);
+  --bg: #000000;
+  --bg-panel: #121212;
+  --bg-elevated: #161616;
+  --bg-card: #141414;
+  --bg-muted: rgba(255, 255, 255, 0.04);
   --ink: #f5f5f7;
-  --ink-soft: rgba(235, 235, 245, 0.62);
-  --ink-faint: rgba(235, 235, 245, 0.4);
-  --line: rgba(255, 255, 255, 0.14);
-  --line-strong: rgba(216, 180, 254, 0.32);
+  --ink-soft: rgba(235, 235, 245, 0.58);
+  --ink-faint: rgba(235, 235, 245, 0.38);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.14);
+  --accent: #22c55e;
+  --accent-soft: rgba(34, 197, 94, 0.16);
+  --accent-glow: rgba(34, 197, 94, 0.45);
+  --ahead: #22c55e;
+  --behind: #f87171;
+  --track: var(--accent);
+  --ok: #22c55e;
+  --bad: #f87171;
+  --warn: #eab308;
+  --c-blue: var(--accent);
+  --c-blue-soft: var(--accent-soft);
+  --c-green: #22c55e;
+  --c-green-soft: rgba(34, 197, 94, 0.12);
+  --c-orange: #fb923c;
+  --c-orange-soft: rgba(251, 146, 60, 0.12);
+  --c-violet: var(--accent);
+  --c-violet-soft: var(--accent-soft);
+  --c-pink: #f472b6;
+  --c-pink-soft: rgba(244, 114, 182, 0.12);
+  --c-yellow: #eab308;
+  --c-yellow-soft: rgba(234, 179, 8, 0.12);
+  --c-cyan: var(--accent);
+  --c-cyan-soft: var(--accent-soft);
+  --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.35);
+  --glow-cyan: 0 0 24px var(--accent-soft);
+  --glow-violet: 0 0 28px var(--accent-soft);
+  --radius: 18px;
+  --radius-sm: 14px;
+  --sidebar-w: 14.5rem;
+  --brand-mark: var(--accent);
+  --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+}
+
+[data-accent="blue"] {
+  --accent: #3b82f6;
+  --accent-soft: rgba(59, 130, 246, 0.18);
+  --accent-glow: rgba(59, 130, 246, 0.5);
+  --track: #3b82f6;
+  --brand-mark: #3b82f6;
+}
+
+[data-accent="green"] {
+  --accent: #22c55e;
+  --accent-soft: rgba(34, 197, 94, 0.18);
+  --accent-glow: rgba(34, 197, 94, 0.5);
+  --track: #22c55e;
+  --brand-mark: #22c55e;
+}
+
+[data-accent="purple"] {
   --accent: #a855f7;
   --accent-soft: rgba(168, 85, 247, 0.2);
   --accent-glow: rgba(168, 85, 247, 0.5);
-  --ahead: #34d399;
-  --behind: #f87171;
   --track: #a855f7;
-  --ok: #34d399;
-  --bad: #f87171;
-  --warn: #fbbf24;
-  --c-blue: #a855f7;
-  --c-blue-soft: rgba(168, 85, 247, 0.12);
-  --c-green: #34d399;
-  --c-green-soft: rgba(52, 211, 153, 0.1);
-  --c-orange: #a855f7;
-  --c-orange-soft: rgba(168, 85, 247, 0.1);
-  --c-violet: #c084fc;
-  --c-violet-soft: rgba(192, 132, 252, 0.14);
-  --c-pink: #a855f7;
-  --c-pink-soft: rgba(168, 85, 247, 0.12);
-  --c-yellow: #c084fc;
-  --c-yellow-soft: rgba(192, 132, 252, 0.1);
-  --c-cyan: #a855f7;
-  --c-cyan-soft: rgba(168, 85, 247, 0.12);
-  --shadow: 0 28px 70px rgba(0, 0, 0, 0.55), 0 0 48px rgba(168, 85, 247, 0.1);
-  --shadow-sm: 0 14px 36px rgba(0, 0, 0, 0.38);
-  --glow-cyan: 0 0 32px rgba(168, 85, 247, 0.25);
-  --glow-violet: 0 0 40px rgba(168, 85, 247, 0.32);
-  --radius: 26px;
-  --radius-sm: 18px;
-  --sidebar-w: 15rem;
-  --brand-mark: #c084fc;
-  --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
-    "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --brand-mark: #a855f7;
+}
+
+[data-accent="red"] {
+  --accent: #ef4444;
+  --accent-soft: rgba(239, 68, 68, 0.18);
+  --accent-glow: rgba(239, 68, 68, 0.5);
+  --track: #ef4444;
+  --brand-mark: #ef4444;
+}
+
+[data-accent="yellow"] {
+  --accent: #eab308;
+  --accent-soft: rgba(234, 179, 8, 0.18);
+  --accent-glow: rgba(234, 179, 8, 0.45);
+  --track: #eab308;
+  --brand-mark: #eab308;
 }
 
 [data-theme="light"] {
@@ -113,7 +152,7 @@ body {
 }
 
 html {
-  background: #05040a;
+  background: #000000;
 }
 
 body {
@@ -133,7 +172,7 @@ body {
   background: #efe8f8;
 }
 
-/* 3D ribbon scene — same material/light as ref, simpler form */
+/* Quiet black canvas — accent glow only, no noisy scene */
 .aurora {
   position: fixed;
   inset: 0;
@@ -144,23 +183,15 @@ body {
 }
 
 .aurora-scene {
-  position: absolute;
-  inset: -2%;
-  width: 104%;
-  height: 104%;
-  object-fit: cover;
-  object-position: 50% 48%;
-  transform-origin: 50% 50%;
-  animation: sceneDrift 36s ease-in-out infinite alternate;
-  filter: saturate(1.2) contrast(1.08) brightness(0.95);
+  display: none;
 }
 
 .aurora-veil {
   position: absolute;
   inset: 0;
-  /* Keep the ribbon readable; only soft vignette at edges */
   background:
-    radial-gradient(ellipse 85% 70% at 50% 45%, transparent 35%, rgba(0, 0, 0, 0.35) 100%);
+    radial-gradient(ellipse 70% 50% at 15% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 55%),
+    radial-gradient(ellipse 55% 40% at 90% 10%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 50%);
 }
 
 @keyframes sceneDrift {
@@ -225,7 +256,19 @@ select {
 .glass {
   position: relative;
   overflow: hidden;
-  /* Same glass card as reference: soft lens + frosted blur */
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* legacy glass layers disabled for minimal look */
+.surface.legacy-glass,
+.panel.legacy-glass,
+.kpi-card.legacy-glass,
+.glass.legacy-glass {
   background: rgba(180, 150, 220, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.34);
   border-radius: var(--radius);
@@ -239,41 +282,17 @@ select {
   -webkit-backdrop-filter: blur(20px) saturate(1.65);
 }
 
-/* Hammered (pebbled) glass texture */
+/* No frost / specular layers — keep cards flat */
 .surface::before,
 .panel::before,
 .kpi-card::before,
-.glass::before {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: url("/bg/glass-frost.jpg?v=4") center / cover no-repeat;
-  opacity: 0.14;
-  mix-blend-mode: soft-light;
-  filter: contrast(1.35) brightness(1.4) saturate(0);
-}
-
-/* Specular catch + top sheen like the ref card */
+.glass::before,
 .surface::after,
 .panel::after,
 .kpi-card::after,
 .glass::after {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    155deg,
-    rgba(255, 255, 255, 0.2) 0%,
-    rgba(255, 255, 255, 0.05) 22%,
-    transparent 48%
-  );
-  box-shadow:
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
-    inset 1.5px 0 0 rgba(255, 255, 255, 0.2);
+  content: none;
+  display: none;
 }
 
 
@@ -1742,18 +1761,19 @@ a.map-goal-chip:hover {
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, #c084fc 0%, #a855f7 45%, #7c3aed 100%);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  box-shadow:
-    0 10px 28px rgba(168, 85, 247, 0.45),
-    0 0 24px rgba(168, 85, 247, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: var(--accent);
+  border-color: transparent;
+  color: #0a0a0a;
+  box-shadow: 0 0 20px var(--accent-soft);
 }
 
 .btn-primary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
   border-color: transparent;
+}
+
+[data-accent="yellow"] .btn-primary {
+  color: #111;
 }
 
 .field {
@@ -1772,7 +1792,7 @@ a.map-goal-chip:hover {
 
 .field:focus {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 20px rgba(168, 85, 247, 0.25);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .page-enter {
@@ -2215,27 +2235,18 @@ a.map-goal-chip:hover {
   width: var(--sidebar-w);
   flex-shrink: 0;
   flex-direction: column;
-  padding: 2.25rem 1.15rem 1.75rem;
+  padding: 1.75rem 0.9rem 1.5rem;
   overflow: hidden;
-  border-right: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(180, 150, 220, 0.08);
-  backdrop-filter: blur(20px) saturate(1.65);
-  -webkit-backdrop-filter: blur(20px) saturate(1.65);
-  box-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.14),
-    inset 1px 0 0 rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  border-right: 1px solid var(--line);
+  background: #0a0a0a;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 
 .shell-rail::before {
-  content: "";
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  background: url("/bg/glass-frost.jpg?v=4") center / cover no-repeat;
-  opacity: 0.13;
-  mix-blend-mode: soft-light;
-  filter: contrast(1.35) brightness(1.4) saturate(0);
+  content: none;
+  display: none;
 }
 
 .shell-rail > * {
@@ -2267,11 +2278,11 @@ a.map-goal-chip:hover {
 .shell-brand-sub {
   margin-top: 0.2rem;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--c-violet);
-  text-shadow: 0 0 14px rgba(168, 85, 247, 0.45);
+  color: var(--ink-faint);
+  text-shadow: none;
 }
 
 .shell-nav {
@@ -2284,26 +2295,23 @@ a.map-goal-chip:hover {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  border-radius: 999px;
-  padding: 0.65rem 0.95rem;
-  font-size: 15px;
+  border-radius: 0.85rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 14px;
   font-weight: 500;
   color: var(--ink-soft);
   transition:
     color var(--dur-fast) var(--ease-apple),
-    background var(--dur-fast) var(--ease-apple),
-    box-shadow var(--dur-mid) var(--ease-apple),
-    transform var(--dur-fast) var(--ease-spring);
+    background var(--dur-fast) var(--ease-apple);
 }
 
 .nav-link:hover {
   color: var(--ink);
   background: var(--bg-muted);
-  transform: scale(1.02);
 }
 
 .nav-link:active {
-  transform: scale(0.98);
+  transform: none;
 }
 
 .editable-text {
@@ -2325,13 +2333,14 @@ a.map-goal-chip:hover {
 }
 
 .nav-link[data-active="true"] {
-  color: #fff;
-  background: linear-gradient(180deg, #c084fc 0%, #9333ea 100%);
-  font-weight: 600;
-  box-shadow:
-    0 10px 28px rgba(168, 85, 247, 0.4),
-    0 0 24px rgba(168, 85, 247, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  color: #0a0a0a;
+  background: var(--accent);
+  font-weight: 650;
+  box-shadow: 0 0 24px var(--accent-soft);
+}
+
+.nav-link[data-active="true"] .nav-ico {
+  color: #0a0a0a;
 }
 
 .nav-dot {
@@ -2497,9 +2506,9 @@ a.map-goal-chip:hover {
 }
 
 .shell-mobile a[data-active="true"] {
-  color: #fff;
-  background: linear-gradient(180deg, #c084fc, #9333ea);
-  box-shadow: 0 0 18px rgba(168, 85, 247, 0.45);
+  color: #0a0a0a;
+  background: var(--accent);
+  box-shadow: 0 0 16px var(--accent-soft);
 }
 
 .page-kicker {
@@ -2507,8 +2516,8 @@ a.map-goal-chip:hover {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--c-violet);
-  text-shadow: 0 0 16px rgba(168, 85, 247, 0.45);
+  color: var(--accent);
+  text-shadow: none;
   margin-bottom: 0.55rem;
 }
 

@@ -37,6 +37,7 @@ export type EdgeType =
 export type EdgeProvenance = "user" | "ai" | "rule";
 export type WishBucket = "shopping" | "wishlist" | "ideas" | "someday" | "skill" | "plans" | "material";
 export type ThemeMode = "light" | "dark";
+export type AccentColor = "blue" | "green" | "purple" | "red" | "yellow";
 
 export type PriorityLevel = "critical" | "high" | "medium" | "low";
 export type TaskPriority = "must" | "should" | "optional";
@@ -547,6 +548,8 @@ export interface AppSettings {
   visionNote?: string;
   mit: string;
   theme: ThemeMode;
+  /** UI accent — blue | green | purple | red | yellow */
+  accentColor?: AccentColor;
   language: string;
   startOfWeek: 0 | 1;
   notifications: boolean;

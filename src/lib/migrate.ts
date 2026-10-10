@@ -35,6 +35,7 @@ function defaultSettings(partial?: Partial<AppSettings>): AppSettings {
     yearProgressNote: "Год строительства системы",
     mit: "Фокус дня",
     theme: "dark",
+    accentColor: "green",
     language: "ru",
     startOfWeek: 1,
     notifications: true,

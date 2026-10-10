@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EditableText } from "@/components/ui/EditableText";
 import { EmptyState } from "@/components/ui/Progress";
-import { PageHero } from "@/components/ui/Widgets";
+import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type Principle = {
@@ -25,10 +25,8 @@ export default function PrinciplesPage() {
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [layer, setLayer] = useState<"inner" | "outer">("inner");
   const [lifeAreaId, setLifeAreaId] = useState("");
   const [goalId, setGoalId] = useState("");
-  const [filter, setFilter] = useState<"all" | "inner" | "outer">("all");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -53,7 +51,7 @@ export default function PrinciplesPage() {
       action: "createPrinciple",
       title: title.trim(),
       body: body.trim() || undefined,
-      layer,
+      layer: "inner",
       lifeAreaId: lifeAreaId || undefined,
       supportsGoalIds: goalId ? [goalId] : [],
     });
@@ -83,81 +81,23 @@ export default function PrinciplesPage() {
     else await load();
   }
 
-  if (loading) return <p className="text-[var(--ink-faint)]">Загружаю…</p>;
-
-  const shown = items.filter((p) => filter === "all" || p.layer === filter);
+  if (loading) {
+    return (
+      <div className="page-stack">
+        <PageHero title="Принципы" />
+        <section className="panel">
+          <p className="text-[var(--ink-faint)]">Загружаю…</p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="page-stack">
-      <PageHero
-        title="Принципы"
-        meta={(["all", "inner", "outer"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            className="chip-soft"
-            data-active={filter === f}
-            onClick={() => setFilter(f)}
-          >
-            {f === "all" ? "Все" : f === "inner" ? "Внутреннее" : "Внешнее"}
-          </button>
-        ))}
-      />
+      <PageHero title="Принципы" />
 
-      {shown.length === 0 ? (
-        <EmptyState
-          title="Пока нет принципов"
-          body="Напиши один стандарт, на котором строишь поведение."
-        />
-      ) : (
-        <div className="space-y-2.5">
-          {shown.map((p) => (
-            <div key={p.id} className="surface space-y-2 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="text-[12px] font-bold text-[var(--accent)]">
-                    {p.layer === "inner" ? "Внутреннее" : "Внешнее"}
-                  </p>
-                  <EditableText
-                    value={p.title}
-                    className="text-[16px] font-bold"
-                    inputClassName="field text-[16px] font-bold"
-                    onSave={(title) => savePrinciple(p.id, { title })}
-                  />
-                  <EditableText
-                    value={p.body ?? ""}
-                    className="mt-1 block text-[13px] text-[var(--ink-soft)]"
-                    inputClassName="field text-[13px]"
-                    multiline
-                    placeholder="Добавить описание…"
-                    onSave={(body) => savePrinciple(p.id, { body })}
-                  />
-                  {p.supportsGoalIds?.length ? (
-                    <p className="mt-2 text-[12px] font-semibold text-[var(--ink-faint)]">
-                      Связано с{" "}
-                      {p.supportsGoalIds
-                        .map((gid) => goals.find((g) => g.id === gid)?.title)
-                        .filter(Boolean)
-                        .join(", ") || "целями"}
-                    </p>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy}
-                  onClick={() => void archive(p.id)}
-                >
-                  Удалить
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <form onSubmit={create} className="surface space-y-3 p-5">
-        <p className="text-[13px] font-bold text-[var(--accent)]">Новый принцип</p>
+      <form onSubmit={create} className="panel space-y-3">
+        <WidgetHead title="Новый принцип" tone="violet" />
         <input
           className="field"
           value={title}
@@ -171,15 +111,7 @@ export default function PrinciplesPage() {
           onChange={(e) => setBody(e.target.value)}
           placeholder="Как это проявляется в поведении"
         />
-        <div className="grid gap-3 sm:grid-cols-3">
-          <select
-            className="field"
-            value={layer}
-            onChange={(e) => setLayer(e.target.value as "inner" | "outer")}
-          >
-            <option value="inner">Внутреннее</option>
-            <option value="outer">Внешнее</option>
-          </select>
+        <div className="grid gap-3 sm:grid-cols-2">
           <select
             className="field"
             value={lifeAreaId}
@@ -206,15 +138,63 @@ export default function PrinciplesPage() {
         </button>
       </form>
 
-      <p className="text-[13px] font-semibold text-[var(--ink-faint)]">
-        <Link href="/" className="font-bold text-[var(--accent)]">
-          Жизнь
+      <section className="panel space-y-3">
+        <WidgetHead title="Список" tone="green" action={<span className="text-[12px] text-[var(--ink-faint)]">{items.length}</span>} />
+        {items.length === 0 ? (
+          <EmptyState
+            title="Пока нет принципов"
+            body="Напиши один стандарт, на котором строишь поведение."
+          />
+        ) : (
+          <div className="stack-tight">
+            {items.map((p) => (
+              <div key={p.id} className="surface space-y-2 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <EditableText
+                      value={p.title}
+                      className="text-[16px] font-bold"
+                      inputClassName="field text-[16px] font-bold"
+                      onSave={(next) => savePrinciple(p.id, { title: next })}
+                    />
+                    <EditableText
+                      value={p.body ?? ""}
+                      className="mt-1 block text-[13px] text-[var(--ink-soft)]"
+                      inputClassName="field text-[13px]"
+                      multiline
+                      placeholder="Добавить описание…"
+                      onSave={(next) => savePrinciple(p.id, { body: next })}
+                    />
+                    {p.supportsGoalIds?.length ? (
+                      <p className="mt-2 text-[12px] font-semibold text-[var(--ink-faint)]">
+                        Связано с{" "}
+                        {p.supportsGoalIds
+                          .map((gid) => goals.find((g) => g.id === gid)?.title)
+                          .filter(Boolean)
+                          .join(", ") || "целями"}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={busy}
+                    onClick={() => void archive(p.id)}
+                  >
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <Link href="/inbox" className="font-semibold text-[var(--accent)]">
+          ← Inbox
         </Link>
-        {" · "}
-        <Link href="/directions" className="font-bold text-[var(--accent)]">
-          Направления
-        </Link>
-      </p>
+      </section>
     </div>
   );
 }

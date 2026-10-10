@@ -2,12 +2,21 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  ACCENT_COLORS,
+  ACCENT_HEX,
+  ACCENT_LABELS,
+  isAccentColor,
+  persistAccent,
+  type AccentColor,
+} from "@/lib/accent";
 import { apiGet, apiPost } from "@/lib/client-api";
-import { PageHero } from "@/components/ui/Widgets";
+import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 export default function SettingsPage() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [accent, setAccent] = useState<AccentColor>("green");
   const [capacity, setCapacity] = useState("6");
   const [capacityMin, setCapacityMin] = useState("270");
   const [vision, setVision] = useState("");
@@ -33,11 +42,16 @@ export default function SettingsPage() {
       if (!res.ok) return;
       const s = res.data.settings as {
         theme?: string;
+        accentColor?: string;
         dailyCapacity?: number;
         dailyCapacityMinutes?: number;
         visionNote?: string;
       };
       if (s?.theme === "dark" || s?.theme === "light") setTheme(s.theme);
+      if (isAccentColor(s?.accentColor)) {
+        setAccent(s.accentColor);
+        persistAccent(s.accentColor);
+      }
       if (s?.dailyCapacity != null) setCapacity(String(s.dailyCapacity));
       if (s?.dailyCapacityMinutes != null) setCapacityMin(String(s.dailyCapacityMinutes));
       if (s?.visionNote != null) setVision(s.visionNote);
@@ -67,6 +81,17 @@ export default function SettingsPage() {
     const res = await apiPost("/api/state", { action: "theme", theme: next });
     if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
     else toast("Тема сохранена", "ok");
+  }
+
+  async function saveAccent(next: AccentColor) {
+    setAccent(next);
+    persistAccent(next);
+    const res = await apiPost("/api/state", {
+      action: "settings",
+      settings: { accentColor: next },
+    });
+    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
+    else toast("Акцент сохранён", "ok");
   }
 
   async function saveCapacity(e: React.FormEvent) {
@@ -206,10 +231,37 @@ export default function SettingsPage() {
         </button>
       </form>
 
-      <section className="panel panel-tint-violet space-y-3 rise-in">
-        <p className="text-[13px] font-bold" style={{ color: "var(--c-violet)" }}>
-          Тема
+      <section className="panel space-y-4 rise-in">
+        <WidgetHead title="Акцент" tone="green" />
+        <p className="text-[13px] text-[var(--ink-faint)]">
+          Цвет кнопок, активной вкладки и акцентов по всему приложению.
         </p>
+        <div className="flex flex-wrap gap-2">
+          {ACCENT_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className="chip-soft"
+              data-active={accent === c}
+              onClick={() => void saveAccent(c)}
+              style={
+                accent === c
+                  ? {
+                      background: ACCENT_HEX[c],
+                      color: c === "yellow" ? "#111" : "#fff",
+                      borderColor: ACCENT_HEX[c],
+                    }
+                  : { borderColor: `${ACCENT_HEX[c]}66`, color: ACCENT_HEX[c] }
+              }
+            >
+              {ACCENT_LABELS[c]}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel space-y-3 rise-in">
+        <WidgetHead title="Тема" tone="violet" />
         <div className="flex gap-2">
           <button
             type="button"
