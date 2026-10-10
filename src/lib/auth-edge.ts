@@ -35,6 +35,13 @@ export function isTenantMode(): boolean {
   return false;
 }
 
+/** Product-owner account login (admin). Override with MINDOS_OWNER_LOGIN. */
+export function ownerLogin(): string {
+  const raw = process.env.MINDOS_OWNER_LOGIN?.trim();
+  if (raw) return raw.toLocaleLowerCase("ru-RU");
+  return "owner";
+}
+
 export async function hashSecretEdge(secret: string): Promise<string> {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
   return Array.from(new Uint8Array(buf))

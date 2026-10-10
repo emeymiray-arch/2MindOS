@@ -13,6 +13,14 @@ type AuthStatus = {
   login?: string | null;
 };
 
+const DEV_OPEN: AuthStatus = {
+  configured: true,
+  openLocal: true,
+  authenticated: true,
+  needsSetup: false,
+  tenantMode: false,
+};
+
 function isPublicPath(pathname: string | null) {
   if (!pathname) return false;
   return pathname.startsWith("/admin") || pathname.startsWith("/privacy");
@@ -20,20 +28,28 @@ function isPublicPath(pathname: string | null) {
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [status, setStatus] = useState<AuthStatus | null>(null);
+  const isDev = process.env.NODE_ENV === "development";
+  // Local/dev: paint the app immediately — never sit on a black loading screen.
+  const [status, setStatus] = useState<AuthStatus | null>(isDev ? DEV_OPEN : null);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [checked, setChecked] = useState(false);
+  const [checked, setChecked] = useState(isDev);
   const publicRoute = isPublicPath(pathname);
 
   const refresh = useCallback(async () => {
-    const res = await fetch("/api/auth", { cache: "no-store", credentials: "include" });
-    const data = (await res.json()) as AuthStatus;
-    setStatus(data);
-    setChecked(true);
-    return data;
+    try {
+      const res = await fetch("/api/auth", { cache: "no-store", credentials: "include" });
+      const data = (await res.json()) as AuthStatus;
+      setStatus(data);
+      return data;
+    } catch {
+      setStatus((prev) => prev ?? DEV_OPEN);
+      return DEV_OPEN;
+    } finally {
+      setChecked(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -73,15 +89,15 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Public docs / admin — don't require customer login.
   if (publicRoute) {
     return children;
   }
 
   if (!checked || !status) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
-        <p className="text-[var(--ink-faint)]">…</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[var(--bg)] px-6">
+        <p className="text-[1.1rem] font-semibold text-[var(--ink)]">2Mind OS</p>
+        <p className="text-[14px] font-medium text-[var(--accent)]">Загрузка…</p>
       </div>
     );
   }
@@ -110,7 +126,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-6">
       <form onSubmit={submit} className="surface w-full max-w-sm space-y-5 p-8">
         <div>
-          <p className="font-display text-[2.1rem]">2Mind</p>
+          <p className="font-display text-[2.1rem]">2Mind OS</p>
           <p className="mt-2 text-[15px] text-[var(--ink-soft)]">
             {tenant ? "Вход в личный кабинет" : "Введи ключ доступа"}
           </p>
@@ -134,6 +150,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               onChange={(e) => setPassword(e.target.value)}
               className="field"
             />
+            <p className="text-[12px] text-[var(--ink-faint)]">
+              Логин и пароль выдаёт администратор. Работает с любого устройства.
+            </p>
           </>
         ) : (
           <input

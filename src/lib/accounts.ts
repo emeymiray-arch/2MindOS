@@ -75,13 +75,37 @@ function publicAccount(row: Account): AccountPublic {
   };
 }
 
+/** Normalize login for storage/lookup (Unicode-aware). */
+export function normalizeLogin(login: string): string {
+  return login.trim().toLocaleLowerCase("ru-RU");
+}
+
+/** Login like «солнышко» or «anna.01» — letters (any language), digits, . _ - */
+export function isValidLogin(login: string): boolean {
+  const n = normalizeLogin(login);
+  if (n.length < 3 || n.length > 40) return false;
+  return /^[\p{L}\p{N}._-]+$/u.test(n);
+}
+
 export async function findAccountByLogin(login: string): Promise<Account | null> {
   const sb = getSupabaseAdmin();
   if (!sb) return null;
-  const normalized = login.trim().toLowerCase();
+  const normalized = normalizeLogin(login);
   const { data, error } = await sb.from("accounts").select("*").eq("login", normalized).maybeSingle();
   if (error || !data) return null;
   return data as Account;
+}
+
+/** Random numeric password, e.g. 5362729 */
+export function generateClientPassword(digits = 7): string {
+  const n = Math.max(6, Math.min(12, digits));
+  let out = "";
+  for (let i = 0; i < n; i++) {
+    out += String(randomBytes(1)[0] % 10);
+  }
+  // avoid leading zero for a cleaner look
+  if (out[0] === "0") out = String(1 + (randomBytes(1)[0] % 9)) + out.slice(1);
+  return out;
 }
 
 export async function findAccountById(id: string): Promise<Account | null> {
@@ -112,12 +136,12 @@ export async function createAccount(input: {
   const sb = getSupabaseAdmin();
   if (!sb) return { ok: false, error: "cloud not configured" };
 
-  const login = input.login.trim().toLowerCase();
-  if (!/^[a-z0-9._-]{3,40}$/.test(login)) {
-    return { ok: false, error: "Логин: 3–40 символов, латиница/цифры . _ -" };
+  const login = normalizeLogin(input.login);
+  if (!isValidLogin(login)) {
+    return { ok: false, error: "Логин: 3–40 символов (буквы любого языка, цифры, . _ -)" };
   }
   if (!input.password || input.password.length < 6) {
-    return { ok: false, error: "Пароль минимум 6 символов" };
+    return { ok: false, error: "Пароль минимум 6 символов (например 5362729)" };
   }
 
   const existing = await findAccountByLogin(login);

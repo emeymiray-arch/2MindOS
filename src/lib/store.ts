@@ -99,6 +99,12 @@ function tenantCache(): Map<string, TenantCache> {
   return global.__mindosTenantCache;
 }
 
+/** Drop in-memory tenant cache after admin wipe/reset. */
+export function clearTenantCache(snapshotId?: string) {
+  if (!snapshotId) tenantCache().clear();
+  else tenantCache().delete(snapshotId);
+}
+
 export class StoreUnavailableError extends Error {
   constructor(message: string) {
     super(message);

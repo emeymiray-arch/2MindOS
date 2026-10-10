@@ -1,46 +1,26 @@
 import { id, now } from "./id";
 import type { LifeStore } from "./types";
 import { createDefaultPlan, seedLifeAreas } from "./lifeos";
+import { CURRENT_VERSION } from "./migrate";
 
-/** Clean slate — first run. */
+/**
+ * Clean slate for a customer (or first local boot).
+ * No personal curricula / ventures — only catalog directions + empty finance.
+ * Version is current so migrate() does not inject owner curricula.
+ */
 export function createEmptyStore(): LifeStore {
   const t = now();
   const spheres = seedLifeAreas();
   const plan = createDefaultPlan(t);
-  const work = spheres.find((s) => s.slug === "work");
-
-  const engNode = id();
-  const foodNode = id();
 
   return {
-    version: 10,
+    version: CURRENT_VERSION,
     spheres,
     periodFocus: [],
     principles: [],
     outcomes: [],
     reviews: [],
-    nodes: [
-      {
-        id: engNode,
-        kind: "project",
-        title: "Engineering → AI → Business",
-        sphereId: work?.id,
-        metadata: {},
-        salience: 0.9,
-        createdAt: t,
-        updatedAt: t,
-      },
-      {
-        id: foodNode,
-        kind: "project",
-        title: "European Fast Food — Chechnya",
-        sphereId: work?.id,
-        metadata: {},
-        salience: 0.85,
-        createdAt: t,
-        updatedAt: t,
-      },
-    ],
+    nodes: [],
     edges: [],
     captures: [],
     goals: [],
@@ -53,78 +33,7 @@ export function createEmptyStore(): LifeStore {
     habits: [],
     habitLogs: [],
     vitals: [],
-    projects: [
-      {
-        id: id(),
-        nodeId: engNode,
-        name: "Engineering → AI → Business",
-        tagline: "Learning → Skill → Project → Product → Business",
-        status: "active",
-        lifeAreaId: work?.id,
-        kpi: [],
-        modules: {
-          docs: [
-            "Engineering Foundation",
-            "Web Engineering",
-            "AI Development",
-            "Product Building",
-            "First Business",
-          ],
-          tasks: [
-            { id: id(), title: "Engineering Foundation", done: false },
-            { id: id(), title: "Web Engineering", done: false },
-            { id: id(), title: "AI Development", done: false },
-            { id: id(), title: "Product Building", done: false },
-            { id: id(), title: "First Business", done: false },
-          ],
-          ideas: [],
-          financeNotes: [],
-          team: [],
-          marketing: [],
-          sales: [],
-          files: [],
-          changelog: [{ at: t, text: "Career venture created" }],
-        },
-        diary: [],
-      },
-      {
-        id: id(),
-        nodeId: foodNode,
-        name: "European Fast Food — Chechnya",
-        tagline: "Research → Concept → Launch",
-        status: "active",
-        lifeAreaId: work?.id,
-        kpi: [],
-        modules: {
-          docs: [
-            "Research",
-            "Market",
-            "Concept",
-            "Competitors",
-            "Menu",
-            "Unit Economics",
-            "Branding",
-            "Location",
-            "MVP",
-            "Launch",
-          ],
-          tasks: [
-            { id: id(), title: "Research", done: false },
-            { id: id(), title: "Market", done: false },
-            { id: id(), title: "Concept", done: false },
-            { id: id(), title: "Launch", done: false },
-          ],
-          ideas: [],
-          financeNotes: [],
-          team: [],
-          marketing: [],
-          sales: [],
-          files: [],
-          changelog: [{ at: t, text: "Career venture created" }],
-        },
-        diary: [],
-      },
-    ],
+    projects: [],
     books: [],
     reviewCards: [],
     skills: [],
@@ -147,6 +56,12 @@ export function createEmptyStore(): LifeStore {
       subscriptions: [],
       goals: [],
       transactions: [],
+      categories: [
+        { id: id(), name: "Доход", kind: "income", color: "#34d399", archived: false },
+        { id: id(), name: "Расход", kind: "expense", color: "#fb923c", archived: false },
+        { id: id(), name: "Обязательное", kind: "mandatory", color: "#a855f7", archived: false },
+        { id: id(), name: "В подушку", kind: "savings", color: "#38bdf8", archived: false },
+      ],
     },
     calendarEvents: [],
     passwords: [],
@@ -178,6 +93,8 @@ export function createEmptyStore(): LifeStore {
       email: "",
       dailyCapacity: 6,
       dailyCapacityMinutes: 270,
+      accentColor: "green",
+      onboardingDone: false,
     },
   };
 }

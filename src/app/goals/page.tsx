@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { EmptyState } from "@/components/ui/Progress";
-import { PageHero, ViewAllLink } from "@/components/ui/Widgets";
+import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 
 type GoalCard = {
@@ -19,30 +19,31 @@ type GoalCard = {
   reality?: {
     status: "ahead" | "on_track" | "behind" | "no_plan";
     label: string;
+    actual?: number;
   };
+  progress?: number;
 };
 
-type Area = { id: string; name: string; layerBias?: "inner" | "outer" | "both" };
-type FocusMap = Record<string, "main" | "support" | "background">;
+type Area = { id: string; name: string };
 type Side = "inner" | "outer";
+type Tab = "all" | Side;
 
-const STATUS_SHORT: Record<NonNullable<GoalCard["reality"]>["status"], string> = {
-  ahead: "впереди",
-  on_track: "в графике",
-  behind: "отстаёт",
-  no_plan: "нужен план",
-};
+function planPercent(g: GoalCard) {
+  if (typeof g.progress === "number") return Math.round(g.progress);
+  if (typeof g.reality?.actual === "number") return Math.round(g.reality.actual);
+  return 0;
+}
 
 export default function GoalsPage() {
   const router = useRouter();
   const [goals, setGoals] = useState<GoalCard[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
-  const [focus, setFocus] = useState<FocusMap>({});
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const [lifeAreaId, setLifeAreaId] = useState("");
-  const [layer, setLayer] = useState<Side | "">("");
+  const [layer, setLayer] = useState<Side>("outer");
+  const [tab, setTab] = useState<Tab>("all");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -54,18 +55,11 @@ export default function GoalsPage() {
       setGoals((goalsRes.data.goals as GoalCard[]) ?? []);
       setAreas((goalsRes.data.areas as Area[]) ?? []);
     }
-    if (dirRes.ok) {
-      const levels: FocusMap = {};
-      for (const d of (dirRes.data.directions as { id: string; focus: FocusMap[string] }[]) ?? []) {
-        levels[d.id] = d.focus;
-      }
-      setFocus(levels);
-      if (!lifeAreaId) {
-        const main = (dirRes.data.directions as { id: string; focus: string }[])?.find(
-          (d) => d.focus === "main"
-        );
-        if (main) setLifeAreaId(main.id);
-      }
+    if (dirRes.ok && !lifeAreaId) {
+      const main = (dirRes.data.directions as { id: string; focus: string }[])?.find(
+        (d) => d.focus === "main"
+      );
+      if (main) setLifeAreaId(main.id);
     }
     setLoading(false);
   }, [lifeAreaId]);
@@ -83,35 +77,19 @@ export default function GoalsPage() {
     void load();
   }, [load]);
 
-  const bySide = useMemo(() => {
-    const inner: GoalCard[] = [];
-    const outer: GoalCard[] = [];
-    const unset: GoalCard[] = [];
-    for (const g of goals) {
-      const side = g.side ?? g.layer ?? null;
-      if (side === "inner") inner.push(g);
-      else if (side === "outer") outer.push(g);
-      else unset.push(g);
-    }
-    return { inner, outer, unset };
-  }, [goals]);
+  const filtered = useMemo(() => {
+    if (tab === "all") return goals;
+    return goals.filter((g) => (g.side ?? g.layer) === tab);
+  }, [goals, tab]);
 
-  const stats = useMemo(() => {
-    const behind = goals.filter((g) => g.reality?.status === "behind").length;
-    const onTrack = goals.filter(
-      (g) => g.reality?.status === "on_track" || g.reality?.status === "ahead"
-    ).length;
-    const noPlan = goals.filter((g) => !g.hasPlan || g.reality?.status === "no_plan").length;
-    return { total: goals.length, behind, onTrack, noPlan };
-  }, [goals]);
+  const avgPct = useMemo(() => {
+    if (!filtered.length) return 0;
+    return Math.round(filtered.reduce((s, g) => s + planPercent(g), 0) / filtered.length);
+  }, [filtered]);
 
   async function createGoal(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim() || busy) return;
-    if (!layer) {
-      toast("Выбери: внутреннее или внешнее", "warn");
-      return;
-    }
     setBusy(true);
     const res = await apiPost("/api/goals", {
       action: "create",
@@ -127,7 +105,6 @@ export default function GoalsPage() {
     const created = ((res.data.goals as GoalCard[]) ?? []).find((g) => g.title === title.trim());
     setCreating(false);
     setTitle("");
-    setLayer("");
     if (created?.id) router.push(`/goals/${created.id}`);
     else await load();
   }
@@ -137,84 +114,55 @@ export default function GoalsPage() {
       <div className="page-stack">
         <PageHero title="Цели" />
         <section className="panel">
-          <p className="text-[var(--ink-faint)]">Собираю…</p>
+          <p className="text-[var(--ink-faint)]">…</p>
         </section>
       </div>
     );
   }
 
-  function GoalRow({ g }: { g: GoalCard }) {
-    const status = g.reality?.status;
-    const statusText =
-      !g.hasPlan || status === "no_plan"
-        ? "нужен план"
-        : status
-          ? STATUS_SHORT[status]
-          : "";
-    return (
-      <Link href={`/goals/${g.id}`} className="sheet-goal">
-        <span className="sheet-goal-title">{g.title}</span>
-        <span className="sheet-goal-area">{g.area?.name || "—"}</span>
-        <span className="sheet-goal-status">{statusText}</span>
-      </Link>
-    );
-  }
-
-  function SideList({ label, items }: { label: string; items: GoalCard[] }) {
-    return (
-      <section className="sheet-block">
-        <header className="sheet-block-head">
-          <h2>{label}</h2>
-          <span className="sheet-block-aside">{items.length}</span>
-        </header>
-        {items.length === 0 ? (
-          <p className="sheet-empty">Пусто</p>
-        ) : (
-          <ul className="sheet-goal-list">
-            {items.map((g) => (
-              <li key={g.id}>
-                <GoalRow g={g} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    );
-  }
-
   return (
-    <div className="page-stack sheet-page">
-      <PageHero
-        title="Цели"
-        action={
-          <button type="button" className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
-            {creating ? "Закрыть" : "Новая цель"}
-          </button>
-        }
-      />
+    <div className="page-stack">
+      <PageHero title="Цели" />
 
-      <section className="panel">
-        <p className="sheet-metrics" style={{ margin: 0 }}>
-          <span>
-            всего <b>{stats.total}</b>
-          </span>
-          <span>
-            в графике <b>{stats.onTrack}</b>
-          </span>
-          <span>
-            отстаёт <b>{stats.behind}</b>
-          </span>
-          <span>
-            без плана <b>{stats.noPlan}</b>
-          </span>
-        </p>
+      <section className="panel flex flex-wrap items-center gap-2">
+        {(
+          [
+            ["all", "Все"],
+            ["inner", "Внутренние"],
+            ["outer", "Внешние"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className="chip-soft"
+            data-active={tab === key}
+            onClick={() => setTab(key)}
+          >
+            {label}
+            <span className="ml-1 text-[var(--ink-faint)]">
+              {key === "all"
+                ? goals.length
+                : goals.filter((g) => (g.side ?? g.layer) === key).length}
+            </span>
+          </button>
+        ))}
+        <div className="goals-avg-pill ml-auto">
+          <span className="goals-avg-value">{avgPct}%</span>
+          <span className="goals-avg-label">средний</span>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => setCreating((v) => !v)}
+        >
+          {creating ? "Закрыть" : "Новая"}
+        </button>
       </section>
 
       {creating ? (
-        <form onSubmit={createGoal} className="sheet-block sheet-form">
-          <header className="sheet-block-head">
-            <h2>Новая цель</h2>
-          </header>
+        <form onSubmit={createGoal} className="panel space-y-3">
+          <WidgetHead title="Новая цель" tone="violet" />
           <input
             required
             value={title}
@@ -223,7 +171,7 @@ export default function GoalsPage() {
             className="field"
             autoFocus
           />
-          <div className="sheet-form-row">
+          <div className="grid gap-3 sm:grid-cols-3">
             <select
               className="field"
               value={lifeAreaId}
@@ -233,30 +181,37 @@ export default function GoalsPage() {
               {areas.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
-                  {focus[a.id] === "main" ? " · главное" : ""}
                 </option>
               ))}
             </select>
-            <select
-              className="field"
-              value={layer}
-              onChange={(e) => setLayer(e.target.value as Side | "")}
-            >
-              <option value="">Внутр. / внеш.…</option>
-              <option value="inner">Внутреннее</option>
-              <option value="outer">Внешнее</option>
-            </select>
-            <button type="submit" className="btn btn-primary" disabled={busy}>
-              Создать
-            </button>
+            <div className="flex gap-2 sm:col-span-2">
+              <button
+                type="button"
+                className="chip-soft flex-1"
+                data-active={layer === "inner"}
+                onClick={() => setLayer("inner")}
+              >
+                Внутреннее
+              </button>
+              <button
+                type="button"
+                className="chip-soft flex-1"
+                data-active={layer === "outer"}
+                onClick={() => setLayer("outer")}
+              >
+                Внешнее
+              </button>
+            </div>
           </div>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            Создать
+          </button>
         </form>
       ) : null}
 
-      {goals.length === 0 ? (
+      {filtered.length === 0 ? (
         <EmptyState
-          title="Целей нет"
-          body="Создай цель и выбери сторону."
+          title="Пока пусто"
           action={
             <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
               Создать
@@ -264,33 +219,27 @@ export default function GoalsPage() {
           }
         />
       ) : (
-        <div className="sheet-grid sheet-grid-path">
-          <SideList label="Внутренние" items={bySide.inner} />
-          <SideList label="Внешние" items={bySide.outer} />
-          {bySide.unset.length ? (
-            <section className="sheet-block sheet-span-full">
-              <header className="sheet-block-head">
-                <h2>Без категории</h2>
-                <span className="sheet-block-aside">{bySide.unset.length}</span>
-              </header>
-              <p className="sheet-empty" style={{ marginBottom: "0.75rem" }}>
-                Открой цель и назначь внутреннее или внешнее.
-              </p>
-              <ul className="sheet-goal-list sheet-goal-list-2">
-                {bySide.unset.map((g) => (
-                  <li key={g.id}>
-                    <GoalRow g={g} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </div>
+        <ul className="goal-list panel">
+          {filtered.map((g) => {
+            const pct = planPercent(g);
+            const area = g.area?.name;
+            return (
+              <li key={g.id}>
+                <Link href={`/goals/${g.id}`} className="goal-row">
+                  <div className="goal-row-main">
+                    <p className="goal-row-title">{g.title}</p>
+                    {area ? <p className="goal-row-sub">{area}</p> : null}
+                  </div>
+                  <div className="goal-row-track" aria-hidden>
+                    <span style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="goal-row-pct">{pct}%</p>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       )}
-
-      <p className="sheet-foot">
-        <ViewAllLink href="/map" label="← К карте" />
-      </p>
     </div>
   );
 }

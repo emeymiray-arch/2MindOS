@@ -9,6 +9,7 @@ import {
   ensurePhaseModules,
   findWorkPlan,
   milestoneProgress,
+  phaseModules,
   phasesOf,
   syncWorkPlanProgress,
   weekStartMonday,
@@ -268,6 +269,45 @@ export async function POST(request: Request) {
         }
       });
       return apiJson(goalsPayload(store));
+    }
+
+    if (action === "complete") {
+      const goalId = String(body.id ?? "");
+      if (!goalId) return apiJson({ error: "id" }, { status: 400 });
+      const store = await updateStore((s) => {
+        const g = s.goals.find((x) => x.id === goalId);
+        if (!g) return;
+        g.status = "done";
+        g.active = false;
+        g.archived = true;
+        g.progress = 100;
+        const note = String(body.note ?? "").trim();
+        if (note) {
+          if (!s.outcomes) s.outcomes = [];
+          s.outcomes.unshift({
+            id: id(),
+            text: note,
+            goalId: g.id,
+            createdAt: now(),
+            archived: false,
+          });
+        }
+        if (g.workPlanId) {
+          const wp = findWorkPlan(s, g.workPlanId);
+          if (wp) {
+            for (const ph of phasesOf(wp)) {
+              ph.status = "done";
+              ph.progress = 100;
+              for (const m of phaseModules(ph)) m.done = true;
+            }
+            wp.status = "done";
+            syncWorkPlanProgress(s, wp);
+            g.progress = 100;
+          }
+        }
+      });
+      const g = store.goals.find((x) => x.id === goalId);
+      return apiJson({ ...goalsPayload(store), completed: g ?? null });
     }
 
     if (action === "delete") {

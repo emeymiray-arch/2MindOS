@@ -8,6 +8,7 @@ import {
   apiSecret,
   hashSecretEdge,
   isTenantMode,
+  ownerLogin,
   sessionSecret,
   verifySessionValueEdge,
   type SessionPayload,
@@ -21,6 +22,7 @@ export {
   apiSecret,
   hashSecretEdge,
   isTenantMode,
+  ownerLogin,
   sessionSecret,
   verifySessionValueEdge,
   type SessionPayload,
@@ -170,7 +172,7 @@ export function isAuthenticated(request: Request): boolean {
 /** Product owner login can open /admin without a separate admin cookie. */
 export function isOwnerAdminSession(request: Request): boolean {
   const session = getSession(request);
-  return Boolean(session && session.login === "owner");
+  return Boolean(session && session.login === ownerLogin());
 }
 
 export function isAdminRequest(request: Request): boolean {

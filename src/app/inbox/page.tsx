@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import {
-  IconArchive,
   IconBook,
   IconSettings,
   IconShield,
@@ -27,7 +26,6 @@ type Capture = {
 
 const HUB = [
   { href: "/principles", label: "Принципы", hint: "Правила жизни", Icon: IconBook },
-  { href: "/archive", label: "Архив", hint: "Закрытое", Icon: IconArchive },
   { href: "/settings", label: "Настройки", hint: "Акцент, тема, профиль", Icon: IconSettings },
   { href: "/privacy", label: "Данные", hint: "Хранение и экспорт", Icon: IconShield },
 ] as const;
@@ -55,7 +53,7 @@ export default function InboxPage() {
     }
     if (authRes.ok) {
       const d = authRes.data as { isAdmin?: boolean; login?: string };
-      setShowAdmin(Boolean(d.isAdmin) || d.login === "owner");
+      setShowAdmin(Boolean(d.isAdmin));
     }
     setLoading(false);
   }, []);

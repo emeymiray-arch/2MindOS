@@ -114,7 +114,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         pathname === "/inbox" ||
         pathname.startsWith("/settings") ||
         pathname.startsWith("/principles") ||
-        pathname.startsWith("/archive") ||
         pathname.startsWith("/life")
       );
     }
@@ -131,8 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <aside className="shell-rail">
         <Link href="/" className="shell-brand">
-          <p className="shell-brand-mark">2Mind</p>
-          <p className="shell-brand-sub">life os</p>
+          <p className="shell-brand-mark">2Mind OS</p>
         </Link>
         <nav className="shell-nav">
           {NAV.map((item) => (

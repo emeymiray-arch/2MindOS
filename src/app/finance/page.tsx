@@ -5,9 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
 import { displayCurrency } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import { EditableText } from "@/components/ui/EditableText";
+import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
+import { Dialog } from "@/components/ui/Dialog";
 import { Select } from "@/components/ui/Select";
-import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 import type { FinanceCategory } from "@/lib/types";
 
@@ -23,6 +23,8 @@ type Tx = {
 type Finance = {
   incomeMonth: number;
   expensesMonth: number;
+  mandatoryMonth?: number;
+  salary?: number;
   cushion: number;
   currency?: string;
   categories?: FinanceCategory[];
@@ -32,20 +34,20 @@ type Finance = {
 const KIND_LABEL: Record<FinanceCategory["kind"], string> = {
   income: "Доход",
   expense: "Расход",
-  mandatory: "Обязат.",
-  savings: "Подушка",
+  mandatory: "Обязательное",
+  savings: "В подушку",
 };
+
+const KIND_OPTIONS = (Object.keys(KIND_LABEL) as FinanceCategory["kind"][]).map((k) => ({
+  value: k,
+  label: KIND_LABEL[k],
+}));
 
 const COLORS = ["#34d399", "#fb923c", "#a855f7", "#38bdf8", "#f472b6", "#fbbf24"];
 
 function money(n: number, cur: string) {
   return `${n.toLocaleString("ru-RU")} ${cur}`;
 }
-
-const KIND_OPTIONS = (Object.keys(KIND_LABEL) as FinanceCategory["kind"][]).map((k) => ({
-  value: k,
-  label: KIND_LABEL[k],
-}));
 
 async function fetchFinance(): Promise<Finance | null> {
   const res = await apiGet("/api/finance");
@@ -56,13 +58,14 @@ async function fetchFinance(): Promise<Finance | null> {
 export default function FinancePage() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-
   const [categoryId, setCategoryId] = useState("");
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [addOpen, setAddOpen] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [newKind, setNewKind] = useState<FinanceCategory["kind"]>("expense");
+  const [kind, setKind] = useState<FinanceCategory["kind"]>("expense");
 
   const { data = null, isLoading: loading } = useQuery({
     queryKey: queryKeys.finance,
@@ -73,18 +76,22 @@ export default function FinancePage() {
     await qc.invalidateQueries({ queryKey: queryKeys.finance });
   };
 
-  useEffect(() => {
-    const cats = (data?.categories ?? []).filter((c) => !c.archived);
-    if (cats.length && !cats.some((c) => c.id === categoryId)) {
-      setCategoryId(cats[0].id);
-    }
-  }, [data, categoryId]);
-
   const categories = useMemo(
     () => (data?.categories ?? []).filter((c) => !c.archived),
     [data]
   );
+  const kindCats = useMemo(
+    () => categories.filter((c) => c.kind === kind),
+    [categories, kind]
+  );
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+
+  useEffect(() => {
+    if (kindCats.length && !kindCats.some((c) => c.id === categoryId)) {
+      setCategoryId(kindCats[0].id);
+    }
+    if (!kindCats.length) setCategoryId("");
+  }, [kindCats, categoryId]);
 
   async function addTx(e: React.FormEvent) {
     e.preventDefault();
@@ -113,19 +120,6 @@ export default function FinancePage() {
     await load();
   }
 
-  async function removeTx(id: string) {
-    if (busy) return;
-    setBusy(true);
-    const res = await apiPost("/api/finance", { action: "delete", id });
-    setBusy(false);
-    if (!res.ok) {
-      toast(res.error ?? "Не удалось удалить", "warn");
-      return;
-    }
-    toast("Удалила", "ok");
-    await load();
-  }
-
   async function addCategory(e: React.FormEvent) {
     e.preventDefault();
     const name = newCat.trim();
@@ -142,32 +136,19 @@ export default function FinancePage() {
       toast(res.error ?? "Не создалось", "warn");
       return;
     }
+    const created = ((res.data.finance as Finance)?.categories ?? []).filter((c) => !c.archived);
+    const last = created[created.length - 1];
+    if (last) setCategoryId(last.id);
     setNewCat("");
+    setAddOpen(false);
     toast("Категория добавлена", "ok");
     await load();
   }
 
-  async function renameCategory(id: string, name: string) {
-    if (!name.trim()) return;
-    const res = await apiPost("/api/finance", {
-      action: "updateCategory",
-      id,
-      name: name.trim(),
-    });
-    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
-    else await load();
-  }
-
-  async function setCategoryKind(id: string, kind: FinanceCategory["kind"]) {
-    const res = await apiPost("/api/finance", { action: "updateCategory", id, kind });
-    if (!res.ok) toast(res.error ?? "Не сохранилось", "warn");
-    else await load();
-  }
-
-  async function removeCategory(id: string, name: string) {
-    if (!window.confirm(`Удалить категорию «${name}»?`)) return;
+  async function removeTx(id: string) {
+    if (busy) return;
     setBusy(true);
-    const res = await apiPost("/api/finance", { action: "deleteCategory", id });
+    const res = await apiPost("/api/finance", { action: "delete", id });
     setBusy(false);
     if (!res.ok) {
       toast(res.error ?? "Не удалось удалить", "warn");
@@ -177,11 +158,24 @@ export default function FinancePage() {
     await load();
   }
 
-  if (loading) return <p className="text-[var(--ink-faint)]">Секунду…</p>;
+  if (loading) {
+    return (
+      <div className="page-stack">
+        <PageHero title="Финансы" />
+        <section className="panel">
+          <p className="text-[var(--ink-faint)]">Секунду…</p>
+        </section>
+      </div>
+    );
+  }
 
   const cur = displayCurrency(data?.currency);
   const txs = data?.transactions ?? [];
-  const net = (data?.incomeMonth ?? 0) - (data?.expensesMonth ?? 0);
+  const income = data?.incomeMonth ?? 0;
+  const expenses = data?.expensesMonth ?? 0;
+  const cushion = data?.cushion ?? 0;
+  const salary = data?.salary ?? 0;
+  const net = income - expenses;
 
   return (
     <div className="page-stack">
@@ -192,17 +186,46 @@ export default function FinancePage() {
             <p className="home-clock-time" style={{ fontSize: "1.55rem" }}>
               {money(net, cur)}
             </p>
-            <p className="home-clock-meta">месяц</p>
+            <p className="home-clock-meta">баланс месяца</p>
           </div>
         }
       />
 
       <div className="bento">
-        <div className="span-7">
-          <form onSubmit={addTx} className="panel h-full space-y-4 rise-in">
+        <div className="span-3">
+          <KpiTile label="Подушка" value={money(cushion, cur)} color="#38bdf8" />
+        </div>
+        <div className="span-3">
+          <KpiTile label="Доходы" value={money(income, cur)} color="#34d399" />
+        </div>
+        <div className="span-3">
+          <KpiTile label="Расходы" value={money(expenses, cur)} color="#fb923c" />
+        </div>
+        <div className="span-3">
+          <KpiTile label="ЗП" value={money(salary, cur)} color="#a855f7" />
+        </div>
+
+        <div className="span-12">
+          <form onSubmit={addTx} className="panel space-y-4">
             <WidgetHead title="Новая запись" tone="orange" />
-            <div className="flex flex-wrap gap-2">
-              {categories.map((c) => {
+            <div className="flex flex-wrap items-center gap-2">
+              {(Object.keys(KIND_LABEL) as FinanceCategory["kind"][]).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  className="chip-soft"
+                  data-active={kind === k}
+                  onClick={() => {
+                    setKind(k);
+                    setNewKind(k);
+                  }}
+                >
+                  {KIND_LABEL[k]}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {kindCats.map((c) => {
                 const on = categoryId === c.id;
                 return (
                   <button
@@ -221,6 +244,18 @@ export default function FinancePage() {
                   </button>
                 );
               })}
+              <button
+                type="button"
+                className="chip-soft finance-cat-plus"
+                aria-label="Добавить категорию"
+                onClick={() => {
+                  setNewKind(kind);
+                  setAddOpen(true);
+                }}
+                title="Новая категория"
+              >
+                +
+              </button>
             </div>
             <input
               className="field"
@@ -251,69 +286,8 @@ export default function FinancePage() {
           </form>
         </div>
 
-        <div className="span-5">
-          <section className="panel h-full space-y-3 rise-in">
-            <WidgetHead title="Категории" tone="violet" />
-            <ul className="stack-tight">
-              {categories.map((c) => (
-                <li key={c.id} className="signal-row row-in">
-                  <span
-                    className="signal-ico"
-                    style={{ background: `${c.color}22`, color: c.color }}
-                  >
-                    ●
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <EditableText
-                      value={c.name}
-                      className="font-semibold"
-                      inputClassName="field py-1 text-[14px] font-semibold"
-                      onSave={(name) => renameCategory(c.id, name)}
-                    />
-                    <div className="mt-1">
-                      <Select
-                        value={c.kind}
-                        onValueChange={(v) =>
-                          void setCategoryKind(c.id, v as FinanceCategory["kind"])
-                        }
-                        options={KIND_OPTIONS}
-                        ariaLabel="Тип категории"
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-[14px] font-bold text-[var(--behind)]"
-                    disabled={busy}
-                    onClick={() => void removeCategory(c.id, c.name)}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <form onSubmit={addCategory} className="flex flex-wrap gap-2 border-t border-[var(--line)] pt-3">
-              <input
-                className="field min-w-0 flex-1"
-                value={newCat}
-                onChange={(e) => setNewCat(e.target.value)}
-                placeholder="Новая категория"
-              />
-              <Select
-                value={newKind}
-                onValueChange={(v) => setNewKind(v as FinanceCategory["kind"])}
-                options={KIND_OPTIONS}
-                ariaLabel="Тип новой категории"
-              />
-              <button type="submit" className="btn btn-primary" disabled={busy}>
-                +
-              </button>
-            </form>
-          </section>
-        </div>
-
         <div className="span-12">
-          <section className="panel rise-in">
+          <section className="panel">
             <WidgetHead
               title="История"
               tone="blue"
@@ -325,11 +299,11 @@ export default function FinancePage() {
               <ul className="stack-tight max-h-[26rem] overflow-y-auto">
                 {txs.map((tx) => {
                   const cat = tx.categoryId ? catMap.get(tx.categoryId) : undefined;
-                  const color = cat?.color ?? "#a855f7";
+                  const color = cat?.color ?? "var(--accent)";
                   const label = cat?.name ?? KIND_LABEL[tx.type];
                   const sign = tx.type === "income" || tx.type === "savings" ? "+" : "−";
                   return (
-                    <li key={tx.id} className="signal-row row-in">
+                    <li key={tx.id} className="signal-row">
                       <span className="signal-ico" style={{ background: `${color}22`, color }} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[14px] font-semibold">{tx.title}</p>
@@ -357,6 +331,27 @@ export default function FinancePage() {
           </section>
         </div>
       </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen} title="Новая категория">
+        <form onSubmit={addCategory} className="space-y-3">
+          <input
+            className="field"
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            placeholder="Название"
+            autoFocus
+          />
+          <Select
+            value={newKind}
+            onValueChange={(v) => setNewKind(v as FinanceCategory["kind"])}
+            options={KIND_OPTIONS}
+            ariaLabel="Тип"
+          />
+          <button type="submit" className="btn btn-primary w-full" disabled={busy || !newCat.trim()}>
+            Создать
+          </button>
+        </form>
+      </Dialog>
     </div>
   );
 }

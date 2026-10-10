@@ -299,6 +299,41 @@ export async function ensureSnapshot(
   return pushCloudCas(store, 0, snapshotId);
 }
 
+/**
+ * Force-replace a tenant snapshot with a clean store and drop history,
+ * so pullCloudBest cannot revive old personal data.
+ */
+export async function wipeTenantSnapshot(
+  snapshotId: string,
+  store: LifeStore
+): Promise<CloudPush> {
+  const sb = getSupabaseAdmin();
+  if (!sb) return { ok: false, error: "not configured" };
+  if (!snapshotId || snapshotId === DEFAULT_SNAPSHOT_ID) {
+    return { ok: false, error: "refuse wipe default snapshot" };
+  }
+
+  try {
+    await withTimeout(
+      sb.from("lifeos_snapshots").delete().like("id", histLike(snapshotId)),
+      PUSH_MS
+    );
+  } catch {
+    /* history delete best-effort */
+  }
+
+  const existing = await pullCloudResult(snapshotId);
+  const prevRev = existing.ok ? existing.rowRevision : 0;
+  const next = { ...store, revision: prevRev + 1 };
+  let result = await pushCloudCas(next, prevRev, snapshotId);
+  if (!result.ok && result.conflict) {
+    const again = await pullCloudResult(snapshotId);
+    const rev = again.ok ? again.rowRevision : 0;
+    result = await pushCloudCas({ ...store, revision: rev + 1 }, rev, snapshotId);
+  }
+  return result;
+}
+
 async function pruneHistory(
   sb: NonNullable<ReturnType<typeof getSupabaseAdmin>>,
   snapshotId: string

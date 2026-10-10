@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/client-api";
-import { EmptyState, StatusChip } from "@/components/ui/Progress";
-import { DualRing } from "@/components/ui/Charts";
-import { IconInner, IconOuter, IconPath, IconSteps } from "@/components/ui/Icons";
-import { KpiTile, PageHero, WidgetHead } from "@/components/ui/Widgets";
+import { EmptyState } from "@/components/ui/Progress";
+import { PageHero, WidgetHead } from "@/components/ui/Widgets";
 import { toast } from "@/components/ui/Toast";
 import { PlanQuestB } from "@/components/plan/PlanQuestB";
 
@@ -65,6 +63,8 @@ export default function GoalDetailPage() {
   const [data, setData] = useState<GoalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [outcomeText, setOutcomeText] = useState("");
+  const [celebrate, setCelebrate] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
   const load = useCallback(async () => {
     if (!goalId) return;
@@ -77,14 +77,22 @@ export default function GoalDetailPage() {
     void load();
   }, [load]);
 
-  async function closeGoal() {
-    if (!window.confirm("Закрыть эту цель?")) return;
-    const res = await apiPost("/api/goals", { action: "archive", id: goalId });
-    if (!res.ok) toast(res.error ?? "Не удалось", "warn");
-    else {
-      toast("Закрыто", "ok");
-      router.push("/goals");
+  async function completeGoal() {
+    if (finishing) return;
+    setFinishing(true);
+    const res = await apiPost("/api/goals", {
+      action: "complete",
+      id: goalId,
+      note: outcomeText.trim() || undefined,
+    });
+    setFinishing(false);
+    if (!res.ok) {
+      toast(res.error ?? "Не удалось завершить", "warn");
+      return;
     }
+    setCelebrate(false);
+    toast("Цель завершена", "ok");
+    router.push("/goals");
   }
 
   async function setSide(layer: "inner" | "outer") {
@@ -135,8 +143,12 @@ export default function GoalDetailPage() {
   const { goal, reality, plan } = data;
   const allSteps = plan?.phases.flatMap((p) => p.modules) ?? [];
   const stepsDone = allSteps.filter((m) => m.done).length;
-  const stagesDone = plan?.phases.filter((p) => p.status === "done" || p.progress >= 100).length ?? 0;
+  const stepsTotal = allSteps.length;
   const progress = Math.round(plan?.progress ?? reality.actual ?? 0);
+  const expected = Math.round(reality.expected ?? 0);
+  const stagesTotal = plan?.phases.length ?? 0;
+  const stagesDone =
+    plan?.phases.filter((p) => p.status === "done" || p.progress >= 100).length ?? 0;
 
   return (
     <div className="page-stack">
@@ -146,17 +158,15 @@ export default function GoalDetailPage() {
 
       <PageHero
         title={goal.title}
-        meta={
-          <>
-            <StatusChip status={reality.status} label={reality.label} />
-            {goal.area?.name ? <span className="chip-soft">{goal.area.name}</span> : null}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               className="chip-soft"
               data-active={goal.layer === "inner"}
               onClick={() => void setSide("inner")}
             >
-              Внутреннее
+              Внутр
             </button>
             <button
               type="button"
@@ -164,83 +174,65 @@ export default function GoalDetailPage() {
               data-active={goal.layer === "outer"}
               onClick={() => void setSide("outer")}
             >
-              Внешнее
+              Внеш
             </button>
-          </>
-        }
-        action={
-          <button type="button" className="btn" onClick={() => void closeGoal()}>
-            Закрыть
-          </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setCelebrate(true)}
+            >
+              Завершить
+            </button>
+          </div>
         }
       />
 
-      <div className="bento">
-        <div className="span-3">
-          <KpiTile
-            label="Прогресс"
-            value={<>{progress}%</>}
-            color="#c084fc"
-            icon={<IconPath size={16} />}
-          />
+      <section className="panel goal-stats">
+        <div className="goal-stat">
+          <p className="goal-stat-label">План</p>
+          <p className="goal-stat-value" style={{ color: "var(--accent)" }}>
+            {progress}%
+          </p>
         </div>
-        <div className="span-3">
-          <KpiTile
-            label="Шаги"
-            value={
-              <>
-                {stepsDone}
-                <span className="kpi-den">/{allSteps.length}</span>
-              </>
-            }
-            color="#34d399"
-            icon={<IconSteps size={16} />}
-          />
+        <div className="goal-stat">
+          <p className="goal-stat-label">Шаги</p>
+          <p className="goal-stat-value" style={{ color: "#34d399" }}>
+            {stepsDone}
+            <span className="goal-stat-den">/{stepsTotal || 0}</span>
+          </p>
         </div>
-        <div className="span-3">
-          <KpiTile
-            label="Этапы"
-            value={
-              <>
-                {stagesDone}
-                <span className="kpi-den">/{plan?.phases.length ?? 0}</span>
-              </>
-            }
-            color="#38bdf8"
-            icon={goal.layer === "outer" ? <IconOuter size={16} /> : <IconInner size={16} />}
-          />
+        <div className="goal-stat">
+          <p className="goal-stat-label">Этапы</p>
+          <p className="goal-stat-value" style={{ color: "#a855f7" }}>
+            {stagesDone}
+            <span className="goal-stat-den">/{stagesTotal || 0}</span>
+          </p>
         </div>
-        <div className="span-3">
-          <section className="panel flex h-full items-center justify-center">
-            <DualRing
-              size={112}
-              outer={{ percent: progress, color: "#c084fc", label: "факт" }}
-              inner={{
-                percent: Math.round(reality.expected ?? progress),
-                color: "#38bdf8",
-                label: "план",
-              }}
-            />
-          </section>
+        <div className="goal-stat">
+          <p className="goal-stat-label">Ожидание</p>
+          <p className="goal-stat-value" style={{ color: "#38bdf8" }}>
+            {expected > 0 ? `${expected}%` : "—"}
+          </p>
         </div>
+        <div className="goal-stat-bar">
+          <span style={{ width: `${progress}%` }} />
+        </div>
+      </section>
 
-        <div className="span-12">
-          <form onSubmit={addOutcome} className="panel flex flex-wrap items-end gap-3">
-            <div className="min-w-[12rem] flex-1">
-              <WidgetHead title="Результат" tone="green" />
-              <input
-                className="field"
-                value={outcomeText}
-                onChange={(e) => setOutcomeText(e.target.value)}
-                placeholder="Что изменилось?"
-              />
-            </div>
-            <button type="submit" className="btn btn-primary shrink-0">
-              Записать
-            </button>
-          </form>
+      <form onSubmit={addOutcome} className="panel flex flex-wrap items-end gap-3">
+        <div className="min-w-[12rem] flex-1">
+          <WidgetHead title="Результат" tone="green" />
+          <input
+            className="field"
+            value={outcomeText}
+            onChange={(e) => setOutcomeText(e.target.value)}
+            placeholder="Что изменилось?"
+          />
         </div>
-      </div>
+        <button type="submit" className="btn btn-primary shrink-0">
+          Записать
+        </button>
+      </form>
 
       {!plan ? (
         <section className="panel">
@@ -258,6 +250,57 @@ export default function GoalDetailPage() {
           onChanged={() => void load()}
         />
       )}
+
+      {celebrate ? (
+        <div
+          className="celebrate-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="celebrate-title"
+          onClick={() => !finishing && setCelebrate(false)}
+        >
+          <div
+            className="celebrate-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="celebrate-kicker">Цель закрыта</p>
+            <h2 id="celebrate-title" className="celebrate-title">
+              {goal.title}
+            </h2>
+            <p className="celebrate-lede">Красиво. Ты довела это до конца.</p>
+            <div className="celebrate-stats">
+              <span>{progress}%</span>
+              <span>
+                {stepsDone}/{stepsTotal || 0} шагов
+              </span>
+              <span>
+                {stagesDone}/{stagesTotal || 0} этапов
+              </span>
+            </div>
+            {goal.area?.name ? (
+              <p className="celebrate-area">{goal.area.name}</p>
+            ) : null}
+            <div className="celebrate-actions">
+              <button
+                type="button"
+                className="btn"
+                disabled={finishing}
+                onClick={() => setCelebrate(false)}
+              >
+                Ещё нет
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={finishing}
+                onClick={() => void completeGoal()}
+              >
+                {finishing ? "…" : "Завершить"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

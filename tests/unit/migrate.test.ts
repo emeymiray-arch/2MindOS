@@ -3,13 +3,16 @@ import { CURRENT_VERSION, migrateStore } from "@/lib/migrate";
 import { createEmptyStore } from "@/lib/seed";
 
 describe("migrateStore", () => {
-  it("upgrades empty seed store to CURRENT_VERSION", () => {
+  it("client seed is current and stays empty after migrate", () => {
     const store = createEmptyStore();
-    expect(store.version).toBeLessThan(CURRENT_VERSION);
+    expect(store.version).toBe(CURRENT_VERSION);
+    expect(store.goals).toHaveLength(0);
+    expect(store.projects).toHaveLength(0);
     const next = migrateStore(structuredClone(store));
     expect(next.version).toBe(CURRENT_VERSION);
+    expect(next.goals).toHaveLength(0);
+    expect(next.projects).toHaveLength(0);
     expect(Array.isArray(next.habits)).toBe(true);
-    expect(Array.isArray(next.goals)).toBe(true);
     expect(next.settings?.theme).toBeTruthy();
   });
 

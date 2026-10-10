@@ -220,56 +220,7 @@ export function migrateStore(raw: LifeStore): LifeStore {
     diary: p.diary ?? [],
   }));
 
-  // Seed career projects if empty
-  if (store.projects.length === 0) {
-    const career = store.spheres.find((s) => s.slug === "career");
-    const t = new Date().toISOString();
-    for (const spec of [
-      {
-        name: "Engineering → AI → Business",
-        tagline: "Learning → Skill → Project → Product → Business",
-        modules: ["Engineering Foundation", "Web Engineering", "AI Development", "Product Building", "First Business"],
-      },
-      {
-        name: "European Fast Food — Chechnya",
-        tagline: "Research → Concept → Launch",
-        modules: ["Research", "Market", "Concept", "Competitors", "Menu", "Unit Economics", "Branding", "Location", "MVP", "Launch"],
-      },
-    ]) {
-      const nodeId = id();
-      store.nodes.push({
-        id: nodeId,
-        kind: "project",
-        title: spec.name,
-        metadata: {},
-        salience: 0.9,
-        createdAt: t,
-        updatedAt: t,
-        sphereId: career?.id,
-      });
-      store.projects.push({
-        id: id(),
-        nodeId,
-        name: spec.name,
-        tagline: spec.tagline,
-        status: "active",
-        lifeAreaId: career?.id,
-        kpi: [],
-        modules: {
-          docs: spec.modules,
-          tasks: spec.modules.map((title) => ({ id: id(), title, done: false })),
-          ideas: [],
-          financeNotes: [],
-          team: [],
-          marketing: [],
-          sales: [],
-          files: [],
-          changelog: [{ at: t, text: "Created as Career venture" }],
-        },
-        diary: [],
-      });
-    }
-  }
+  // Do not seed demo ventures into empty stores (multi-tenant sale).
 
   if (!store.finance) {
     store.finance = {

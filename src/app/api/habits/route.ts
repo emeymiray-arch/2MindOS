@@ -20,9 +20,34 @@ function streakFor(habitId: string, logs: { habitId: string; date: string; value
   return streak;
 }
 
-export async function GET() {
+function weekDays(anchorIso: string) {
+  const anchor = new Date(anchorIso + "T12:00:00");
+  const day = (anchor.getDay() + 6) % 7; // Mon=0
+  const monday = new Date(anchor);
+  monday.setDate(anchor.getDate() - day);
+  const labels = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+  const today = todayKey();
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    return {
+      iso,
+      label: labels[i],
+      short: String(d.getDate()),
+      isToday: iso === today,
+    };
+  });
+}
+
+export async function GET(request: Request) {
   const store = await getStore();
   const today = todayKey();
+  const url = new URL(request.url);
+  const weekAnchor = (url.searchParams.get("week") || today).slice(0, 10);
+  const days = weekDays(weekAnchor);
+  const daySet = new Set(days.map((d) => d.iso));
+
   const habits = (store.habits ?? [])
     .filter((h) => h.active && !h.archived)
     .map((h) => {
@@ -30,17 +55,38 @@ export async function GET() {
       const logs = store.habitLogs.filter((l) => l.habitId === h.id);
       const doneDays = new Set(logs.filter((l) => l.value > 0).map((l) => l.date)).size;
       const window = 30;
+      const weekHits = logs.filter((l) => daySet.has(l.date) && l.value > 0).length;
       return {
         ...h,
         streak: streakFor(h.id, store.habitLogs),
         todayValue: todayLog?.value ?? 0,
         todayDone: (todayLog?.value ?? 0) >= h.targetPerDay,
         completionRate: Math.round((doneDays / window) * 100),
+        weekHits,
         goal: h.goalId ? store.goals.find((g) => g.id === h.goalId) ?? null : null,
         area: h.lifeAreaId ? store.spheres.find((s) => s.id === h.lifeAreaId) ?? null : null,
       };
     });
-  return apiJson({ habits, today });
+
+  const logsByHabit: Record<string, Record<string, number>> = {};
+  for (const h of habits) {
+    logsByHabit[h.id] = {};
+    for (const d of days) {
+      const hit = store.habitLogs.find((l) => l.habitId === h.id && l.date === d.iso);
+      logsByHabit[h.id][d.iso] = hit?.value ?? 0;
+    }
+  }
+
+  return apiJson({
+    habits,
+    today,
+    week: {
+      anchor: days[0]?.iso ?? weekAnchor,
+      label: `${days[0]?.short ?? ""}–${days[6]?.short ?? ""}`,
+      days,
+      logs: logsByHabit,
+    },
+  });
 }
 
 export async function POST(request: Request) {

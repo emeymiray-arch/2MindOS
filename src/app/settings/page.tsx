@@ -186,7 +186,7 @@ export default function SettingsPage() {
             <Link href="/privacy" className="btn">
               Хранение данных
             </Link>
-            {(isAdmin || login === "owner") && (
+            {isAdmin && (
               <Link href="/admin" className="btn btn-primary">
                 Клиенты
               </Link>
@@ -234,7 +234,7 @@ export default function SettingsPage() {
       <section className="panel space-y-4 rise-in">
         <WidgetHead title="Акцент" tone="green" />
         <p className="text-[13px] text-[var(--ink-faint)]">
-          Цвет кнопок, активной вкладки и акцентов по всему приложению.
+          Работает в тёмной и светлой теме: кнопки, вкладки, фон и акценты.
         </p>
         <div className="flex flex-wrap gap-2">
           {ACCENT_COLORS.map((c) => (

@@ -6,7 +6,6 @@ import { apiGet, apiPost } from "@/lib/client-api";
 import { Onboarding } from "@/components/shell/Onboarding";
 import { EmptyState } from "@/components/ui/Progress";
 import { TaskBlock, TaskRow, type TaskRowData } from "@/components/tasks/TaskRow";
-import { DualRing } from "@/components/ui/Charts";
 import {
   IconAlert,
   IconFlame,
@@ -62,7 +61,16 @@ type HomeData = {
     weeks?: WeekPulse[];
     days14?: Day[];
     goals?: AnalyticsGoal[];
-    velocity?: { activeStreak: number; bestStreak60: number };
+    stages?: { done: number; total: number };
+    modules?: { done: number; total: number };
+    habits?: { active: number };
+    byStatus?: { ahead: number; on_track: number; behind: number; no_plan: number };
+    velocity?: {
+      activeStreak: number;
+      bestStreak60: number;
+      avgTasksDay14?: number;
+      percent14?: number;
+    };
   };
   life?: LifePanel;
   goals?: { id: string; reality: { status: string } }[];
@@ -83,14 +91,6 @@ function formatDay(iso: string) {
     });
   } catch {
     return iso;
-  }
-}
-
-function formatClock() {
-  try {
-    return new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
   }
 }
 
@@ -128,7 +128,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [personalTitle, setPersonalTitle] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [clock, setClock] = useState(formatClock);
 
   const load = useCallback(async () => {
     const [osRes, stateRes] = await Promise.all([apiGet("/api/os"), apiGet("/api/state")]);
@@ -147,11 +146,6 @@ export default function HomePage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    const t = window.setInterval(() => setClock(formatClock()), 30_000);
-    return () => window.clearInterval(t);
-  }, []);
 
   async function addPersonal(e: React.FormEvent) {
     e.preventDefault();
@@ -192,7 +186,6 @@ export default function HomePage() {
   }
 
   const life = data.life;
-  const main = (life?.directions ?? []).filter((d) => d.focus === "main");
   const habits = data.tasks.habits;
   const steps = data.tasks.fromGoals;
   const personal = data.tasks.personal;
@@ -202,6 +195,8 @@ export default function HomePage() {
   const done = habitsDone + stepsDone + personalDone;
   const total = habits.length + steps.length + personal.length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  const habitPct = habits.length ? Math.round((habitsDone / habits.length) * 100) : 0;
+  const stepsPct = steps.length ? Math.round((stepsDone / steps.length) * 100) : 0;
   const weekPcts = (data.analytics?.weeks ?? []).map((w) => w.percent).reverse();
   const days14 = data.analytics?.days14 ?? [];
   const days7 = days14.slice(-7);
@@ -210,41 +205,79 @@ export default function HomePage() {
   const velocity = data.analytics?.velocity;
   const alerts = life?.attention ?? [];
   const mainTasks = pickMain(data);
+  const mainIds = new Set(mainTasks.map((c) => c.task.id));
+  const otherSteps = steps.filter((t) => !mainIds.has(t.id));
+  const status = data.analytics?.byStatus;
+  const goalsActive =
+    (status?.ahead ?? 0) +
+    (status?.on_track ?? 0) +
+    (status?.behind ?? 0) +
+    (status?.no_plan ?? 0);
+  const goalsOk = (status?.ahead ?? 0) + (status?.on_track ?? 0);
+  const stages = data.analytics?.stages ?? { done: 0, total: 0 };
+  const modules = data.analytics?.modules ?? { done: 0, total: 0 };
+  const stagePct = stages.total ? Math.round((stages.done / stages.total) * 100) : 0;
+  const modulePct = modules.total ? Math.round((modules.done / modules.total) * 100) : 0;
+
+  const mainDirs = (life?.directions ?? []).filter((d) => d.focus === "main");
   const goalsByArea = new Map<string, AnalyticsGoal[]>();
   for (const g of data.analytics?.goals ?? []) {
     if (!g.lifeAreaId) continue;
     goalsByArea.set(g.lifeAreaId, [...(goalsByArea.get(g.lifeAreaId) ?? []), g]);
   }
-  const directionSteps = main.map((d) => {
+  const focusGoals = mainDirs.flatMap((d) => {
     const goals = (goalsByArea.get(d.id) ?? []).filter((g) => g.reality.actual < 100);
-    const goal =
-      goals.find((g) => g.reality.status === "behind" && g.nextStep) ??
-      goals.find((g) => g.nextStep) ??
-      goals[0];
-    return { direction: d, goal };
+    return goals.slice(0, 2).map((goal) => ({ direction: d, goal }));
   });
+
   return (
     <div className="page-stack">
       <header className="home-hero">
-        <div className="min-w-0">
-          <h1 className="page-title text-[1.85rem] md:text-[2.25rem]">{formatDay(data.today)}</h1>
-          {main.length ? (
-            <div className="home-hero-meta">
-              {main.slice(0, 3).map((d) => (
-                <span key={d.id} className="chip-soft">
-                  {d.name}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-        <div className="home-hero-action">
-          <p className="home-clock-time">{clock}</p>
-          <p className="home-clock-meta">
-            {pct}% · серия {velocity?.activeStreak ?? 0}д
+        <h1 className="page-title text-[1.85rem] md:text-[2.25rem]">{formatDay(data.today)}</h1>
+      </header>
+
+      <section className="panel pulse-board">
+        <div className="pulse-cell">
+          <p className="pulse-label">Сегодня</p>
+          <p className="pulse-value">{pct}%</p>
+          <p className="pulse-sub">
+            {done}/{total}
           </p>
         </div>
-      </header>
+        <div className="pulse-cell">
+          <p className="pulse-label">Неделя</p>
+          <p className="pulse-value">{data.week?.percent ?? 0}%</p>
+          <p className="pulse-sub">
+            {data.week?.completed ?? 0}/{data.week?.planned ?? 0}
+          </p>
+        </div>
+        <div className="pulse-cell">
+          <p className="pulse-label">Привычки</p>
+          <p className="pulse-value">{habitPct}%</p>
+          <p className="pulse-sub">
+            {habitsDone}/{habits.length}
+          </p>
+        </div>
+        <div className="pulse-cell">
+          <p className="pulse-label">Цели · шаги</p>
+          <p className="pulse-value">{stepsPct}%</p>
+          <p className="pulse-sub">
+            {stepsDone}/{steps.length}
+          </p>
+        </div>
+        <div className="pulse-cell">
+          <p className="pulse-label">Серия</p>
+          <p className="pulse-value">{velocity?.activeStreak ?? 0}</p>
+          <p className="pulse-sub">дней</p>
+        </div>
+        <div className="pulse-cell">
+          <p className="pulse-label">Просрочено</p>
+          <p className="pulse-value" style={{ color: data.tasks.overdue.length ? "var(--behind)" : undefined }}>
+            {data.tasks.overdue.length}
+          </p>
+          <p className="pulse-sub">задач</p>
+        </div>
+      </section>
 
       <div className="bento">
         <div className="span-3">
@@ -256,6 +289,7 @@ export default function HomePage() {
                 <span className="kpi-den">/{habits.length}</span>
               </>
             }
+            hint={`${habitPct}%`}
             color="#34d399"
             icon={<IconHabits size={16} />}
             series={habitSeries.length ? habitSeries : undefined}
@@ -263,13 +297,14 @@ export default function HomePage() {
         </div>
         <div className="span-3">
           <KpiTile
-            label="Шаги"
+            label="Шаги сегодня"
             value={
               <>
                 {stepsDone}
                 <span className="kpi-den">/{steps.length}</span>
               </>
             }
+            hint={`${stepsPct}%`}
             color="#a855f7"
             icon={<IconSteps size={16} />}
             series={goalSeries.length ? goalSeries : undefined}
@@ -277,38 +312,42 @@ export default function HomePage() {
         </div>
         <div className="span-3">
           <KpiTile
-            label="Серия"
-            value={
-              <>
-                {velocity?.activeStreak ?? 0}
-                <span className="kpi-den">д</span>
-              </>
-            }
+            label="Этапы"
+            value={<>{stagePct}%</>}
+            hint={`${stages.done}/${stages.total}`}
             color="#fb923c"
             icon={<IconFlame size={16} />}
           />
         </div>
         <div className="span-3">
           <KpiTile
-            label="Неделя"
-            value={<>{data.week?.percent ?? 0}%</>}
+            label="Цели в ритме"
+            value={
+              <>
+                {goalsOk}
+                <span className="kpi-den">/{goalsActive}</span>
+              </>
+            }
+            hint={status?.behind ? `${status.behind} отстают` : `${modulePct}% шагов плана`}
             color="#38bdf8"
             icon={<IconTarget size={16} />}
             series={weekPcts.length ? weekPcts : undefined}
           />
         </div>
 
-        <div className="span-5">
+        <div className="span-7">
           <section className="panel h-full">
             <WidgetHead
-              title="Главное"
+              title="Главное сегодня"
               tone="violet"
               action={
                 data.tasks.overdue.length ? (
                   <Link href="/analytics" className="widget-link" style={{ color: "var(--behind)" }}>
-                    {data.tasks.overdue.length}
+                    {data.tasks.overdue.length} проср.
                   </Link>
-                ) : null
+                ) : (
+                  <span className="text-[12px] text-[var(--ink-faint)]">{mainTasks.length}</span>
+                )
               }
             />
             {mainTasks.length === 0 ? (
@@ -329,22 +368,17 @@ export default function HomePage() {
           </section>
         </div>
 
-        <div className="span-3">
-          <section className="panel flex h-full flex-col">
-            <WidgetHead title="Фокус" tone="pink" />
-            <div className="flex flex-1 flex-col items-center justify-center py-2">
-              <DualRing
-                size={136}
-                outer={{ percent: pct, color: "#c084fc", label: "сегодня" }}
-                inner={{ percent: data.week?.percent ?? 0, color: "#38bdf8", label: "неделя" }}
-              />
-            </div>
-          </section>
-        </div>
-
-        <div className="span-4">
+        <div className="span-5">
           <section className="panel h-full">
             <WidgetHead title="Неделя" tone="blue" />
+            <div className="mb-3 flex items-baseline gap-2">
+              <span className="text-[1.6rem] font-bold tabular-nums text-[var(--accent)]">
+                {data.week?.percent ?? 0}%
+              </span>
+              <span className="text-[12px] text-[var(--ink-faint)]">
+                {data.week?.completed ?? 0}/{data.week?.planned ?? 0}
+              </span>
+            </div>
             <div className="grid grid-cols-7 gap-2">
               {days7.map((d) => {
                 const isToday = d.date === data.today;
@@ -372,9 +406,13 @@ export default function HomePage() {
         <div className="span-6">
           <section className="panel h-full">
             <WidgetHead
-              title="Ритм"
+              title="Привычки"
               tone="green"
-              action={<Link href="/habits" className="widget-link">все →</Link>}
+              action={
+                <Link href="/habits" className="widget-link">
+                  {habitsDone}/{habits.length}
+                </Link>
+              }
             />
             {habits.length === 0 ? (
               <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">Нет привычек.</p>
@@ -393,16 +431,22 @@ export default function HomePage() {
         <div className="span-6">
           <section className="panel h-full">
             <WidgetHead
-              title="Шаги пути"
+              title="Остальные шаги"
               tone="violet"
-              action={<Link href="/goals" className="widget-link">путь →</Link>}
+              action={
+                <Link href="/goals" className="widget-link">
+                  {otherSteps.filter((t) => !t.done).length} откр.
+                </Link>
+              }
             />
-            {steps.length === 0 ? (
-              <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">Нет шагов.</p>
+            {otherSteps.length === 0 ? (
+              <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">
+                {steps.length ? "Всё уже в «Главном»." : "Нет шагов на сегодня."}
+              </p>
             ) : (
               <TaskBlock>
                 <div className="-mx-1 max-h-[16rem] space-y-1 overflow-y-auto">
-                  {steps.map((t) => (
+                  {otherSteps.map((t) => (
                     <TaskRow key={t.id} task={t} onChanged={() => void load()} />
                   ))}
                 </div>
@@ -416,7 +460,7 @@ export default function HomePage() {
             <WidgetHead
               title="Сигналы"
               tone="orange"
-              action={<Link href="/analytics" className="widget-link">→</Link>}
+              action={<Link href="/analytics" className="widget-link">аналит.</Link>}
             />
             {alerts.length === 0 && data.tasks.overdue.length === 0 ? (
               <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">Тихо.</p>
@@ -451,34 +495,32 @@ export default function HomePage() {
 
         <div className="span-4">
           <section className="panel h-full">
-            <WidgetHead title="Дальше" tone="pink" />
-            {directionSteps.length === 0 ? (
+            <WidgetHead
+              title="Цели в фокусе"
+              tone="pink"
+              action={<Link href="/map" className="widget-link">карта</Link>}
+            />
+            {focusGoals.length === 0 ? (
               <p className="text-[14px] leading-relaxed text-[var(--ink-soft)]">
-                <Link href="/map" className="font-semibold text-[var(--accent)]">
-                  Карта
-                </Link>
+                Нет активных целей в главном.
               </p>
             ) : (
               <ul className="space-y-2.5">
-                {directionSteps.map(({ direction, goal }) => (
-                  <li key={direction.id}>
-                    <Link href={goal ? `/goals/${goal.id}` : "/map"} className="next-card">
-                      <span className="next-ico">
-                        <IconTarget size={15} />
-                      </span>
+                {focusGoals.map(({ direction, goal }) => (
+                  <li key={`${direction.id}-${goal.id}`}>
+                    <Link href={`/goals/${goal.id}`} className="next-card">
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12px] font-medium text-[var(--ink-faint)]">
-                          {direction.name}
+                        <span className="block truncate text-[14px] font-semibold leading-snug">
+                          {goal.title}
                         </span>
-                        <span className="mt-1 block text-[14px] font-medium leading-snug">
-                          {goal?.nextStep?.title ?? (goal ? goal.title : "Нет цели")}
+                        <span className="mt-0.5 block truncate text-[12px] text-[var(--ink-faint)]">
+                          {direction.name}
+                          {goal.nextStep?.title ? ` · дальше: ${goal.nextStep.title}` : ""}
                         </span>
                       </span>
-                      {goal ? (
-                        <span className="shrink-0 text-[13px] tabular-nums text-[var(--ink-faint)]">
-                          {goal.reality.actual}%
-                        </span>
-                      ) : null}
+                      <span className="shrink-0 text-[15px] font-bold tabular-nums text-[var(--accent)]">
+                        {Math.round(goal.reality.actual)}%
+                      </span>
                     </Link>
                   </li>
                 ))}
